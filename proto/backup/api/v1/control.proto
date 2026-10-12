@@ -84,6 +84,10 @@ message JobDefinition {
 
   // File containing the repository password. The default password file when empty.
   string password_file = 10;
+
+  // Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the
+  // default.
+  string password_secret = 12;
 }
 
 // Settings that jobs inherit when they do not set their own.
@@ -94,6 +98,27 @@ message Defaults {
 
   // Restores are only allowed below this directory.
   string restore_root = 4;
+
+  // The stored secret that holds the default repository password, empty when the password file is used.
+  string password_secret = 6;
+}
+
+// A stored secret, a repository password. The value is never returned.
+message SecretInfo {
+  // Name of the secret.
+  string name = 1;
+
+  // Time at which the secret was created.
+  google.protobuf.Timestamp create_time = 2;
+
+  // Time at which the value was last set or changed.
+  google.protobuf.Timestamp update_time = 3;
+
+  // Names of the jobs that take their password from this secret.
+  repeated string jobs = 4;
+
+  // Whether the default password of the daemon is this secret.
+  bool default_password = 5;
 }
 
 // A job, its configuration and its state.

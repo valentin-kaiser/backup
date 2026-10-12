@@ -1,0 +1,20 @@
+// Resources of the sign-in of the backup portal.
+syntax = "proto3";
+
+package backup.api.v1;
+
+option go_package = "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1";
+
+option optimize_for = SPEED;
+
+// Requests a session.
+message LoginRequest {
+  // The password of the portal.
+  string password = 1;
+}
+
+// The state of the session of the caller.
+message Session {
+  // Whether the caller is signed in.
+  bool signed_in = 1;
+}

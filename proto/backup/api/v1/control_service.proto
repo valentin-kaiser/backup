@@ -54,6 +54,20 @@ service Control {
   // Restores a snapshot below the restore directory.
   rpc Restore(RestoreRequest) returns (Run);
 
+  // Lists the stored secrets, without their values.
+  rpc ListSecrets(ListSecretsRequest) returns (ListSecretsResponse);
+
+  // Creates a secret or replaces its value. This only changes what the daemon will present to restic, it does not
+  // change the password of a repository. Use ChangeRepositoryPassword for that.
+  rpc SetSecret(SetSecretRequest) returns (SetSecretResponse);
+
+  // Changes the password of every repository that uses the secret and stores the new one. A new key is added
+  // first and the old one removed last, so no step can lock the daemon out.
+  rpc ChangeRepositoryPassword(ChangeRepositoryPasswordRequest) returns (ChangeRepositoryPasswordResponse);
+
+  // Deletes a secret that no job uses.
+  rpc DeleteSecret(SecretRequest) returns (google.protobuf.Empty);
+
   // Streams run state changes and output lines as they happen.
   rpc Watch(WatchRequest) returns (stream Event);
 }
@@ -136,6 +150,65 @@ message RestoreRequest {
 
   // Name of a job, the snapshot is restored from its repository. The global repository when empty.
   string job = 4;
+}
+
+// Requests the secrets.
+message ListSecretsRequest {}
+
+// The secrets sorted by name.
+message ListSecretsResponse {
+  repeated SecretInfo secrets = 1;
+}
+
+// Addresses a secret.
+message SecretRequest {
+  string name = 1;
+}
+
+// Requests a secret to be created or its value replaced.
+message SetSecretRequest {
+  // Name: 1-32 characters of lower case letters, digits, - and _.
+  string name = 1;
+
+  // The value, a single line. Ignored when generate is set.
+  string value = 2;
+
+  // Generate a strong random value instead of taking one. It is returned once.
+  bool generate = 3;
+}
+
+// The secret and, when it was generated, its value.
+message SetSecretResponse {
+  SecretInfo secret = 1;
+
+  // The generated value. Only returned now, store it somewhere safe: without it the repository is lost.
+  string generated_value = 2;
+}
+
+// Requests a new password for the repositories of a secret.
+message ChangeRepositoryPasswordRequest {
+  // Name of the secret that the repositories use.
+  string name = 1;
+
+  // The new password, a single line. Ignored when generate is set.
+  string value = 2;
+
+  // Generate a strong random password. It is returned once.
+  bool generate = 3;
+}
+
+// The outcome of a password change.
+message ChangeRepositoryPasswordResponse {
+  SecretInfo secret = 1;
+
+  // The generated password. Only returned now, store it somewhere safe.
+  string generated_value = 2;
+
+  // Number of repositories that were changed.
+  int32 repositories = 3;
+
+  // Things that did not work but did not stop the change, e.g. an old key that is still there.
+  repeated string warnings = 4;
 }
 
 // Requests the event stream.

@@ -1,0 +1,19 @@
+// RPCs to read the audit log of the backup portal.
+syntax = "proto3";
+
+package backup.api.v1;
+
+import "backup/api/v1/audit.proto";
+
+option go_package = "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1";
+
+option optimize_for = SPEED;
+
+// Reads what was done through the portal. Needs a session.
+service AuditLog {
+  // Lists entries, newest first.
+  rpc ListAuditLog(ListAuditLogRequest) returns (ListAuditLogResponse);
+
+  // Returns the matching entries as a file. The export is recorded in the log.
+  rpc ExportAuditLog(ExportAuditLogRequest) returns (ExportAuditLogResponse);
+}
