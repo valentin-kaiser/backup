@@ -191,7 +191,7 @@ export class JobEditPage {
     });
     try {
       await (this.isNew() ? this.control.createJob(definition) : this.control.updateJob(definition));
-      await this.router.navigate(['/jobs']);
+      await this.router.navigate(['/']);
     } catch (error) {
       this.error.set(message(error));
     } finally {
@@ -215,7 +215,7 @@ export class JobEditPage {
     }
     try {
       await this.control.deleteJob(name);
-      await this.router.navigate(['/jobs']);
+      await this.router.navigate(['/']);
     } catch (error) {
       this.error.set(message(error));
     }

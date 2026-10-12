@@ -47,7 +47,6 @@
   <section>
     <div class="section-header">
       <h2>Jobs</h2>
-      <a routerLink="/jobs" class="muted-link">Manage jobs</a>
     </div>
     @if (control.definedJobs().length) {
       <div class="cards">
@@ -74,13 +73,6 @@
     </section>
   }
 
-  <section>
-    <div class="section-header">
-      <h2>Recent runs</h2>
-      <a routerLink="/history" class="muted-link">All runs</a>
-    </div>
-    <app-run-table [runs]="recent()" />
-  </section>
 } @else {
   <div class="skeleton tiles-skeleton"></div>
   <div class="skeleton cards-skeleton"></div>

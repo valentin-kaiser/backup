@@ -124,6 +124,6 @@ export class BrowsePage {
   }
 
   protected backLink(): { link: string[]; params: Record<string, string | undefined> } {
-    return { link: ['/snapshots'], params: { job: this.job() } };
+    return { link: ['/'], params: {} };
   }
 }

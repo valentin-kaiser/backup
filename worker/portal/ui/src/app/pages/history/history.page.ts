@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { Router } from '@angular/router';
 
 import { IconComponent } from '../../components/icon/icon.component';
 import { RunTableComponent } from '../../components/run-table/run-table.component';
@@ -20,10 +19,12 @@ const STATUSES = ['success', 'failed', 'running', 'queued', 'cancelled', 'skippe
 })
 export class HistoryPage {
   protected readonly control = inject(ControlService);
-  private readonly router = inject(Router);
 
   /** Job filter from the query string. */
   readonly job = input<string | undefined>(undefined);
+  /** The filter picked in the page, it wins over the one from the query string. */
+  protected readonly chosen = signal<string | undefined>(undefined);
+  protected readonly selectedJob = computed(() => this.chosen() ?? this.job() ?? '');
 
   protected readonly statuses = STATUSES;
   protected readonly status = signal('');
@@ -43,7 +44,7 @@ export class HistoryPage {
 
   constructor() {
     effect(() => {
-      const job = this.job() ?? '';
+      const job = this.selectedJob();
       const limit = this.limit();
       this.control.changes();
       untracked(() => void this.load(job, limit));
@@ -72,7 +73,7 @@ export class HistoryPage {
 
   protected chooseJob(job: string): void {
     this.limit.set(PAGE);
-    void this.router.navigate([], { queryParams: { job: job || null }, queryParamsHandling: 'merge' });
+    this.chosen.set(job);
   }
 
   protected showMore(): void {

@@ -1,38 +1,29 @@
-<div class="shell">
-  <aside class="sidebar">
-    <a class="brand" routerLink="/">
+<div class="shell" [class.drawer-open]="drawerOpen()" [class.drawer-wide]="drawerWide()">
+  <header class="topbar">
+    <a class="brand" href="#/" (click)="$event.preventDefault(); toTop()">
       <span class="logo"><app-icon name="snapshots" /></span>
       <span>Backup</span>
     </a>
 
-    <nav aria-label="Main">
-      @for (item of nav; track item.path) {
-        <a
-          [routerLink]="item.path"
-          routerLinkActive="active"
-          [routerLinkActiveOptions]="{ exact: item.exact }"
-        >
-          <app-icon [name]="item.icon" />
-          <span>{{ item.label }}</span>
-          @if (item.path === '/jobs' && control.running().length) {
-            <span class="badge" title="Jobs running now">{{ control.running().length }}</span>
-          }
-        </a>
-      }
-    </nav>
+    <div class="spacer"></div>
 
     <div class="status">
       @if (!control.connected()) {
-        <span class="dot bad"></span> Connecting to the daemon…
+        <span class="dot bad"></span> <span class="status-text">Connecting…</span>
       } @else if (control.status(); as status) {
         <span class="dot" [class.ok]="status.healthy" [class.bad]="!status.healthy"></span>
-        {{ status.healthy ? 'Healthy' : 'Needs attention' }}
-        <span class="muted version">{{ status.version.split('\n')[0] }}</span>
+        <span class="status-text">{{ status.healthy ? 'Healthy' : 'Needs attention' }}</span>
+        <span class="muted version" [title]="status.version">{{ status.version.split('\n')[0] }}</span>
       } @else {
-        <span class="dot"></span> Loading…
+        <span class="dot"></span> <span class="status-text">Loading…</span>
       }
     </div>
-  </aside>
+
+    <button type="button" class="icon theme-toggle" (click)="toggleTheme()" [attr.aria-label]="dark() ? 'Switch to light theme' : 'Switch to dark theme'" [title]="dark() ? 'Light mode' : 'Dark mode'">
+      <app-icon [name]="dark() ? 'sun' : 'moon'" />
+    </button>
+    <a class="button primary" routerLink="/jobs/new"><app-icon name="plus" /> <span class="btn-text">New job</span></a>
+  </header>
 
   <main class="content">
     @if (!control.connected()) {
@@ -41,8 +32,29 @@
         The portal lost the connection to the daemon. It reconnects on its own, what you see may be out of date.
       </div>
     }
-    <router-outlet />
+    <section id="overview" class="section"><app-dashboard /></section>
+    <div class="panels">
+      <section id="history" class="section"><app-history /></section>
+      <section id="snapshots" class="section">
+        <!-- Querying a repository is slow, only do it once the section comes into view. -->
+        @defer (on viewport; prefetch on idle) {
+          <app-snapshots />
+        } @placeholder (minimum 0ms) {
+          <div class="skeleton cards-skeleton"></div>
+        }
+      </section>
+    </div>
   </main>
+
+  <div class="drawer-backdrop" (click)="close()" aria-hidden="true"></div>
+  <aside class="drawer" role="dialog" aria-label="Details" [attr.aria-hidden]="!drawerOpen()" [attr.inert]="drawerOpen() ? null : ''">
+    <button type="button" class="icon drawer-close" (click)="close()" aria-label="Close (Esc)" title="Close (Esc)">
+      <app-icon name="close" />
+    </button>
+    <div class="drawer-body">
+      <router-outlet />
+    </div>
+  </aside>
 </div>
 
 <app-toasts />

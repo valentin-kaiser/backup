@@ -1,4 +1,4 @@
-<a routerLink="/history" class="back"><app-icon name="back" /> History</a>
+<a routerLink="/" class="back"><app-icon name="back" /> Overview</a>
 
 @if (run(); as run) {
   <header class="page-header">
@@ -55,7 +55,7 @@
     <app-icon name="alert" />
     <h3>This run is not available</h3>
     <p>{{ error() }}</p>
-    <a class="button secondary" routerLink="/history">Back to the history</a>
+    <a class="button secondary" routerLink="/">Back to the overview</a>
   </div>
 } @else {
   <div class="skeleton cards-skeleton"></div>

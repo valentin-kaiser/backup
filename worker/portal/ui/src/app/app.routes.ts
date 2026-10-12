@@ -1,18 +1,10 @@
 import { Routes } from '@angular/router';
 
+import { BlankPage } from './pages/blank/blank.page';
+
 export const routes: Routes = [
-  {
-    path: '',
-    pathMatch: 'full',
-    title: 'Overview',
-    loadComponent: () => import('./pages/dashboard/dashboard.page').then((m) => m.DashboardPage),
-  },
-  {
-    path: 'jobs',
-    pathMatch: 'full',
-    title: 'Jobs',
-    loadComponent: () => import('./pages/jobs/jobs.page').then((m) => m.JobsPage),
-  },
+  // The overview is always on screen, every other route opens in the drawer next to it.
+  { path: '', pathMatch: 'full', title: 'Overview', component: BlankPage },
   {
     path: 'jobs/new',
     title: 'New job',
@@ -24,11 +16,6 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/job-edit/job-edit.page').then((m) => m.JobEditPage),
   },
   {
-    path: 'history',
-    title: 'History',
-    loadComponent: () => import('./pages/history/history.page').then((m) => m.HistoryPage),
-  },
-  {
     path: 'runs/:id',
     title: 'Run',
     loadComponent: () => import('./pages/run/run.page').then((m) => m.RunPage),
@@ -37,11 +24,6 @@ export const routes: Routes = [
     path: 'snapshots/:snapshot',
     title: 'Snapshot content',
     loadComponent: () => import('./pages/browse/browse.page').then((m) => m.BrowsePage),
-  },
-  {
-    path: 'snapshots',
-    title: 'Snapshots',
-    loadComponent: () => import('./pages/snapshots/snapshots.page').then((m) => m.SnapshotsPage),
   },
   { path: '**', redirectTo: '' },
 ];

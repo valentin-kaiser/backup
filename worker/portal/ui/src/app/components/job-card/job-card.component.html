@@ -12,7 +12,7 @@
   <dl>
     <dt>Schedule</dt>
     <dd>
-      {{ schedule() }}
+      <span class="ellip" [title]="schedule()">{{ schedule() }}</span>
       @if (job().paused) {
         <span class="tag">paused</span>
       }

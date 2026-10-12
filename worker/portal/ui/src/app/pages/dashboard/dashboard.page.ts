@@ -11,16 +11,14 @@ import { RouterLink } from '@angular/router';
 
 import { IconComponent } from '../../components/icon/icon.component';
 import { JobCardComponent } from '../../components/job-card/job-card.component';
-import { RunTableComponent } from '../../components/run-table/run-table.component';
 import { RunStatus } from '../../global/model/backup/api/v1/control';
 import { ControlService } from '../../global/services/control/control.service';
 import { formatRelative, formatTime } from '../../global/utils/format';
 
-const RECENT = 8;
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, IconComponent, JobCardComponent, RunTableComponent],
+  imports: [RouterLink, IconComponent, JobCardComponent],
   templateUrl: './dashboard.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -30,7 +28,6 @@ export class DashboardPage {
   protected readonly formatTime = formatTime;
   private readonly output = viewChild<ElementRef<HTMLElement>>('output');
 
-  protected readonly recent = computed(() => this.control.runs().slice(0, RECENT));
   protected readonly enabled = computed(() => this.control.definedJobs().filter((job) => job.enabled && !job.paused).length);
   protected readonly failures = computed(
     () => this.control.runs().filter((run) => run.status === RunStatus.RUN_STATUS_FAILED).length,

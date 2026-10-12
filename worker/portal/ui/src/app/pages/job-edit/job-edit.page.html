@@ -1,4 +1,4 @@
-<a routerLink="/jobs" class="back"><app-icon name="back" /> Jobs</a>
+<a routerLink="/" class="back"><app-icon name="back" /> Overview</a>
 
 <header class="page-header">
   <div>
@@ -14,7 +14,7 @@
     <app-icon name="alert" />
     <h3>This job does not exist</h3>
     <p>It may have been deleted.</p>
-    <a class="button secondary" routerLink="/jobs">Back to the jobs</a>
+    <a class="button secondary" routerLink="/">Back to the overview</a>
   </div>
 } @else {
   <form class="form" (submit)="$event.preventDefault(); save()" novalidate>
@@ -179,7 +179,7 @@
         }
       }
       <span class="spacer"></span>
-      <a class="button secondary" routerLink="/jobs">Cancel</a>
+      <a class="button secondary" routerLink="/">Cancel</a>
       <button type="submit" class="primary" [disabled]="saving()">
         {{ saving() ? 'Saving…' : isNew() ? 'Create job' : 'Save changes' }}
       </button>
