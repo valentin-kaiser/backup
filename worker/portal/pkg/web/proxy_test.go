@@ -42,7 +42,7 @@ func front(t *testing.T, target string) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(Proxy(u, false))
+	srv := httptest.NewServer(Proxy(u, nil, "", admin))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -50,7 +50,7 @@ func front(t *testing.T, target string) *httptest.Server {
 func TestProxyForwardsHTTP(t *testing.T) {
 	d := daemon(t)
 	f := front(t, d.URL)
-	resp, err := http.Post(f.URL+"/api/v1/rpc", "application/json", strings.NewReader("{}"))
+	resp, err := http.Post(f.URL+"/api/v1/rpc", "application/json", strings.NewReader(call))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestProxyForwardsWebsocket(t *testing.T) {
 	if conn.Subprotocol() != "xrpc.json" {
 		t.Errorf("negotiated %q", conn.Subprotocol())
 	}
-	if err := conn.WriteMessage(websocket.TextMessage, []byte("ping")); err != nil {
+	if err := conn.WriteMessage(websocket.TextMessage, []byte(call)); err != nil {
 		t.Fatal(err)
 	}
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -83,7 +83,7 @@ func TestProxyForwardsWebsocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(msg) != "ping|xrpc.json" {
+	if string(msg) != call+"|xrpc.json" {
 		t.Errorf("the daemon saw %q", msg)
 	}
 }
@@ -106,7 +106,7 @@ func TestProxyReportsAnUnreachableDaemon(t *testing.T) {
 	url := d.URL
 	d.Close()
 	f := front(t, url)
-	resp, err := http.Post(f.URL+"/api/v1/rpc", "application/json", strings.NewReader("{}"))
+	resp, err := http.Post(f.URL+"/api/v1/rpc", "application/json", strings.NewReader(call))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,3 +115,30 @@ func TestProxyReportsAnUnreachableDaemon(t *testing.T) {
 		t.Errorf("status %d", resp.StatusCode)
 	}
 }
+
+func TestProxyAuthenticatesWithItsOwnToken(t *testing.T) {
+	var got string
+	d := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("Authorization")
+	}))
+	defer d.Close()
+	u, _ := url.Parse(d.URL)
+	f := httptest.NewServer(Proxy(u, nil, "secret", admin))
+	defer f.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, f.URL+"/api/v1/rpc", strings.NewReader(call))
+	req.Header.Set("Authorization", "Bearer from-the-browser")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got != "Bearer secret" {
+		t.Errorf("daemon saw %q, the browser credentials must be replaced by the portal token", got)
+	}
+}
+
+const call = `{"jsonrpc":"2.0","id":1,"method":"Control.GetStatus"}`
+
+// admin lets every request in, these tests are about forwarding.
+func admin(*http.Request) bool { return true }

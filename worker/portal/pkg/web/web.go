@@ -2,69 +2,62 @@
 package web
 
 import (
-	"crypto/tls"
-	"crypto/x509/pkix"
 	"embed"
 	"io/fs"
-	"net/url"
-	"os"
+	"time"
 
+	"github.com/Valentin-Kaiser/backup/pkg/auth"
+	"github.com/Valentin-Kaiser/backup/pkg/secure"
+	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/audit"
 	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/config"
+	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/login"
+	api "github.com/Valentin-Kaiser/backup/worker/portal/pkg/web/api/v1"
 	"github.com/valentin-kaiser/go-core/apperror"
+	"github.com/valentin-kaiser/go-core/flag"
 	"github.com/valentin-kaiser/go-core/logging/log"
-	"github.com/valentin-kaiser/go-core/security"
 	"github.com/valentin-kaiser/go-core/web"
 )
 
 //go:embed all:static
 var assets embed.FS
 
-// apiPath is the only part of the daemon API the browser needs: the websocket and its plain HTTP form.
-const apiPath = "/api/v1/rpc"
-
-var done chan error
-
 // Start starts the web server in the background.
-func Start() error {
+func Start(store *login.Store, password *auth.Password, aud *audit.Log) error {
 	c := config.Get()
 	frontend, err := fs.Sub(assets, "static")
 	if err != nil {
 		return apperror.Wrap(err)
 	}
-	daemon, err := url.Parse(c.Daemon.URL)
-	if err != nil {
-		return apperror.Wrap(err)
-	}
+	authn := api.NewAuth(store, c.TLS, aud)
+	rpc := api.Handler(authn, api.NewAuditLog(authn, aud))
+	daemon := NewDaemon(func() config.Daemon { return config.Get().Daemon }, password, authn.Access, aud)
 
 	s := web.Instance().
 		WithHost(c.Address).
 		WithSecurityHeaders().
 		WithGzip().
 		WithLog().
-		WithHandler(apiPath, Proxy(daemon, c.Daemon.SkipCertificateVerification)).
+		WithRateLimit(api.Endpoint, 300, time.Minute).
+		WithHandler(api.Endpoint, rpc).
+		WithHandler(daemonRoute, daemon).
 		WithFS([]string{"/"}, frontend)
 
-	if c.TLS {
-		cfg, err := tlsConfig(c)
-		if err != nil {
-			return err
-		}
-		s = s.WithTLS(cfg).WithPort(uint16(c.Port), web.ProtocolHTTPS)
-	} else {
-		s = s.WithPort(uint16(c.Port), web.ProtocolHTTP)
+	s, err = listen(s, c)
+	if err != nil {
+		return err
 	}
 	if s.Error != nil {
 		return apperror.Wrap(s.Error)
 	}
 
-	done = make(chan error, 1)
+	done := make(chan error, 1)
 	s.StartAsync(done)
 	go func() {
 		if err := <-done; err != nil {
 			log.Error().Err(err).Msg("web server stopped")
 		}
 	}()
-	log.Info().Msgf("portal listening on %s (tls=%t), control daemon at %s", c.Addr(), c.TLS, c.Daemon.URL)
+	log.Info().Msgf("portal listening on %s (tls=%t)", c.Addr(), c.TLS)
 	return nil
 }
 
@@ -73,20 +66,35 @@ func Stop() error {
 	return apperror.Wrap(web.Instance().Stop())
 }
 
-func tlsConfig(c config.Config) (*tls.Config, error) {
-	if c.CertificateFile != "" && c.KeyFile != "" {
-		if _, err := os.Stat(c.CertificateFile); err == nil {
-			cfg, err := security.LoadCertAndConfig(c.CertificateFile, c.KeyFile, "", tls.NoClientCert)
-			if err != nil {
-				return nil, apperror.Wrap(err)
-			}
-			return cfg, nil
-		}
+// listen applies the address, port and TLS settings of the configuration to the server.
+func listen(s *web.Server, c config.Config) (*web.Server, error) {
+	s = s.WithHost(c.Address)
+	if !c.TLS {
+		return s.WithPort(uint16(c.Port), web.ProtocolHTTP), nil
 	}
-	log.Warn().Msg("no TLS certificate configured, using a self-signed certificate")
-	cert, pool, err := security.GenerateSelfSignedCertificate(pkix.Name{CommonName: c.Address})
+	cfg, err := secure.ServerTLS{
+		Dir:             flag.Path,
+		CertificateFile: c.CertificateFile,
+		KeyFile:         c.KeyFile,
+		CommonName:      c.Address,
+		ClientCAFile:    c.ClientCAFile,
+	}.Config()
 	if err != nil {
-		return nil, apperror.Wrap(err)
+		return nil, err
 	}
-	return security.NewTLSConfig(cert, pool, tls.NoClientCert), nil
+	return s.WithTLS(cfg).WithPort(uint16(c.Port), web.ProtocolHTTPS), nil
+}
+
+// Restart applies a changed address, port or TLS setting without restarting the process.
+func Restart() {
+	s, err := listen(web.Instance(), config.Get())
+	if err != nil {
+		log.Error().Err(err).Msg("failed to reload the TLS configuration, keeping the running server")
+		return
+	}
+	done := make(chan error, 1)
+	s.RestartAsync(done)
+	if err := <-done; err != nil {
+		log.Error().Err(err).Msg("web server failed to restart")
+	}
 }
