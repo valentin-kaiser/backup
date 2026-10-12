@@ -1,0 +1,82 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go mod verify
+      - run: go build ./...
+      - run: go vet ./...
+      - name: gofmt
+        run: test -z "$(gofmt -s -l .)"
+      - run: go test -race ./...
+
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker/portal/ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: worker/portal/ui/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm test -- --watch=false
+      - run: npm run build
+
+  proto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate the protobuf code
+        run: docker run --rm -v "$PWD:/app" -w /app/proto ghcr.io/valentin-kaiser/protocdock:latest make proto
+      - name: Generated code is up to date
+        run: |
+          git add --intent-to-add --all
+          git diff --exit-code --stat
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+      - name: hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          ignore: DL3018
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: backup:test
+      - name: Scan image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: backup:test
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
