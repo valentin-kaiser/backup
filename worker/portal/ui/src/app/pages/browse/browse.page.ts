@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 
 import { IconComponent } from '../../components/icon/icon.component';
 import { RestoreDialogComponent } from '../../components/restore-dialog/restore-dialog.component';
@@ -26,7 +26,7 @@ export function breadcrumbs(path: string): Crumb[] {
 /** The files of one snapshot. A directory is read when it is opened, a snapshot never changes. */
 @Component({
   selector: 'app-browse',
-  imports: [RouterLink, IconComponent, RestoreDialogComponent],
+  imports: [IconComponent, RestoreDialogComponent],
   templateUrl: './browse.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -122,8 +122,5 @@ export class BrowsePage {
     const path = entry?.path ?? (this.directory() === '/' ? '' : this.directory());
     this.restoreDialog().open(this.job() ?? '', snapshot, path);
   }
-
-  protected backLink(): { link: string[]; params: Record<string, string | undefined> } {
-    return { link: ['/'], params: {} };
-  }
 }
+

@@ -67,7 +67,7 @@ export class RpcService {
   private readonly streams = new Map<number, StreamEntry>();
   private waiters: Waiter[] = [];
 
-  /** Opens the websocket and keeps it open, reconnecting with a backoff. */
+  /** Opens the websocket to the control daemon and keeps it open, reconnecting with a backoff. */
   connect(): void {
     this.disconnect();
     this.wanted = true;

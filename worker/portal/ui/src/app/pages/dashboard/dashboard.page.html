@@ -1,11 +1,3 @@
-<header class="page-header">
-  <div>
-    <h1>Overview</h1>
-    <p class="muted">Everything the daemon is doing, updated live.</p>
-  </div>
-  <a class="button primary" routerLink="/jobs/new"><app-icon name="plus" /> New job</a>
-</header>
-
 @if (control.error()) {
   <div class="banner error" role="alert"><app-icon name="alert" /> {{ control.error() }}</div>
 }
@@ -64,14 +56,15 @@
     }
   </section>
 
-  @if (showOutput()) {
-    <section>
-      <div class="section-header">
-        <h2>Live output <span class="muted">{{ control.liveJob() }}</span></h2>
-      </div>
-      <pre #output class="output" aria-live="polite">{{ control.liveLines().join('\n') }}</pre>
-    </section>
-  }
+  <section>
+    <div class="section-header">
+      <h2>Live output @if (control.liveJob()) {<span class="muted">{{ control.liveJob() }}</span>}</h2>
+      <label class="muted append-toggle" title="Keep earlier output and append new runs below it">
+        <input type="checkbox" [checked]="control.appendOutput()" (change)="control.setAppendOutput($any($event.target).checked)" /> Append
+      </label>
+    </div>
+    <pre #output class="output" aria-live="polite">{{ control.liveLines().length ? control.liveLines().join('\n') : 'No output yet. Output of running jobs appears here.' }}</pre>
+  </section>
 
 } @else {
   <div class="skeleton tiles-skeleton"></div>

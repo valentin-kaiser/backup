@@ -1,3 +1,8 @@
+@if (!auth.ready()) {
+  <!-- looking for a session -->
+} @else if (!auth.signedIn()) {
+  <app-login />
+} @else {
 <div class="shell" [class.drawer-open]="drawerOpen()" [class.drawer-wide]="drawerWide()">
   <header class="topbar">
     <a class="brand" href="#/" (click)="$event.preventDefault(); toTop()">
@@ -22,6 +27,9 @@
     <button type="button" class="icon theme-toggle" (click)="toggleTheme()" [attr.aria-label]="dark() ? 'Switch to light theme' : 'Switch to dark theme'" [title]="dark() ? 'Light mode' : 'Dark mode'">
       <app-icon [name]="dark() ? 'sun' : 'moon'" />
     </button>
+    <a class="button ghost" routerLink="/secrets" title="Secrets"><app-icon name="lock" /> <span class="btn-text">Secrets</span></a>
+    <a class="button ghost" routerLink="/audit" title="Audit log"><app-icon name="history" /> <span class="btn-text">Audit</span></a>
+    <button type="button" class="icon" (click)="signOut()" aria-label="Sign out" title="Sign out"><app-icon name="logout" /></button>
     <a class="button primary" routerLink="/jobs/new"><app-icon name="plus" /> <span class="btn-text">New job</span></a>
   </header>
 
@@ -34,7 +42,6 @@
     }
     <section id="overview" class="section"><app-dashboard /></section>
     <div class="panels">
-      <section id="history" class="section"><app-history /></section>
       <section id="snapshots" class="section">
         <!-- Querying a repository is slow, only do it once the section comes into view. -->
         @defer (on viewport; prefetch on idle) {
@@ -43,6 +50,7 @@
           <div class="skeleton cards-skeleton"></div>
         }
       </section>
+      <section id="history" class="section"><app-history /></section>
     </div>
   </main>
 
@@ -56,6 +64,7 @@
     </div>
   </aside>
 </div>
+}
 
 <app-toasts />
 <app-confirm-dialog />

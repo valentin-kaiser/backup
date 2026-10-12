@@ -23,6 +23,7 @@ interface Draft {
   source: string;
   repository: string;
   passwordFile: string;
+  passwordSecret: string;
 }
 
 /** Arguments that make sense for a type, offered instead of an empty field. */
@@ -46,6 +47,7 @@ function blank(type = 'backup'): Draft {
     source: '',
     repository: '',
     passwordFile: '',
+    passwordSecret: '',
   };
 }
 
@@ -61,6 +63,7 @@ function fromDefinition(d: JobDefinition): Draft {
     source: d.source,
     repository: d.repository,
     passwordFile: d.passwordFile,
+    passwordSecret: d.passwordSecret,
   };
 }
 
@@ -122,13 +125,16 @@ export class JobEditPage {
   });
   protected readonly valid = computed(() => Object.keys(this.errors()).length === 0);
 
+  protected readonly secretKnown = computed(() => this.control.secrets().some((s) => s.name === this.draft().passwordSecret));
+
   /** Advanced settings are shown when the job uses any of them. */
   protected readonly advancedOpen = computed(() => {
     const d = this.draft();
-    return !!(d.repository || d.passwordFile || d.timeoutMinutes);
+    return !!(d.repository || d.passwordFile || d.passwordSecret || d.timeoutMinutes);
   });
 
   constructor() {
+    void this.control.loadSecrets();
     // Fill the form once per job, later refreshes of the status must not overwrite what is being typed.
     effect(() => {
       const name = this.name() ?? '';
@@ -187,7 +193,9 @@ export class JobEditPage {
       maxAgeHours: d.maxAgeHours,
       source: d.type === 'backup' ? d.source.trim() : '',
       repository: d.repository.trim(),
-      passwordFile: d.passwordFile.trim(),
+      // A secret replaces the password file.
+      passwordFile: d.passwordSecret ? '' : d.passwordFile.trim(),
+      passwordSecret: d.passwordSecret,
     });
     try {
       await (this.isNew() ? this.control.createJob(definition) : this.control.updateJob(definition));

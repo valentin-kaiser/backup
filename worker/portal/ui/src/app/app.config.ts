@@ -7,7 +7,7 @@ import {
 import { provideRouter, withComponentInputBinding, withHashLocation } from '@angular/router';
 
 import { routes } from './app.routes';
-import { RpcService } from './global/services/rpc/rpc.service';
+import { AuthService } from './global/services/auth/auth.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -15,7 +15,7 @@ export const appConfig: ApplicationConfig = {
     // Hash routes, so the Go file server needs no fallback to index.html. Route parameters and
     // query parameters are bound to the inputs of the pages.
     provideRouter(routes, withHashLocation(), withComponentInputBinding()),
-    // There is no sign-in, the portal talks to the daemon as soon as it is open.
-    provideAppInitializer(() => inject(RpcService).connect()),
+    // Look for a session first, the connection to the daemon opens once somebody is signed in.
+    provideAppInitializer(() => inject(AuthService).load()),
   ],
 };

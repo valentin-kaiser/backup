@@ -1,4 +1,3 @@
-<a routerLink="/" class="back"><app-icon name="back" /> Overview</a>
 
 <header class="page-header">
   <div>
@@ -116,12 +115,29 @@
         </div>
 
         <div class="field">
+          <label for="secret">Stored password</label>
+          <select #secret id="secret" (change)="set('passwordSecret', secret.value)">
+            <option value="" [selected]="!draft().passwordSecret">None, use the password file</option>
+            @for (s of control.secrets(); track s.name) {
+              <option [value]="s.name" [selected]="s.name === draft().passwordSecret">{{ s.name }}</option>
+            }
+            @if (draft().passwordSecret && !secretKnown()) {
+              <option [value]="draft().passwordSecret" selected>{{ draft().passwordSecret }} (unknown)</option>
+            }
+          </select>
+          <span class="hint">
+            A password kept encrypted on the daemon, managed under Secrets. It replaces the password file.
+          </span>
+        </div>
+
+        <div class="field">
           <label for="password">Password file</label>
           <input
             #password
             id="password"
             class="mono"
             [value]="draft().passwordFile"
+            [disabled]="!!draft().passwordSecret"
             autocomplete="off"
             [placeholder]="control.defaults()?.passwordFile || '/run/secrets/backup_password'"
             (input)="set('passwordFile', password.value)"

@@ -21,7 +21,17 @@ const existing = Job.create({
 });
 
 describe('JobEditPage', () => {
-  let control: { createJob: any; updateJob: any; deleteJob: any; status: any; definedJobs: any; jobs: any; defaults: any };
+  let control: {
+    createJob: any;
+    updateJob: any;
+    deleteJob: any;
+    loadSecrets: any;
+    secrets: any;
+    status: any;
+    definedJobs: any;
+    jobs: any;
+    defaults: any;
+  };
 
   function create(name?: string) {
     const fixture = TestBed.createComponent(JobEditPage);
@@ -37,6 +47,8 @@ describe('JobEditPage', () => {
       createJob: vi.fn(async () => undefined),
       updateJob: vi.fn(async () => undefined),
       deleteJob: vi.fn(async () => undefined),
+      loadSecrets: vi.fn(async () => undefined),
+      secrets: signal([]),
       status: signal({}),
       definedJobs: signal([existing]),
       jobs: signal([existing, Job.create({ name: 'restore' })]),
@@ -146,5 +158,54 @@ describe('JobEditPage', () => {
   it('reports a job that does not exist', () => {
     const { page } = create('gone');
     expect(page.notFound()).toBe(true);
+  });
+});
+
+describe('JobEditPage stored password', () => {
+  function setup() {
+    const control: any = {
+      createJob: vi.fn(async () => undefined),
+      updateJob: vi.fn(async () => undefined),
+      loadSecrets: vi.fn(async () => undefined),
+      secrets: signal([{ name: 'photos' }, { name: 'docs' }]),
+      status: signal({}),
+      definedJobs: signal([]),
+      jobs: signal([]),
+      defaults: signal({ source: '/src', repository: '/repo', passwordFile: '', restoreRoot: '/restore' }),
+    };
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: ControlService, useValue: control }] });
+    const fixture = TestBed.createComponent(JobEditPage);
+    fixture.detectChanges();
+    return { control, fixture, page: fixture.componentInstance as any, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('offers the stored secrets', () => {
+    const { control, el } = setup();
+    expect(control.loadSecrets).toHaveBeenCalled();
+    const select = el.querySelector<HTMLSelectElement>('#secret')!;
+    expect([...select.options].map((o) => o.textContent!.trim())).toEqual(['None, use the password file', 'photos', 'docs']);
+  });
+
+  it('saves the secret and drops the password file, the secret replaces it', async () => {
+    const { control, page, fixture } = setup();
+    page.set('name', 'nightly');
+    page.set('passwordFile', '/old/file');
+    page.set('passwordSecret', 'photos');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#password').disabled).toBe(true);
+    await page.save();
+    const saved = control.createJob.mock.calls[0][0];
+    expect(saved.passwordSecret).toBe('photos');
+    expect(saved.passwordFile).toBe('');
+  });
+
+  it('keeps the password file when no secret is chosen', async () => {
+    const { control, page } = setup();
+    page.set('name', 'nightly');
+    page.set('passwordFile', '/run/secrets/pw');
+    await page.save();
+    const saved = control.createJob.mock.calls[0][0];
+    expect(saved.passwordFile).toBe('/run/secrets/pw');
+    expect(saved.passwordSecret).toBe('');
   });
 });

@@ -28,23 +28,23 @@
   </dl>
 
   <footer>
-    @if (job().active) {
-      <button type="button" class="secondary small" (click)="control.cancelJob(job().name)">
-        <app-icon name="stop" /> Cancel
-      </button>
-    } @else {
-      <button type="button" class="primary small" (click)="control.startJob(job().name)">
-        <app-icon name="play" /> Run now
-      </button>
-    }
-    @if (job().enabled) {
-      <button type="button" class="ghost small" (click)="togglePause()">
-        <app-icon [name]="job().paused ? 'play' : 'pause'" />
-        {{ job().paused ? 'Resume' : 'Pause' }}
-      </button>
-    }
-    <a class="button ghost small push" [routerLink]="['/jobs', job().name]">
-      <app-icon name="edit" /> Edit
-    </a>
+  @if (job().active) {
+    <button type="button" class="secondary small" (click)="control.cancelJob(job().name)">
+      <app-icon name="stop" /> Cancel
+    </button>
+  } @else {
+    <button type="button" class="primary small" (click)="control.startJob(job().name)">
+      <app-icon name="play" /> Run now
+    </button>
+  }
+  @if (job().enabled) {
+    <button type="button" class="ghost small" (click)="togglePause()">
+      <app-icon [name]="job().paused ? 'play' : 'pause'" />
+      {{ job().paused ? 'Resume' : 'Pause' }}
+    </button>
+  }
+  <a class="button ghost small push" [routerLink]="['/jobs', job().name]">
+    <app-icon name="edit" /> Edit
+  </a>
   </footer>
 </article>

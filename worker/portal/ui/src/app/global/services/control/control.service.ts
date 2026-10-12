@@ -9,6 +9,7 @@ import {
   JobDefinition,
   RepositoryStats,
   Run,
+  SecretInfo,
   RunStatus,
   Snapshot,
 } from '../../model/backup/api/v1/control';
@@ -22,7 +23,14 @@ import {
   ListRunsResponse,
   ListSnapshotsRequest,
   ListSnapshotsResponse,
+  ChangeRepositoryPasswordRequest,
+  ChangeRepositoryPasswordResponse,
+  ListSecretsRequest,
+  ListSecretsResponse,
   RestoreRequest,
+  SecretRequest,
+  SetSecretRequest,
+  SetSecretResponse,
   WatchRequest,
 } from '../../model/backup/api/v1/control_service';
 import { Empty } from '../../model/google/protobuf/empty';
@@ -33,6 +41,15 @@ import { ToastService } from '../toast/toast.service';
 const SERVICE = 'Control';
 const RECENT_RUNS = 50;
 const LIVE_LINES = 500;
+const APPEND_KEY = 'portal.appendOutput';
+
+function readAppend(): boolean {
+  try {
+    return localStorage.getItem(APPEND_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 const REFRESH_DELAY_MS = 300;
 /** Calls on the idle websocket also keep proxies from closing it. */
 const POLL_MS = 30_000;
@@ -90,9 +107,13 @@ export class ControlService {
     }
     return [...found.values()].map(({ key, job, jobs }) => ({ key, job, jobs }));
   });
+  /** The stored secrets (names only), loaded on demand. */
+  readonly secrets = signal<SecretInfo[]>([]);
   /** Job and output lines of the run that printed last. */
   readonly liveJob = signal('');
   readonly liveLines = signal<string[]>([]);
+  /** Keep the output of earlier runs and append new runs below it instead of clearing the box. */
+  readonly appendOutput = signal(readAppend());
 
   /** Ticks when runs or jobs changed, history views reload on it. */
   readonly changes = signal(0);
@@ -129,6 +150,15 @@ export class ControlService {
       .pipe(retry({ delay: RESUBSCRIBE_MS }), repeat({ delay: RESUBSCRIBE_MS }))
       .subscribe((event) => this.onEvent(event));
     this.pollTimer = setInterval(() => void this.refresh(false), POLL_MS);
+  }
+
+  /** Forgets everything loaded, used when somebody signs out. */
+  reset(): void {
+    this.status.set(null);
+    this.runs.set([]);
+    this.error.set('');
+    this.liveJob.set('');
+    this.liveLines.set([]);
   }
 
   stop(): void {
@@ -232,6 +262,45 @@ export class ControlService {
     await this.refresh(true);
   }
 
+  // ── Secrets ──────────────────────────────────────────────────────────────
+
+  async loadSecrets(): Promise<void> {
+    try {
+      this.secrets.set((await this.rpc.call(SERVICE, 'ListSecrets', ListSecretsRequest.create(), ListSecretsResponse)).secrets);
+    } catch (error) {
+      this.error.set(message(error));
+    }
+  }
+
+  /** Stores a secret. Returns the generated value when one was asked for, it is not shown again. */
+  async setSecret(name: string, value: string, generate: boolean): Promise<string> {
+    const res = await this.rpc.call(SERVICE, 'SetSecret', SetSecretRequest.create({ name, value, generate }), SetSecretResponse);
+    await this.loadSecrets();
+    return res.generatedValue;
+  }
+
+  /** Changes the password of the repositories that use the secret. */
+  async changeRepositoryPassword(
+    name: string,
+    value: string,
+    generate: boolean,
+  ): Promise<ChangeRepositoryPasswordResponse> {
+    const res = await this.rpc.call(
+      SERVICE,
+      'ChangeRepositoryPassword',
+      ChangeRepositoryPasswordRequest.create({ name, value, generate }),
+      ChangeRepositoryPasswordResponse,
+    );
+    await this.loadSecrets();
+    return res;
+  }
+
+  async deleteSecret(name: string): Promise<void> {
+    await this.rpc.call(SERVICE, 'DeleteSecret', SecretRequest.create({ name }), Empty);
+    this.toast.success(`Deleted ${name}`);
+    await this.loadSecrets();
+  }
+
   async restore(request: Partial<RestoreRequest>): Promise<Run> {
     const run = await this.rpc.call(SERVICE, 'Restore', RestoreRequest.create(request), Run);
     this.toast.success('Restore started');
@@ -252,6 +321,15 @@ export class ControlService {
     }
   }
 
+  setAppendOutput(on: boolean): void {
+    this.appendOutput.set(on);
+    try {
+      localStorage.setItem(APPEND_KEY, on ? '1' : '0');
+    } catch {
+      // not persisted
+    }
+  }
+
   private onEvent(event: Event): void {
     this.events$.next(event);
     if (event.type === EventType.EVENT_TYPE_LINE) {
@@ -261,7 +339,11 @@ export class ControlService {
     }
     if (event.status === RunStatus.RUN_STATUS_RUNNING) {
       this.liveJob.set(event.job);
-      this.liveLines.set([]);
+      if (this.appendOutput() && this.liveLines().length) {
+        this.liveLines.update((lines) => [...lines.slice(2 - LIVE_LINES), `── ${event.job} ──`]);
+      } else {
+        this.liveLines.set([]);
+      }
     }
     if (!isActive(event.status) && this.changesRepository(event.job)) {
       this.repositoryChanges.update((n) => n + 1);

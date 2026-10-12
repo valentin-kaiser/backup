@@ -21,7 +21,9 @@
               <a [routerLink]="['/jobs', run.job]" class="strong">{{ run.job }}</a>
             </td>
           }
-          <td class="muted">{{ run.trigger }}</td>
+          <td class="muted">
+            {{ run.trigger }}
+          </td>
           <td>
             <app-status-chip [status]="run.status" />
             @if (run.error) {

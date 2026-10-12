@@ -25,5 +25,15 @@ export const routes: Routes = [
     title: 'Snapshot content',
     loadComponent: () => import('./pages/browse/browse.page').then((m) => m.BrowsePage),
   },
+  {
+    path: 'audit',
+    title: 'Audit log',
+    loadComponent: () => import('./pages/audit/audit.page').then((m) => m.AuditPage),
+  },
+  {
+    path: 'secrets',
+    title: 'Secrets',
+    loadComponent: () => import('./pages/secrets/secrets.page').then((m) => m.SecretsPage),
+  },
   { path: '**', redirectTo: '' },
 ];

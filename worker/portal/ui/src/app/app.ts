@@ -16,6 +16,8 @@ import { HistoryPage } from './pages/history/history.page';
 import { SnapshotsPage } from './pages/snapshots/snapshots.page';
 import { DashboardPage } from './pages/dashboard/dashboard.page';
 import { ToastsComponent } from './components/toasts/toasts.component';
+import { LoginPage } from './pages/login/login.page';
+import { AuthService } from './global/services/auth/auth.service';
 import { ControlService } from './global/services/control/control.service';
 
 function readTheme(): 'light' | 'dark' | null {
@@ -38,12 +40,14 @@ function readTheme(): 'light' | 'dark' | null {
     DashboardPage,
     HistoryPage,
     SnapshotsPage,
+    LoginPage,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
   protected readonly control = inject(ControlService);
+  protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
   private readonly url = toSignal(
@@ -64,7 +68,6 @@ export class App {
   protected readonly dark = computed(() => (this.theme() ?? (this.systemDark.matches ? 'dark' : 'light')) === 'dark');
 
   constructor() {
-    this.control.start();
     effect(() => {
       const theme = this.theme();
       if (theme) {
@@ -99,6 +102,11 @@ export class App {
       this.close();
     }
     scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
+
+  protected async signOut(): Promise<void> {
+    await this.auth.logout();
+    void this.router.navigateByUrl('/');
   }
 
   protected close(): void {

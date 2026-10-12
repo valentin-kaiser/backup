@@ -42,9 +42,6 @@ export class DashboardPage {
     return times.length ? new Date(Math.max(...times.map((t) => t.getTime()))) : undefined;
   });
 
-  /** Live output is only interesting while something runs or just ran. */
-  protected readonly showOutput = computed(() => this.control.liveLines().length > 0);
-
   constructor() {
     effect(() => {
       this.control.liveLines();
