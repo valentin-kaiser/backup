@@ -6,7 +6,7 @@ RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY worker/portal/ui ./
 RUN npm run build
 
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
@@ -34,18 +34,16 @@ RUN CGO_ENABLED=0 go build -trimpath \
 FROM alpine:3.21.3
 ARG RESTIC_VERSION=~0.17
 RUN apk add --no-cache restic=$RESTIC_VERSION ca-certificates tzdata su-exec \
-    && mkdir -p /var/lib/control /var/cache/restic /restore \
+    && mkdir -p /var/lib/control /var/lib/portal /var/cache/restic /restore \
+    && chown 1000:1000 /var/lib/portal \
     && touch /.backupignore
 
 COPY --from=build /out/control /out/control-portal /usr/local/bin/
 COPY scripts/entrypoint.sh /entrypoint.sh
-COPY scripts/restore.sh /restore.sh
-RUN chmod 0755 /entrypoint.sh /restore.sh /usr/local/bin/control /usr/local/bin/control-portal
+RUN chmod 0755 /entrypoint.sh /usr/local/bin/control /usr/local/bin/control-portal
 
-# One image, two independent processes: `daemon` (default) runs the scheduler, the CLI and the API,
-# `portal` runs the web portal, which only needs the URL of a daemon. The daemon works without the portal.
-# Legacy variables (BACKUP_SCHEDULE, FORGET_SCHEDULE, RESTIC_SOURCE, RESTIC_BACKUP_ARGS,
-# RESTIC_FORGET_ARGS, ...) are still honoured as defaults, see the README.
+# One image: the backup in standalone mode (default of the image) or portal mode (CONTROL_MODE=portal, the daemon of the
+# web portal), and the web portal itself (`web`).
 ENV PUID=1000 \
     PGID=1000 \
     CONTROL_PATH=/var/lib/control \
@@ -53,16 +51,15 @@ ENV PUID=1000 \
     CONTROL_API_ADDRESS=0.0.0.0 \
     CONTROL_API_PORT=9080 \
     CONTROL_API_TLS=false \
-    PORTAL_PATH=/tmp/control-portal \
+    PORTAL_PATH=/var/lib/portal \
     PORTAL_ADDRESS=0.0.0.0 \
     PORTAL_PORT=8443 \
     PORTAL_TLS=true
 
-VOLUME ["/var/lib/control", "/var/cache/restic", "/backup"]
+VOLUME ["/var/lib/control", "/var/lib/portal", "/var/cache/restic", "/backup"]
 EXPOSE 8443 9080
 
 HEALTHCHECK --interval=1m --timeout=10s --start-period=30s --retries=3 \
     CMD ["control", "health"]
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["daemon"]

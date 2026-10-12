@@ -6,3 +6,9 @@
 *.exe
 /bin
 /data
+portal_token
+portal_password
+/test/data
+/test/secrets
+/volumes
+/secrets
