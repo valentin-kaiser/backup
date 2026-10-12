@@ -15,5 +15,3 @@ cache/
 node_modules/
 
 # Example to exclude specific paths
-/path/to/exclude/
-/another/path/to/exclude/

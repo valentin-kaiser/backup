@@ -1,28 +1,86 @@
 services:
   backup:
-    image: ghcr.io/valentin-kaiser/backup:latest
+    image: backup:latest
     container_name: backup
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 90s
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      # CHOWN/SETUID/SETGID apply PUID/PGID at start-up
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    mem_limit: 1g
+    cpus: 2
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ./source:/source
+      - ./source:/source:ro
       - ./backup:/backup
-      - ./log:/var/log
-      - ./.backupignore:/.backupignore
-      - ./.mounted:/.mounted
-      - ./backup_password:/run/secrets/backup_password
+      - ./restore:/restore
+      - ./.backupignore:/.backupignore:ro
+      - control:/var/lib/control
+      - restic-cache:/var/cache/restic
     environment:
-      - BACKUP_SCHEDULE=* * * * *
-      - FORGET_SCHEDULE=0 * * * *
+      - PUID=1000
+      - PGID=1000
+      - BACKUP_SCHEDULE=0 0 * * *
+      - FORGET_SCHEDULE=0 3 * * 0
       - RESTIC_SOURCE=/source
       - RESTIC_REPOSITORY=/backup
       - RESTIC_PASSWORD_FILE=/run/secrets/backup_password
       - RESTIC_COMPRESSION=auto
       - RESTIC_BACKUP_ARGS=--exclude-caches --exclude-if-present=.nobackup --exclude-file=/.backupignore
-      - RESTIC_FORGET_ARGS=--prune --keep-last 7 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 1
-      - MOUNT_LOCK_TEST=false
-      - MOUNT_LOCK_FILE=/.mounted
+      - RESTIC_FORGET_ARGS=--prune --keep-last 7 --keep-daily 14 --keep-weekly 4 --keep-monthly 6 --keep-yearly 1
+      # refuse to run when the repository is not mounted (create ./backup/.mounted on the real disk)
+      # - CONTROL_MOUNT_CHECK_PATH=/backup
+      # - CONTROL_MOUNT_CHECK_MARKER=.mounted
+      # ping a healthchecks.io style URL on start, success and failure
+      # - CONTROL_WEBHOOK_URL=https://hc-ping.com/your-uuid
     secrets:
       - backup_password
+
+  # Optional web portal, a separate process that only talks to the daemon above. Leave it out to run the
+  # daemon alone and use the CLI: docker exec backup control status
+  backup-portal:
+    image: backup:latest
+    container_name: backup-portal
+    command: ["portal"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    mem_limit: 128m
+    depends_on:
+      - backup
+    ports:
+      # There is no sign-in: whoever can open this port can run and change jobs and restore files.
+      # Keep it on loopback, or put a reverse proxy that authenticates in front.
+      - "127.0.0.1:8443:8443"
+    environment:
+      - PORTAL_DAEMON_URL=http://backup:9080
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1:8443/"]
+      interval: 1m
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  control:
+  restic-cache:
 
 secrets:
   backup_password:
