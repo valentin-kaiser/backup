@@ -1,0 +1,2 @@
+pkg/web/static/*
+!pkg/web/static/PLACEHOLDER

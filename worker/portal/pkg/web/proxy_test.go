@@ -1,0 +1,117 @@
+package web
+
+import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gorilla/websocket"
+)
+
+// daemon answers like the control API: it only accepts its own origin and echoes what it saw.
+func daemon(t *testing.T) *httptest.Server {
+	t.Helper()
+	up := websocket.Upgrader{Subprotocols: []string{"xrpc.json"}}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if websocket.IsWebSocketUpgrade(r) {
+			conn, err := up.Upgrade(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(string(msg)+"|"+r.Header.Get("Sec-WebSocket-Protocol")))
+			return
+		}
+		_, _ = io.WriteString(w, r.Method+" "+r.URL.Path+" host="+r.Host)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func front(t *testing.T, target string) *httptest.Server {
+	t.Helper()
+	u, err := url.Parse(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(Proxy(u, false))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestProxyForwardsHTTP(t *testing.T) {
+	d := daemon(t)
+	f := front(t, d.URL)
+	resp, err := http.Post(f.URL+"/api/v1/rpc", "application/json", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if want := "POST /api/v1/rpc host=" + strings.TrimPrefix(d.URL, "http://"); string(body) != want {
+		t.Errorf("got %q, want %q", body, want)
+	}
+}
+
+func TestProxyForwardsWebsocket(t *testing.T) {
+	d := daemon(t)
+	f := front(t, d.URL)
+
+	dialer := websocket.Dialer{Subprotocols: []string{"xrpc.json"}}
+	header := http.Header{"Origin": {f.URL}}
+	conn, _, err := dialer.Dial("ws"+strings.TrimPrefix(f.URL, "http")+"/api/v1/rpc", header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if conn.Subprotocol() != "xrpc.json" {
+		t.Errorf("negotiated %q", conn.Subprotocol())
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("ping")); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(msg) != "ping|xrpc.json" {
+		t.Errorf("the daemon saw %q", msg)
+	}
+}
+
+func TestProxyRefusesCrossOriginWebsockets(t *testing.T) {
+	d := daemon(t)
+	f := front(t, d.URL)
+	dialer := websocket.Dialer{Subprotocols: []string{"xrpc.json"}}
+	_, resp, err := dialer.Dial("ws"+strings.TrimPrefix(f.URL, "http")+"/api/v1/rpc", http.Header{"Origin": {"http://evil.example"}})
+	if err == nil {
+		t.Fatal("a cross-origin websocket must be refused")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Errorf("response = %v", resp)
+	}
+}
+
+func TestProxyReportsAnUnreachableDaemon(t *testing.T) {
+	d := daemon(t)
+	url := d.URL
+	d.Close()
+	f := front(t, url)
+	resp, err := http.Post(f.URL+"/api/v1/rpc", "application/json", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("status %d", resp.StatusCode)
+	}
+}

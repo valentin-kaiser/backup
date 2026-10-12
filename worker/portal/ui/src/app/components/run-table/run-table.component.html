@@ -1,0 +1,41 @@
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Started</th>
+        @if (showJob()) {
+          <th>Job</th>
+        }
+        <th>Trigger</th>
+        <th>Status</th>
+        <th>Duration</th>
+        <th><span class="sr-only">Output</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (run of runs(); track run.id) {
+        <tr>
+          <td [title]="formatTime(run.startTime ?? run.queueTime)">{{ formatRelative(run.startTime ?? run.queueTime) }}</td>
+          @if (showJob()) {
+            <td>
+              <a [routerLink]="['/jobs', run.job]" class="strong">{{ run.job }}</a>
+            </td>
+          }
+          <td class="muted">{{ run.trigger }}</td>
+          <td>
+            <app-status-chip [status]="run.status" />
+            @if (run.error) {
+              <span class="error-text" [title]="run.error">{{ run.error }}</span>
+            }
+          </td>
+          <td>{{ formatDuration(run) }}</td>
+          <td class="right"><a [routerLink]="['/runs', run.id]" class="button ghost small">Output</a></td>
+        </tr>
+      } @empty {
+        <tr>
+          <td [attr.colspan]="showJob() ? 6 : 5" class="empty">No runs yet</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

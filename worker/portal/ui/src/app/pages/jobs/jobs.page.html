@@ -1,0 +1,90 @@
+<header class="page-header">
+  <div>
+    <h1>Jobs</h1>
+    <p class="muted">Backups, prunes and checks. Changes are saved to the configuration and apply immediately.</p>
+  </div>
+  <a class="button primary" routerLink="/jobs/new"><app-icon name="plus" /> New job</a>
+</header>
+
+@if (control.status()) {
+  @if (control.definedJobs().length) {
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Schedule</th>
+            <th>Source → repository</th>
+            <th>Last run</th>
+            <th>Scheduled</th>
+            <th><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (job of control.definedJobs(); track job.name) {
+            <tr>
+              <td>
+                <a class="strong" [routerLink]="['/jobs', job.name]">{{ job.name }}</a>
+                <div class="muted">{{ jobTypeLabel(job.type) }}</div>
+              </td>
+              <td>
+                {{ describeCron(job.schedule) || job.schedule }}
+                <div class="muted mono">{{ job.schedule }}</div>
+              </td>
+              <td class="paths">
+                @if (source(job)) {
+                  <div class="mono" [title]="source(job)">{{ source(job) }}</div>
+                  <div class="muted">→</div>
+                }
+                <div class="mono" [title]="repository(job)">{{ repository(job) }}</div>
+              </td>
+              <td>
+                <app-status-chip [status]="(job.active ?? job.last)?.status" />
+                <div class="muted" [title]="formatTime(job.last?.finishTime)">{{ formatRelative(job.last?.finishTime) }}</div>
+              </td>
+              <td>
+                <label class="switch" [title]="job.enabled ? 'Scheduled, click to turn off' : 'Not scheduled, click to turn on'">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    [checked]="job.enabled"
+                    [attr.aria-label]="'Schedule ' + job.name"
+                    (change)="control.setEnabled(job, !job.enabled)"
+                  />
+                  <span class="track"></span>
+                </label>
+                @if (job.paused) {
+                  <span class="tag">paused</span>
+                }
+              </td>
+              <td class="right actions">
+                @if (job.active) {
+                  <button type="button" class="icon" title="Cancel the run" (click)="control.cancelJob(job.name)">
+                    <app-icon name="stop" />
+                  </button>
+                } @else {
+                  <button type="button" class="icon" title="Run now" (click)="control.startJob(job.name)">
+                    <app-icon name="play" />
+                  </button>
+                }
+                <a class="button icon" title="Edit" [routerLink]="['/jobs', job.name]"><app-icon name="edit" /></a>
+                <button type="button" class="icon danger-text" title="Delete" [disabled]="!!job.active" (click)="remove(job)">
+                  <app-icon name="trash" />
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <div class="empty-state">
+      <app-icon name="jobs" />
+      <h3>No jobs yet</h3>
+      <p>A job backs up a directory on a schedule, prunes old snapshots or checks a repository.</p>
+      <a class="button primary" routerLink="/jobs/new"><app-icon name="plus" /> Create a job</a>
+    </div>
+  }
+} @else {
+  <div class="skeleton cards-skeleton"></div>
+}

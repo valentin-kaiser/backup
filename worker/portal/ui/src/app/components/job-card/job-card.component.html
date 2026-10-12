@@ -1,0 +1,50 @@
+<article class="card job">
+  <header>
+    <div>
+      <h3>
+        <a [routerLink]="['/jobs', job().name]">{{ job().name }}</a>
+      </h3>
+      <span class="muted">{{ jobTypeLabel(job().type) }}</span>
+    </div>
+    <app-status-chip [status]="status()" />
+  </header>
+
+  <dl>
+    <dt>Schedule</dt>
+    <dd>
+      {{ schedule() }}
+      @if (job().paused) {
+        <span class="tag">paused</span>
+      }
+    </dd>
+    <dt>Next run</dt>
+    <dd [title]="formatTime(job().nextRunTime)">
+      {{ job().enabled && !job().paused ? formatRelative(job().nextRunTime) : '–' }}
+    </dd>
+    <dt>Last run</dt>
+    <dd [title]="formatTime(lastRun())">{{ formatRelative(lastRun()) }}</dd>
+    <dt>Last success</dt>
+    <dd [title]="formatTime(job().lastSuccessTime)">{{ formatRelative(job().lastSuccessTime) }}</dd>
+  </dl>
+
+  <footer>
+    @if (job().active) {
+      <button type="button" class="secondary small" (click)="control.cancelJob(job().name)">
+        <app-icon name="stop" /> Cancel
+      </button>
+    } @else {
+      <button type="button" class="primary small" (click)="control.startJob(job().name)">
+        <app-icon name="play" /> Run now
+      </button>
+    }
+    @if (job().enabled) {
+      <button type="button" class="ghost small" (click)="togglePause()">
+        <app-icon [name]="job().paused ? 'play' : 'pause'" />
+        {{ job().paused ? 'Resume' : 'Pause' }}
+      </button>
+    }
+    <a class="button ghost small push" [routerLink]="['/jobs', job().name]">
+      <app-icon name="edit" /> Edit
+    </a>
+  </footer>
+</article>

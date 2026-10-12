@@ -1,0 +1,188 @@
+<a routerLink="/jobs" class="back"><app-icon name="back" /> Jobs</a>
+
+<header class="page-header">
+  <div>
+    <h1>{{ isNew() ? 'New job' : draft().name }}</h1>
+    <p class="muted">
+      {{ isNew() ? 'Define what runs and when. The job is scheduled as soon as you save it.' : 'Changes apply to the next run.' }}
+    </p>
+  </div>
+</header>
+
+@if (notFound()) {
+  <div class="empty-state">
+    <app-icon name="alert" />
+    <h3>This job does not exist</h3>
+    <p>It may have been deleted.</p>
+    <a class="button secondary" routerLink="/jobs">Back to the jobs</a>
+  </div>
+} @else {
+  <form class="form" (submit)="$event.preventDefault(); save()" novalidate>
+    @if (error()) {
+      <div class="banner error" role="alert"><app-icon name="alert" /> {{ error() }}</div>
+    }
+
+    <section class="card">
+      <h2>General</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="name">Name</label>
+          <input
+            #name
+            id="name"
+            [value]="draft().name"
+            [disabled]="!isNew()"
+            maxlength="32"
+            autocomplete="off"
+            placeholder="photos"
+            [attr.aria-invalid]="submitted() && errors().name ? true : null"
+            (input)="set('name', name.value)"
+          />
+          @if (submitted() && errors().name) {
+            <span class="field-error">{{ errors().name }}</span>
+          } @else {
+            <span class="hint">{{ isNew() ? 'Cannot be changed later.' : 'The name cannot be changed.' }}</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="type">Type</label>
+          <select #type id="type" [value]="draft().type" [disabled]="!isNew()" (change)="setType(type.value)">
+            @for (t of types; track t.value) {
+              <option [value]="t.value" [selected]="t.value === draft().type">{{ t.label }}</option>
+            }
+          </select>
+          <span class="hint">{{ typeHint() }}</span>
+        </div>
+      </div>
+
+      <label class="check">
+        <input #enabled type="checkbox" [checked]="draft().enabled" (change)="set('enabled', enabled.checked)" />
+        <span>
+          <strong>Scheduled</strong>
+          <span class="hint">When off, the job only runs when you start it.</span>
+        </span>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>Schedule</h2>
+      <div class="field">
+        <label for="schedule">When it runs</label>
+        <app-cron-builder [value]="draft().schedule" (valueChange)="set('schedule', $event)" [error]="errors().schedule ?? ''" />
+      </div>
+    </section>
+    <section class="card">
+      <h2>What it does</h2>
+
+      @if (draft().type === 'backup') {
+        <div class="field">
+          <label for="source">Source directory</label>
+          <input
+            #source
+            id="source"
+            class="mono"
+            [value]="draft().source"
+            autocomplete="off"
+            [placeholder]="control.defaults()?.source || '/source'"
+            (input)="set('source', source.value)"
+          />
+          <span class="hint">
+            The directory to back up. Empty uses the default{{ control.defaults()?.source ? ': ' + control.defaults()?.source : '' }}.
+          </span>
+        </div>
+      }
+
+      <div class="field">
+        <span class="label">Options</span>
+        <app-restic-args-builder [type]="jobType()" [args]="draft().args" (argsChange)="set('args', $event)" />
+      </div>    </section>
+
+    <details class="card" [open]="advancedOpen()">
+      <summary><h2>Advanced</h2></summary>
+      <div class="grid">
+        <div class="field">
+          <label for="repository">Repository</label>
+          <input
+            #repository
+            id="repository"
+            class="mono"
+            [value]="draft().repository"
+            autocomplete="off"
+            [placeholder]="control.defaults()?.repository || '/backup'"
+            (input)="set('repository', repository.value)"
+          />
+          <span class="hint">Where the snapshots are stored. Empty uses the default repository.</span>
+        </div>
+
+        <div class="field">
+          <label for="password">Password file</label>
+          <input
+            #password
+            id="password"
+            class="mono"
+            [value]="draft().passwordFile"
+            autocomplete="off"
+            [placeholder]="control.defaults()?.passwordFile || '/run/secrets/backup_password'"
+            (input)="set('passwordFile', password.value)"
+          />
+          <span class="hint">File with the password of the repository. Empty uses the default.</span>
+        </div>
+
+        <div class="field">
+          <label for="timeout">Timeout in minutes</label>
+          <input
+            #timeout
+            id="timeout"
+            type="number"
+            min="0"
+            step="1"
+            [value]="draft().timeoutMinutes"
+            [attr.aria-invalid]="errors().timeout ? true : null"
+            (input)="setNumber('timeoutMinutes', timeout.value)"
+          />
+          @if (errors().timeout) {
+            <span class="field-error">{{ errors().timeout }}</span>
+          } @else {
+            <span class="hint">Aborts a run that takes longer. 0 means no limit.</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="maxage">Unhealthy after hours without success</label>
+          <input
+            #maxAge
+            id="maxage"
+            type="number"
+            min="0"
+            step="1"
+            [value]="draft().maxAgeHours"
+            [attr.aria-invalid]="errors().maxAge ? true : null"
+            (input)="setNumber('maxAgeHours', maxAge.value)"
+          />
+          @if (errors().maxAge) {
+            <span class="field-error">{{ errors().maxAge }}</span>
+          } @else {
+            <span class="hint">Fails the health check when no run succeeded for this long. 0 disables it.</span>
+          }
+        </div>
+      </div>
+    </details>
+
+    <footer class="form-actions">
+      @if (!isNew()) {
+        <button type="button" class="danger-outline" [disabled]="running()" (click)="remove()">
+          <app-icon name="trash" /> Delete job
+        </button>
+        @if (running()) {
+          <span class="hint">Cancel the running job before you delete it.</span>
+        }
+      }
+      <span class="spacer"></span>
+      <a class="button secondary" routerLink="/jobs">Cancel</a>
+      <button type="submit" class="primary" [disabled]="saving()">
+        {{ saving() ? 'Saving…' : isNew() ? 'Create job' : 'Save changes' }}
+      </button>
+    </footer>
+  </form>
+}

@@ -1,0 +1,45 @@
+<header class="page-header">
+  <div>
+    <h1>History</h1>
+    <p class="muted">Every run with its result. New runs appear on their own.</p>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="field inline">
+    <label for="job">Job</label>
+    <select #jobSelect id="job" (change)="chooseJob(jobSelect.value)">
+      <option value="" [selected]="!job()">All jobs</option>
+      @for (j of control.jobs(); track j.name) {
+        <option [value]="j.name" [selected]="j.name === job()">{{ j.name }}</option>
+      }
+    </select>
+  </div>
+  <div class="field inline">
+    <label for="status">Status</label>
+    <select #statusSelect id="status" (change)="status.set(statusSelect.value)">
+      <option value="">Any</option>
+      @for (s of statuses; track s) {
+        <option [value]="s" [selected]="s === status()">{{ s }}</option>
+      }
+    </select>
+  </div>
+  @if (loading() && runs()) {
+    <span class="muted"><app-icon name="refresh" /> Updating…</span>
+  }
+</div>
+
+@if (error()) {
+  <div class="banner error" role="alert"><app-icon name="alert" /> {{ error() }}</div>
+}
+
+@if (runs()) {
+  <app-run-table [runs]="shown()" [showJob]="!job()" />
+  @if (more()) {
+    <div class="center">
+      <button type="button" class="secondary" [disabled]="loading()" (click)="showMore()">Show older runs</button>
+    </div>
+  }
+} @else if (!error()) {
+  <div class="skeleton cards-skeleton"></div>
+}

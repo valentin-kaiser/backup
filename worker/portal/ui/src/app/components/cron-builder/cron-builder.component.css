@@ -1,0 +1,176 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.summary {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.summary app-icon {
+  vertical-align: -0.15em;
+}
+.builder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+/* Segmented control */
+.seg {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0.15rem;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.seg button {
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+.seg.small button {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.82rem;
+}
+.seg button[aria-checked='true'] {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+/* Presets */
+.presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.6rem;
+}
+.preset {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.65rem 0.8rem;
+  text-align: left;
+  white-space: normal;
+  background: var(--surface);
+  border-color: var(--line);
+  font-weight: 400;
+}
+.preset span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.preset code {
+  margin-top: 0.2rem;
+}
+.preset.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Custom fields */
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.7rem;
+}
+.field-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.field-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.field-card h4 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.field-card .hint,
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.pair {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.pair input,
+.pair select {
+  width: 5.5rem;
+  flex: 1 1 5rem;
+}
+.toggles,
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.toggle {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  background: var(--surface-2);
+  color: var(--muted);
+  border-color: var(--line);
+}
+.toggle[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.chips .tag {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.x {
+  padding: 0 0.15rem;
+  background: none;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Next runs */
+.next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.next .label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.next ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.88rem;
+  columns: 2 16rem;
+}
+.field-error {
+  color: var(--bad);
+  font-size: 0.82rem;
+}

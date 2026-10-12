@@ -1,0 +1,49 @@
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" routerLink="/">
+      <span class="logo"><app-icon name="snapshots" /></span>
+      <span>Backup</span>
+    </a>
+
+    <nav aria-label="Main">
+      @for (item of nav; track item.path) {
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: item.exact }"
+        >
+          <app-icon [name]="item.icon" />
+          <span>{{ item.label }}</span>
+          @if (item.path === '/jobs' && control.running().length) {
+            <span class="badge" title="Jobs running now">{{ control.running().length }}</span>
+          }
+        </a>
+      }
+    </nav>
+
+    <div class="status">
+      @if (!control.connected()) {
+        <span class="dot bad"></span> Connecting to the daemon…
+      } @else if (control.status(); as status) {
+        <span class="dot" [class.ok]="status.healthy" [class.bad]="!status.healthy"></span>
+        {{ status.healthy ? 'Healthy' : 'Needs attention' }}
+        <span class="muted version">{{ status.version.split('\n')[0] }}</span>
+      } @else {
+        <span class="dot"></span> Loading…
+      }
+    </div>
+  </aside>
+
+  <main class="content">
+    @if (!control.connected()) {
+      <div class="banner error" role="alert">
+        <app-icon name="alert" />
+        The portal lost the connection to the daemon. It reconnects on its own, what you see may be out of date.
+      </div>
+    }
+    <router-outlet />
+  </main>
+</div>
+
+<app-toasts />
+<app-confirm-dialog />
