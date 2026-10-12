@@ -1,5 +1,8 @@
 services:
   backup:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: backup:latest
     container_name: backup
     restart: unless-stopped
@@ -49,6 +52,9 @@ services:
   # Optional web portal, a separate process that only talks to the daemon above. Leave it out to run the
   # daemon alone and use the CLI: docker exec backup control status
   backup-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: backup:latest
     container_name: backup-portal
     command: ["portal"]
