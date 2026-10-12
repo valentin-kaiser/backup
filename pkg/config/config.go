@@ -45,6 +45,7 @@ type Job struct {
 	Source         string `usage:"directory to back up, backup jobs only, defaults to the global source"`
 	Repository     string `usage:"restic repository, defaults to the global repository"`
 	PasswordFile   string `usage:"file containing the repository password, defaults to the global password file"`
+	PasswordSecret string `usage:"name of the stored secret that holds the repository password, replaces the password file"`
 }
 
 // MountCheck guards against writing into an unmounted repository directory.
@@ -53,22 +54,38 @@ type MountCheck struct {
 	MarkerFile string `usage:"file that must exist inside the path (e.g. .mounted), empty only checks the path"`
 }
 
-// API configures the management API. It has no authentication, bind it to loopback or a private network.
+// API configures the management API. Calls need the password as bearer credential. Without authentication bind it to loopback.
 // The web portal is a separate process (control-portal) that talks to it.
 type API struct {
 	Enabled         bool   `usage:"serve the management API, required by the CLI and the web UI"`
 	Address         string `usage:"address to bind the API to"`
 	Port            int    `usage:"port to bind the API to"`
 	TLS             bool   `usage:"serve HTTPS, a self-signed certificate is generated when no certificate files exist"`
-	CertificateFile string `usage:"path to the TLS certificate file"`
-	KeyFile         string `usage:"path to the TLS key file"`
+	CertificateFile string `usage:"path to the TLS certificate file, relative to the data directory, generated (self-signed) when it does not exist"`
+	KeyFile         string `usage:"path to the TLS key file, relative to the data directory"`
+
+	ClientCAFile      string `usage:"CA file for mutual TLS, clients must then present a certificate signed by it"`
+	RequireClientCert bool   `usage:"refuse clients without a certificate, needs client-ca-file"`
+	PasswordFile      string `usage:"file with the password of the API, the same one the portal signs in with (a Docker secret), read again when it changes"`
+	DisableAuth       bool   `usage:"serve the API without a password, anyone who can reach it can run jobs and restore files"`
 }
+
+// Run modes. Standalone backs up one source to one repository with at most one job per type and takes the
+// repository password from a file, it serves no API. UI serves the management API for the portal, runs any number of
+// jobs and takes every repository password from the stored secrets.
+const (
+	ModeStandalone = "standalone"
+	ModePortal     = "portal"
+)
 
 // Config is the complete control configuration.
 type Config struct {
 	LogLevel        int        `usage:"(-1 = trace, 0 = debug, 1 = info, 2 = warn, 3 = error)"`
+	Mode            string     `usage:"standalone (one source, one repository, one job per type, password file, no API) or ui (management API for the portal, many jobs, stored secrets)"`
 	Repository      string     `usage:"restic repository"`
 	PasswordFile    string     `usage:"file containing the repository password"`
+	PasswordSecret  string     `usage:"name of the stored secret that holds the repository password, replaces the password file"`
+	MasterKeyFile   string     `usage:"file with the key that encrypts the stored secrets (base64, 32 bytes), created in the data directory when empty"`
 	Source          string     `usage:"directory to back up"`
 	Compression     string     `usage:"restic compression mode (auto, off, max)"`
 	CacheDir        string     `usage:"restic cache directory"`
@@ -86,23 +103,20 @@ type Config struct {
 	API             API        `usage:"management API used by the CLI and the web UI"`
 }
 
-func env(name, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(name)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-// Default returns the default configuration. Legacy environment variables of
-// the shell based image seed the defaults so existing deployments keep working.
+// Default returns the default configuration. The run mode is the one setting read from the environment here, because
+// the defaults of the jobs and the password depend on it.
+//
+// Portal mode has the same three default jobs. It takes the repository password from the stored secret "backup"
+// instead of a password file: create that secret in the portal, or point passwordSecret at another one.
 func Default() *Config {
-	return &Config{
+	c := &Config{
 		LogLevel:        1,
-		Repository:      env("RESTIC_REPOSITORY", "/backup/"),
-		PasswordFile:    env("RESTIC_PASSWORD_FILE", "/run/secrets/backup_password"),
-		Source:          env("RESTIC_SOURCE", "/source/"),
-		Compression:     env("RESTIC_COMPRESSION", "auto"),
-		CacheDir:        env("RESTIC_CACHE_DIR", "/var/cache/restic"),
+		Mode:            mode(),
+		Repository:      "/backup/",
+		PasswordFile:    "/run/secrets/backup_password",
+		Source:          "/source/",
+		Compression:     "auto",
+		CacheDir:        "/var/cache/restic",
 		Nice:            10,
 		ReadConcurrency: 0,
 		PackSize:        0,
@@ -116,16 +130,16 @@ func Default() *Config {
 				Name:        "backup",
 				Type:        TypeBackup,
 				Enabled:     true,
-				Schedule:    env("BACKUP_SCHEDULE", "0 0 * * *"),
-				Args:        env("RESTIC_BACKUP_ARGS", "--exclude-caches --exclude-if-present=.nobackup --exclude-file=/.backupignore"),
+				Schedule:    "0 0 * * *",
+				Args:        "--exclude-caches --exclude-if-present=.nobackup --exclude-file=/.backupignore",
 				MaxAgeHours: 26,
 			},
 			{
 				Name:     "forget",
 				Type:     TypeForget,
 				Enabled:  true,
-				Schedule: env("FORGET_SCHEDULE", "0 3 * * 0"),
-				Args:     env("RESTIC_FORGET_ARGS", "--prune --keep-last 7 --keep-daily 14 --keep-weekly 4 --keep-monthly 6 --keep-yearly 1"),
+				Schedule: "0 3 * * 0",
+				Args:     "--prune --keep-last 7 --keep-daily 14 --keep-weekly 4 --keep-monthly 6 --keep-yearly 1",
 			},
 			{
 				Name:           "check",
@@ -135,17 +149,20 @@ func Default() *Config {
 				Args:           "--read-data-subset=5%",
 				TimeoutMinutes: 360,
 			},
-		}, MountCheck: MountCheck{
-			Path:       env("CONTROL_MOUNT_CHECK_PATH", ""),
-			MarkerFile: env("CONTROL_MOUNT_CHECK_MARKER", ""),
 		},
 		API: API{
-			Enabled: true,
-			Address: "127.0.0.1",
-			Port:    8080,
-			TLS:     false,
+			Enabled:         true,
+			Address:         "127.0.0.1",
+			Port:            8080,
+			TLS:             false,
+			CertificateFile: "certs/control.cert",
+			KeyFile:         "certs/control.key",
 		},
 	}
+	if c.Portal() {
+		c.PasswordFile, c.PasswordSecret, c.API.PasswordFile = "", "backup", "/run/secrets/portal_password"
+	}
+	return c
 }
 
 // Validate implements the go-core config interface.
@@ -165,6 +182,17 @@ func (c *Config) Validate() error {
 	if c.HistoryLimit < 10 {
 		return apperror.NewError("historyLimit must be at least 10")
 	}
+	if c.PasswordSecret != "" && !jobName.MatchString(c.PasswordSecret) {
+		return apperror.NewErrorf("passwordSecret %q must be 1-32 lower case letters, digits, - or _", c.PasswordSecret)
+	}
+	switch c.Mode {
+	case "", ModeStandalone, ModePortal:
+	default:
+		return apperror.NewErrorf("mode %q must be %s or %s", c.Mode, ModeStandalone, ModePortal)
+	}
+	if !c.Portal() && c.PasswordSecret != "" {
+		return apperror.NewError("passwordSecret needs mode portal, standalone mode takes the password from passwordFile")
+	}
 	if c.StopGraceSecs < 0 {
 		return apperror.NewError("stopGraceSecs must not be negative")
 	}
@@ -173,7 +201,7 @@ func (c *Config) Validate() error {
 	default:
 		return apperror.NewErrorf("compression %q must be auto, off or max", c.Compression)
 	}
-	seen := map[string]bool{}
+	seen, types := map[string]bool{}, map[string]bool{}
 	for i, j := range c.Jobs {
 		if !jobName.MatchString(j.Name) || j.Name == RestoreJob {
 			return apperror.NewErrorf("jobs[%d].name %q must be 1-32 lower case letters, digits, - or _ and not %q", i, j.Name, RestoreJob)
@@ -198,13 +226,44 @@ func (c *Config) Validate() error {
 		if j.TimeoutMinutes < 0 || j.MaxAgeHours < 0 {
 			return apperror.NewErrorf("job %s: timeoutMinutes and maxAgeHours must not be negative", j.Name)
 		}
+		if j.PasswordSecret != "" && !jobName.MatchString(j.PasswordSecret) {
+			return apperror.NewErrorf("job %s: passwordSecret %q must be 1-32 lower case letters, digits, - or _", j.Name, j.PasswordSecret)
+		}
+		if j.PasswordSecret != "" && j.PasswordFile != "" {
+			return apperror.NewErrorf("job %s: set either passwordFile or passwordSecret, not both", j.Name)
+		}
 		if j.Source != "" && j.Type != TypeBackup {
 			return apperror.NewErrorf("job %s: source is only valid for backup jobs", j.Name)
 		}
+		if c.Portal() {
+			if jc := c.ForJob(j); jc.PasswordFile != "" {
+				return apperror.NewErrorf("job %s: password files are not used in portal mode, create a secret in the portal and set passwordSecret (or run in standalone mode)", j.Name)
+			} else if jc.PasswordSecret == "" {
+				return apperror.NewErrorf("job %s: passwordSecret is required in portal mode", j.Name)
+			}
+			continue
+		}
+		// Standalone: one source and one repository for everything, one job per type.
+		if j.Repository != "" || j.Source != "" || j.PasswordFile != "" || j.PasswordSecret != "" {
+			return apperror.NewErrorf("job %s: repository, source and password are global in standalone mode, use mode portal for per job settings", j.Name)
+		}
+		if types[j.Type] {
+			return apperror.NewErrorf("job %s: standalone mode allows one %s job, use mode portal for more", j.Name, j.Type)
+		}
+		types[j.Type] = true
+	}
+	if c.Portal() && c.PasswordFile != "" {
+		return apperror.NewError("passwordFile is not used in portal mode, create a secret in the portal and set passwordSecret (or run in standalone mode)")
 	}
 	if c.API.Enabled {
 		if c.API.Port < 1 || c.API.Port > 65535 {
 			return apperror.NewError("api.port must be between 1 and 65535")
+		}
+		if c.API.TLS && (strings.TrimSpace(c.API.CertificateFile) == "" || strings.TrimSpace(c.API.KeyFile) == "") {
+			return apperror.NewError("api.certificateFile and api.keyFile must not be empty when api.tls is set")
+		}
+		if c.Portal() && !c.API.DisableAuth && c.API.PasswordFile == "" {
+			return apperror.NewError("api.passwordFile is required: the API is protected by the password of the portal")
 		}
 	}
 	return nil
@@ -282,13 +341,17 @@ func (c Config) Job(name string) (Job, bool) {
 	return Job{}, false
 }
 
-// ForJob returns the configuration with the repository, password file and source of the job applied.
+// Portal reports whether the management API and the stored secrets are used. Anything but portal is standalone.
+func (c Config) Portal() bool { return c.Mode == ModePortal }
+
+// ForJob returns the configuration with the repository, password and source of the job applied.
 func (c Config) ForJob(j Job) Config {
 	if j.Repository != "" {
 		c.Repository = j.Repository
 	}
-	if j.PasswordFile != "" {
-		c.PasswordFile = j.PasswordFile
+	// A password of the job replaces the one of the global settings, whichever way it is given.
+	if j.PasswordFile != "" || j.PasswordSecret != "" {
+		c.PasswordFile, c.PasswordSecret = j.PasswordFile, j.PasswordSecret
 	}
 	if j.Source != "" {
 		c.Source = j.Source
@@ -299,4 +362,12 @@ func (c Config) ForJob(j Job) Config {
 // RepositoryKey identifies the repository a job works on, jobs with the same key never run at the same time.
 func (c Config) RepositoryKey(j Job) string {
 	return c.ForJob(j).Repository
+}
+
+// mode is the run mode from CONTROL_MODE, standalone when it is not set.
+func mode() string {
+	if v := strings.TrimSpace(os.Getenv("CONTROL_MODE")); v != "" {
+		return v
+	}
+	return ModeStandalone
 }

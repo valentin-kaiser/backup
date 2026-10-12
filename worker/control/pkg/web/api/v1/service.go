@@ -16,6 +16,7 @@ import (
 
 	"github.com/Valentin-Kaiser/backup/pkg/manager"
 	pb "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1"
+	"github.com/Valentin-Kaiser/backup/pkg/secrets"
 	"github.com/valentin-kaiser/go-core/logging/log"
 	"github.com/valentin-kaiser/go-core/version"
 	"github.com/valentin-kaiser/go-core/web/xrpc"
@@ -38,7 +39,8 @@ const Endpoint = Prefix + "rpc"
 // Service implements the control API.
 type Service struct {
 	pb.UnimplementedControlServer
-	m *manager.Manager
+	m       *manager.Manager
+	secrets *secrets.Store
 }
 
 var _ pb.ControlServer = (*Service)(nil)
@@ -90,7 +92,7 @@ func (s *Service) GetStatus(context.Context, *pb.GetStatusRequest) (*pb.ControlS
 		jobs = append(jobs, jobToProto(j))
 	}
 	c := s.m.Config()
-	defaults := &pb.Defaults{Source: c.Source, Repository: c.Repository, PasswordFile: c.PasswordFile, RestoreRoot: c.RestoreRoot}
+	defaults := &pb.Defaults{Source: c.Source, Repository: c.Repository, PasswordFile: c.PasswordFile, RestoreRoot: c.RestoreRoot, PasswordSecret: c.PasswordSecret}
 	return &pb.ControlStatus{Version: version.String(), Healthy: ok, Problems: problems, Jobs: jobs, Defaults: defaults}, nil
 }
 
@@ -119,6 +121,9 @@ func (s *Service) GetRun(_ context.Context, in *pb.GetRunRequest) (*pb.Run, erro
 
 // CreateJob adds a job.
 func (s *Service) CreateJob(_ context.Context, in *pb.JobDefinition) (*pb.Job, error) {
+	if err := s.checkSecretRef(in.GetPasswordSecret()); err != nil {
+		return nil, err
+	}
 	st, err := s.m.CreateJob(definitionFromProto(in))
 	if err != nil {
 		return nil, fail(err)
@@ -128,6 +133,9 @@ func (s *Service) CreateJob(_ context.Context, in *pb.JobDefinition) (*pb.Job, e
 
 // UpdateJob changes a job.
 func (s *Service) UpdateJob(_ context.Context, in *pb.JobDefinition) (*pb.Job, error) {
+	if err := s.checkSecretRef(in.GetPasswordSecret()); err != nil {
+		return nil, err
+	}
 	st, err := s.m.UpdateJob(definitionFromProto(in))
 	if err != nil {
 		return nil, fail(err)

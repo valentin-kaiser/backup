@@ -24,7 +24,7 @@ test:
 	go test ./../../../...
 
 run:
-	go run . --path $(DATA_PATH)
+	CONTROL_MODE=portal go run . --path $(DATA_PATH)
 
 debug:
-	go run . --debug --path $(DATA_PATH)
+	CONTROL_MODE=portal go run . --debug --path $(DATA_PATH)

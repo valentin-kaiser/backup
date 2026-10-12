@@ -56,6 +56,8 @@ func newService(t *testing.T) (*Service, *httptest.Server) {
 		t.Fatal(err)
 	}
 	c := *config.Default()
+	c.Mode, c.PasswordFile, c.PasswordSecret = config.ModePortal, "", "main"
+	c.API.PasswordFile = "/run/secrets/portal_password"
 	c.Nice = 0
 	c.Source = "/src"
 	c.Jobs = []config.Job{
@@ -65,6 +67,7 @@ func newService(t *testing.T) (*Service, *httptest.Server) {
 	var mu sync.Mutex
 	r := runner.Runner{Binary: os.Args[0], Prefix: []string{"-test.run=TestHelperProcess", "--"}}
 	m := manager.New(func() config.Config { mu.Lock(); defer mu.Unlock(); return c }, r, st)
+	m.SetSecrets(fixedSecrets{})
 	// Behaves like config.Update without touching the global configuration.
 	m.SetUpdater(func(change func(*config.Config) error) error {
 		mu.Lock()
@@ -453,3 +456,8 @@ func TestFilesAreCapped(t *testing.T) {
 		t.Error("garbage must be an error")
 	}
 }
+
+// fixedSecrets answers every secret with the same password, the fake restic never checks it.
+type fixedSecrets struct{}
+
+func (fixedSecrets) Get(string) (string, error) { return "pw", nil }

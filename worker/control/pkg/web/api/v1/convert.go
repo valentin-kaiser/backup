@@ -94,6 +94,7 @@ func definitionToProto(j config.Job) *pb.JobDefinition {
 		Source:         j.Source,
 		Repository:     j.Repository,
 		PasswordFile:   j.PasswordFile,
+		PasswordSecret: j.PasswordSecret,
 	}
 }
 
@@ -109,6 +110,7 @@ func definitionFromProto(d *pb.JobDefinition) config.Job {
 		Source:         d.GetSource(),
 		Repository:     d.GetRepository(),
 		PasswordFile:   d.GetPasswordFile(),
+		PasswordSecret: d.GetPasswordSecret(),
 	}
 }
 

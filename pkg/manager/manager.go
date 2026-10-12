@@ -6,13 +6,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
-	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Valentin-Kaiser/backup/pkg/config"
@@ -63,7 +64,12 @@ type active struct {
 // Manager owns the scheduler, the running jobs and the history.
 type Manager struct {
 	cfg     func() config.Config
-	runner  runner.Runner
+	local   runner.Executor
+	secrets Secrets
+
+	initMu sync.Mutex
+	// ready is set once Start ran, before that Reload only registers the schedules.
+	ready   atomic.Bool
 	store   *store.Store
 	started time.Time
 
@@ -90,12 +96,28 @@ type Updater func(change func(*config.Config) error) error
 // SetUpdater allows the manager to create, change and delete jobs.
 func (m *Manager) SetUpdater(u Updater) { m.update = u }
 
+// unavailable fails everything with the reason restic cannot be used, so the callers need no special case.
+type unavailable struct{ err error }
+
+func (u unavailable) Exec(context.Context, config.Config, func(string), ...string) (runner.Result, error) {
+	return runner.Result{ExitCode: -1}, u.err
+}
+func (u unavailable) Output(context.Context, config.Config, ...string) ([]byte, error) {
+	return nil, u.err
+}
+func (u unavailable) Preflight(context.Context, config.Config) error { return u.err }
+
+// ex returns the executor for c, with the password of its secret when it uses one.
+func (m *Manager) ex(c config.Config) runner.Executor {
+	return m.withSecret(m.local, c)
+}
+
 // New creates a manager. cfg is called whenever the current configuration is needed.
-func New(cfg func() config.Config, r runner.Runner, st *store.Store) *Manager {
+func New(cfg func() config.Config, r runner.Executor, st *store.Store) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		cfg:        cfg,
-		runner:     r,
+		local:      r,
 		store:      st,
 		started:    time.Now(),
 		ctx:        ctx,
@@ -129,11 +151,28 @@ func (m *Manager) Start() error {
 		defer m.wg.Done()
 		m.initRepositories()
 	}()
+	// From now on a changed configuration prepares the repositories of new jobs as well.
+	m.ready.Store(true)
 	return nil
 }
 
-// Reload applies the current configuration to the schedules.
+// Reload applies the current configuration to the schedules. Once the manager runs it also creates the repositories
+// that new or changed jobs need, so a job added in the portal can run right away.
 func (m *Manager) Reload() error {
+	if err := m.reload(); err != nil {
+		return err
+	}
+	if m.ready.Load() {
+		m.wg.Add(1)
+		go func() {
+			defer m.wg.Done()
+			m.initRepositories()
+		}()
+	}
+	return nil
+}
+
+func (m *Manager) reload() error {
 	c := m.cfg()
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -178,8 +217,11 @@ func (m *Manager) Reload() error {
 
 // initRepositories creates the repositories of the jobs that do not exist yet and starts their first backups.
 func (m *Manager) initRepositories() {
+	// One at a time, a start and a changed configuration may come at once.
+	m.initMu.Lock()
+	defer m.initMu.Unlock()
 	c := m.cfg()
-	if err := m.preflight(c); err != nil {
+	if err := m.ex(c).Preflight(m.ctx, c); err != nil {
 		log.Warn().Err(err).Msg("repository is not available, initialisation postponed")
 		return
 	}
@@ -208,35 +250,15 @@ func (m *Manager) initRepositories() {
 func (m *Manager) initRepository(c config.Config) bool {
 	ctx, cancel := context.WithTimeout(m.ctx, 2*time.Minute)
 	defer cancel()
-	if _, err := m.runner.Exec(ctx, c, nil, "cat", "config"); err == nil {
+	if _, err := m.ex(c).Exec(ctx, c, nil, "cat", "config"); err == nil {
 		return false
 	}
 	log.Info().Msgf("repository %s not found, initialising", c.Repository)
-	if _, err := m.runner.Exec(ctx, c, func(l string) { log.Info().Msg(l) }, "init"); err != nil {
+	if _, err := m.ex(c).Exec(ctx, c, func(l string) { log.Info().Msg(l) }, "init"); err != nil {
 		log.Error().Err(err).Msgf("initialisation of %s failed", c.Repository)
 		return false
 	}
 	return true
-}
-
-// preflight verifies the repository mount guard.
-func (m *Manager) preflight(c config.Config) error {
-	if c.MountCheck.Path == "" {
-		return nil
-	}
-	if _, err := os.Stat(c.MountCheck.Path); err != nil {
-		return apperror.NewErrorf("repository path %s is not available", c.MountCheck.Path).AddError(err)
-	}
-	if c.MountCheck.MarkerFile != "" {
-		marker := c.MountCheck.MarkerFile
-		if !filepath.IsAbs(marker) {
-			marker = filepath.Join(c.MountCheck.Path, marker)
-		}
-		if _, err := os.Stat(marker); err != nil {
-			return apperror.NewErrorf("mount marker %s not found, is the repository mounted?", marker).AddError(err)
-		}
-	}
-	return nil
 }
 
 // Trigger starts a configured job. When wait is set it returns after the run finished.
@@ -308,7 +330,7 @@ func (m *Manager) Restore(job, snapshot, target string, include []string) (store
 func (m *Manager) snapshotBase(c config.Config, snapshot string) string {
 	ctx, cancel := context.WithTimeout(m.ctx, time.Minute)
 	defer cancel()
-	out, err := m.runner.Output(ctx, c, "snapshots", "--json", "--no-lock", "--", snapshot)
+	out, err := m.ex(c).Output(ctx, c, "snapshots", "--json", "--no-lock", "--", snapshot)
 	if err != nil {
 		return ""
 	}
@@ -412,7 +434,14 @@ func (m *Manager) execute(ctx context.Context, a *active, c config.Config, args 
 	m.setStatus(a, store.StatusRunning, func(r *store.Run) { r.Started = &now })
 	m.ping(c, "/start")
 
-	if err := m.preflight(c); err != nil {
+	if err := m.ex(c).Preflight(ctx, c); errors.Is(err, runner.ErrUnavailable) {
+		// Restic cannot be used, that is a failure and not a repository that is not mounted.
+		log.Error().Err(err).Msgf("%s failed", job)
+		m.line(a, "failed: "+err.Error())
+		m.finish(a, store.StatusFailed, -1, err.Error())
+		m.ping(c, "/fail")
+		return
+	} else if err != nil {
 		log.Error().Err(err).Msgf("%s skipped", job)
 		m.line(a, "skipped: "+err.Error())
 		m.finish(a, store.StatusSkipped, 0, err.Error())
@@ -428,7 +457,7 @@ func (m *Manager) execute(ctx context.Context, a *active, c config.Config, args 
 	}
 
 	log.Info().Msgf("%s started (%s)", job, a.run.Trigger)
-	res, err := m.runner.Exec(runCtx, c, func(l string) { m.line(a, l) }, args...)
+	res, err := m.ex(c).Exec(runCtx, c, func(l string) { m.line(a, l) }, args...)
 	switch {
 	case err == nil:
 		m.finish(a, store.StatusSuccess, 0, "")
@@ -454,7 +483,7 @@ func (m *Manager) execute(ctx context.Context, a *active, c config.Config, args 
 func (m *Manager) unlock(c config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	if _, err := m.runner.Exec(ctx, c, nil, "unlock"); err != nil {
+	if _, err := m.ex(c).Exec(ctx, c, nil, "unlock"); err != nil {
 		log.Warn().Err(err).Msg("restic unlock failed")
 	}
 }
@@ -654,6 +683,7 @@ func normalize(j config.Job) config.Job {
 	j.Source = strings.TrimSpace(j.Source)
 	j.Repository = strings.TrimSpace(j.Repository)
 	j.PasswordFile = strings.TrimSpace(j.PasswordFile)
+	j.PasswordSecret = strings.TrimSpace(j.PasswordSecret)
 	return j
 }
 
@@ -763,12 +793,12 @@ func (m *Manager) Listing(ctx context.Context, job, snapshot, dir string) ([]byt
 	if err != nil {
 		return nil, err
 	}
-	if err := m.preflight(c); err != nil {
-		return nil, err
-	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	return m.runner.Output(ctx, c, "ls", "--json", "--no-lock", "--", snapshot, dir)
+	if err := m.ex(c).Preflight(ctx, c); err != nil {
+		return nil, err
+	}
+	return m.ex(c).Output(ctx, c, "ls", "--json", "--no-lock", "--", snapshot, dir)
 }
 
 func (m *Manager) query(ctx context.Context, job string, args ...string) (json.RawMessage, error) {
@@ -776,12 +806,12 @@ func (m *Manager) query(ctx context.Context, job string, args ...string) (json.R
 	if err != nil {
 		return nil, err
 	}
-	if err := m.preflight(c); err != nil {
-		return nil, err
-	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	out, err := m.runner.Output(ctx, c, args...)
+	if err := m.ex(c).Preflight(ctx, c); err != nil {
+		return nil, err
+	}
+	out, err := m.ex(c).Output(ctx, c, args...)
 	if err != nil {
 		return nil, err
 	}

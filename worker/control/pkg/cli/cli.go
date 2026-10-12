@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	pb "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1"
+	"github.com/valentin-kaiser/go-core/apperror"
 	"github.com/valentin-kaiser/go-core/version"
 	"github.com/valentin-kaiser/go-core/web/xrpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -24,13 +24,14 @@ import (
 // Commands lists the client sub commands.
 var Commands = map[string]bool{
 	"status": true, "runs": true, "run": true, "cancel": true, "pause": true, "resume": true,
-	"snapshots": true, "restore": true, "logs": true, "health": true, "version": true,
+	"snapshots": true, "restore": true, "logs": true, "health": true, "version": true, "secret": true,
 }
 
 const usage = `usage: control <command> [options]
 
-  daemon                      run the scheduler and web ui (default)
-  status                      show jobs, schedules and last results
+  daemon                      run the scheduler; CONTROL_MODE=portal also serves the API for the portal
+  once <backup|forget|check>  standalone: run one job now and exit with the result of restic
+  status                      show jobs, schedules and last results (portal mode)
   runs [-job NAME] [-n 20]    show the run history
   run <job> [-wait]           start a configured job now
   cancel|pause|resume <job>   control a job
@@ -38,9 +39,16 @@ const usage = `usage: control <command> [options]
   restore [-job NAME] [-snapshot ID] -target DIR [-include PATH]...
   logs [-f]                   print or follow live output
   health                      exit 0 when healthy (Docker HEALTHCHECK)
+  secret list                 the stored secrets (repository passwords), never their values
+  secret set NAME [-generate]     store a password; reads it from the terminal or stdin
+  secret passwd NAME [-generate]  change the password of the repositories that use it
+  secret delete NAME
+  secret rekey                new master key for the secrets (daemon stopped)
   version
 
 environment: CONTROL_URL (default http://127.0.0.1:8080)
+             CONTROL_PASSWORD or CONTROL_PASSWORD_FILE, the password of the portal (the API refuses calls without it)
+             CONTROL_PATH (default /var/lib/control, where master.key lives)
 `
 
 // rpcPath is the xrpc endpoint of the daemon.
@@ -62,6 +70,7 @@ func newClient() (*client, error) {
 	c := &client{base: base, http: &http.Client{Transport: tr, Timeout: 2 * time.Minute}}
 	control, err := pb.NewControlClient(base+rpcPath,
 		xrpc.WithHTTPClient(c.http),
+		xrpc.WithHeader(authHeader()),
 		xrpc.WithTLSConfig(tr.TLSClientConfig),
 	)
 	if err != nil {
@@ -89,7 +98,7 @@ func (c *client) health() error {
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&h)
 	if resp.StatusCode != http.StatusOK || !h.Healthy {
-		return errors.New("unhealthy")
+		return apperror.NewError("unhealthy")
 	}
 	return nil
 }
@@ -117,6 +126,13 @@ func Run(args []string) int {
 		fmt.Print(version.String())
 		return 0
 	}
+	if cmd == "secret" && len(rest) > 0 && rest[0] == "rekey" {
+		if err := rekey(); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return 1
+		}
+		return 0
+	}
 	c, err := newClient()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -138,6 +154,8 @@ func (c *client) dispatch(cmd string, args []string) error {
 	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
 	ctx := context.Background()
 	switch cmd {
+	case "secret":
+		return c.secret(args)
 	case "health":
 		if err := c.health(); err != nil {
 			return err
@@ -251,7 +269,7 @@ func (c *client) dispatch(cmd string, args []string) error {
 			return err
 		}
 		if *target == "" {
-			return fmt.Errorf("-target is required")
+			return apperror.NewErrorf("-target is required")
 		}
 		r, err := c.control.Restore(ctx, &pb.RestoreRequest{Job: *job, Snapshot: *snap, Target: *target, Include: include})
 		if err != nil {
@@ -267,7 +285,7 @@ func (c *client) dispatch(cmd string, args []string) error {
 		return c.logs(ctx, *follow)
 	}
 	fmt.Fprint(os.Stderr, usage)
-	return fmt.Errorf("unknown command %q", cmd)
+	return apperror.NewErrorf("unknown command %q", cmd)
 }
 
 func parseJob(fs *flag.FlagSet, args []string) (string, error) {
@@ -284,7 +302,7 @@ func parseJob(fs *flag.FlagSet, args []string) (string, error) {
 		args = fs.Args()[1:]
 	}
 	if len(pos) != 1 {
-		return "", fmt.Errorf("exactly one job name is required")
+		return "", apperror.NewErrorf("exactly one job name is required")
 	}
 	return pos[0], nil
 }
@@ -305,7 +323,7 @@ func (c *client) wait(id string) error {
 		case pb.RunStatus_RUN_STATUS_SUCCESS:
 			return nil
 		default:
-			return fmt.Errorf("run %s: %s %s", r.Id, state(r.Status), r.Error)
+			return apperror.NewErrorf("run %s: %s %s", r.Id, state(r.Status), r.Error)
 		}
 	}
 }

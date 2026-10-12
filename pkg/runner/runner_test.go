@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -69,6 +70,25 @@ func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_FAKE_RESTIC") != "1" {
 		return
 	}
+	if os.Getenv("GO_FAKE_ECHO") == "1" {
+		// Report what restic would see: the password file, the file of the new password and the arguments.
+		file := os.Getenv("RESTIC_PASSWORD_FILE")
+		data, err := os.ReadFile(file)
+		os.Stdout.WriteString("file=" + file + "\n")
+		if err == nil {
+			os.Stdout.WriteString("pw=" + string(data) + "\n")
+			if fi, e := os.Stat(file); e == nil {
+				os.Stdout.WriteString("mode=" + fi.Mode().Perm().String() + "\n")
+			}
+		}
+		for i, a := range os.Args {
+			if a == "--new-password-file" && i+1 < len(os.Args) {
+				nd, _ := os.ReadFile(os.Args[i+1])
+				os.Stdout.WriteString("newfile=" + os.Args[i+1] + "\nnew=" + string(nd) + "\n")
+			}
+		}
+		os.Exit(0)
+	}
 	os.Stdout.WriteString("to stdout\n")
 	os.Stderr.WriteString("to stderr\n")
 	if os.Getenv("GO_FAKE_EXIT") == "3" {
@@ -103,5 +123,82 @@ func TestExecSuccess(t *testing.T) {
 	c.Nice = 0
 	if _, err := fake().Exec(context.Background(), c, nil, "check"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// echo runs the fake restic and returns what it reported as key=value pairs.
+func echo(t *testing.T, ctx context.Context, args ...string) map[string]string {
+	t.Helper()
+	t.Setenv("GO_FAKE_RESTIC", "1")
+	t.Setenv("GO_FAKE_ECHO", "1")
+	c := *config.Default()
+	c.Nice = 0
+	c.PasswordFile = "/from/the/config"
+	out := map[string]string{}
+	if _, err := fake().Exec(ctx, c, func(l string) {
+		if k, v, ok := strings.Cut(l, "="); ok {
+			out[k] = v
+		}
+	}, args...); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func TestThePasswordOfTheContextReachesResticInAPrivateFile(t *testing.T) {
+	got := echo(t, WithPassword(context.Background(), "s3cret value"), "snapshots")
+	if got["pw"] != "s3cret value" {
+		t.Fatalf("restic saw %v", got)
+	}
+	if got["file"] == "/from/the/config" {
+		t.Error("the secret must replace the password file of the configuration")
+	}
+	if got["mode"] != "" && os.PathSeparator == '/' && got["mode"] != "-rw-------" {
+		t.Errorf("the file must be private: %s", got["mode"])
+	}
+	if _, err := os.Stat(got["file"]); err == nil {
+		t.Error("the password file must be removed after the run")
+	}
+	if _, err := os.Stat(filepath.Dir(got["file"])); err == nil {
+		t.Error("the temporary directory must be removed too")
+	}
+}
+
+func TestWithoutASecretTheConfiguredPasswordFileIsUsed(t *testing.T) {
+	got := echo(t, context.Background(), "snapshots")
+	if got["file"] != "/from/the/config" {
+		t.Errorf("restic saw %v", got)
+	}
+}
+
+func TestTheNewPasswordReplacesThePlaceholder(t *testing.T) {
+	ctx := WithNewPassword(WithPassword(context.Background(), "old"), "brand new")
+	got := echo(t, ctx, "key", "passwd", "--new-password-file", NewPasswordFile)
+	if got["pw"] != "old" || got["new"] != "brand new" {
+		t.Fatalf("restic saw %v", got)
+	}
+	if _, err := os.Stat(got["newfile"]); err == nil {
+		t.Error("the new password file must be removed")
+	}
+}
+
+func TestAPlaceholderWithoutANewPasswordFailsBeforeResticRuns(t *testing.T) {
+	t.Setenv("GO_FAKE_RESTIC", "1")
+	c := *config.Default()
+	c.Nice = 0
+	ctx := WithPassword(context.Background(), "old")
+	if _, err := fake().Exec(ctx, c, nil, "key", "passwd", "--new-password-file", NewPasswordFile); err == nil {
+		t.Fatal("expected an error")
+	}
+}
+
+func TestOutputUsesThePasswordToo(t *testing.T) {
+	t.Setenv("GO_FAKE_RESTIC", "1")
+	t.Setenv("GO_FAKE_ECHO", "1")
+	c := *config.Default()
+	c.Nice = 0
+	out, err := fake().Output(WithPassword(context.Background(), "via output"), c, "snapshots")
+	if err != nil || !strings.Contains(string(out), "pw=via output") {
+		t.Fatalf("out = %q, %v", out, err)
 	}
 }

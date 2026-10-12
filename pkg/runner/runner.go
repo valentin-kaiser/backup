@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,6 +70,41 @@ func SplitArgs(s string) ([]string, error) {
 	return args, nil
 }
 
+// ErrUnavailable is wrapped by errors of an executor that cannot run restic, as opposed to restic failing.
+var ErrUnavailable = apperror.NewError("restic unavailable")
+
+// Executor runs restic. Runner does it in this process, the wrappers add to the calls (e.g. a stored password).
+type Executor interface {
+	// Exec runs restic and calls onLine for every line of its output.
+	Exec(ctx context.Context, c config.Config, onLine func(string), args ...string) (Result, error)
+	// Output runs restic and returns its stdout.
+	Output(ctx context.Context, c config.Config, args ...string) ([]byte, error)
+	// Preflight verifies the mount guard of the repository on the machine that runs restic.
+	Preflight(ctx context.Context, c config.Config) error
+}
+
+var _ Executor = Runner{}
+
+// Preflight verifies the repository mount guard, it fails while the repository is not mounted.
+func (r Runner) Preflight(_ context.Context, c config.Config) error {
+	if c.MountCheck.Path == "" {
+		return nil
+	}
+	if _, err := os.Stat(c.MountCheck.Path); err != nil {
+		return apperror.NewErrorf("repository path %s is not available", c.MountCheck.Path).AddError(err)
+	}
+	if c.MountCheck.MarkerFile != "" {
+		marker := c.MountCheck.MarkerFile
+		if !filepath.IsAbs(marker) {
+			marker = filepath.Join(c.MountCheck.Path, marker)
+		}
+		if _, err := os.Stat(marker); err != nil {
+			return apperror.NewErrorf("mount marker %s not found, is the repository mounted?", marker).AddError(err)
+		}
+	}
+	return nil
+}
+
 // Runner starts restic processes.
 type Runner struct {
 	// Binary is the restic executable, "restic" when empty.
@@ -121,6 +158,81 @@ func Args(c config.Config, job config.Job) ([]string, error) {
 	return append(args, extra...), nil
 }
 
+type passwordKey struct{}
+type newPasswordKey struct{}
+
+// NewPasswordFile is replaced in the arguments by the path of a private file holding the new password, see
+// WithNewPassword. It is used for `restic key passwd --new-password-file`.
+const NewPasswordFile = "{{new-password-file}}"
+
+// WithPassword makes the runner use password as the repository password, instead of the password file of the
+// configuration. The password is handed to restic in a private temporary file that is removed afterwards. It travels
+// in the context and not in the configuration, which is written to disk.
+func WithPassword(ctx context.Context, password string) context.Context {
+	return context.WithValue(ctx, passwordKey{}, password)
+}
+
+// WithNewPassword provides the password that replaces NewPasswordFile in the arguments.
+func WithNewPassword(ctx context.Context, password string) context.Context {
+	return context.WithValue(ctx, newPasswordKey{}, password)
+}
+
+// PasswordFrom returns the password of WithPassword.
+func PasswordFrom(ctx context.Context) string { s, _ := ctx.Value(passwordKey{}).(string); return s }
+
+// NewPasswordFrom returns the password of WithNewPassword.
+func NewPasswordFrom(ctx context.Context) string {
+	s, _ := ctx.Value(newPasswordKey{}).(string)
+	return s
+}
+
+// prepare builds the command like Command and, when the context carries passwords, writes them to files only the
+// current user can read. The returned function removes them, call it after the process ended.
+func (r Runner) prepare(ctx context.Context, c config.Config, args []string) (*exec.Cmd, func(), error) {
+	pw, newPw := PasswordFrom(ctx), NewPasswordFrom(ctx)
+	if pw == "" && newPw == "" {
+		return r.Command(ctx, c, args...), func() {}, nil
+	}
+	dir, err := os.MkdirTemp("", "restic-secret-")
+	if err != nil {
+		return nil, nil, apperror.Wrap(err)
+	}
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	write := func(name, value string) (string, error) {
+		p := filepath.Join(dir, name)
+		return p, os.WriteFile(p, []byte(value), 0o600)
+	}
+	var pwFile string
+	if pw != "" {
+		if pwFile, err = write("password", pw); err != nil {
+			cleanup()
+			return nil, nil, apperror.Wrap(err)
+		}
+	}
+	full := slices.Clone(args)
+	for i, a := range full {
+		if a != NewPasswordFile {
+			continue
+		}
+		if newPw == "" {
+			cleanup()
+			return nil, nil, apperror.NewError("the arguments need a new password and none was given")
+		}
+		p, err := write("new-password", newPw)
+		if err != nil {
+			cleanup()
+			return nil, nil, apperror.Wrap(err)
+		}
+		full[i] = p
+	}
+	cmd := r.Command(ctx, c, full...)
+	if pwFile != "" {
+		// The last value of a duplicate wins, this replaces the password file of the configuration.
+		cmd.Env = append(cmd.Env, "RESTIC_PASSWORD_FILE="+pwFile)
+	}
+	return cmd, cleanup, nil
+}
+
 // Command builds an exec.Cmd for restic with the repository environment applied.
 func (r Runner) Command(ctx context.Context, c config.Config, args ...string) *exec.Cmd {
 	bin := r.binary()
@@ -150,7 +262,11 @@ func (r Runner) Command(ctx context.Context, c config.Config, args ...string) *e
 // Exec runs restic with args and calls onLine for every line of stdout and stderr.
 // A non-zero exit code is reported in the result together with an error.
 func (r Runner) Exec(ctx context.Context, c config.Config, onLine func(string), args ...string) (Result, error) {
-	cmd := r.Command(ctx, c, args...)
+	cmd, cleanup, err := r.prepare(ctx, c, args)
+	if err != nil {
+		return Result{ExitCode: -1}, err
+	}
+	defer cleanup()
 	pr, pw := io.Pipe()
 	cmd.Stdout = pw
 	cmd.Stderr = pw
@@ -169,7 +285,7 @@ func (r Runner) Exec(ctx context.Context, c config.Config, onLine func(string), 
 		_, _ = io.Copy(io.Discard, pr)
 	}()
 
-	err := cmd.Run()
+	err = cmd.Run()
 	_ = pw.Close()
 	wg.Wait()
 
@@ -191,7 +307,11 @@ func (r Runner) Exec(ctx context.Context, c config.Config, onLine func(string), 
 
 // Output runs restic and returns its stdout. Stderr is returned as part of the error.
 func (r Runner) Output(ctx context.Context, c config.Config, args ...string) ([]byte, error) {
-	cmd := r.Command(ctx, c, args...)
+	cmd, cleanup, err := r.prepare(ctx, c, args)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
