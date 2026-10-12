@@ -168,10 +168,13 @@ Set `CONTROL_WEBHOOK_URL` to a [healthchecks.io](https://healthchecks.io) compat
 
 The portal is a separate process, `control-portal`, started with `docker run ... ghcr.io/valentin-kaiser/backup:latest portal` or as the `backup-portal` service of the compose file. It serves the Angular app on `https://localhost:8443` (self-signed certificate unless `certificate-file` and `key-file` are set) and forwards the websocket of the browser to the daemon.
 
-- **Overview**: health, running jobs, the state of every job with run, pause and cancel, live output and the latest runs
-- **Jobs**: create, edit, enable or disable, run and delete jobs. A cron builder (presets, or every/at/range/interval/list per field) describes the schedule in words and previews the next runs, following the daemon's rules where the day of the month and the weekday both have to match. An options form builds the restic arguments for the job type (exclusions, retention rules, check depth, ...) and keeps any argument it does not know. Saving writes `control.yaml` and reschedules at once
-- **History**: all runs, filtered by job or status, new runs appear on their own. Every run has a page with its complete output, which streams while the run is active
-- **Snapshots**: the snapshots and statistics of each repository, loaded when you open the page and again after every backup or prune. Open a snapshot to browse its files folder by folder, filter them, and restore a single file, a folder or the whole snapshot from there
+The portal is one page with three sections below each other and a drawer for details:
+
+- **Overview**: health, running jobs, the state of every job with run, pause and cancel, and the live output of running jobs
+- **History**: all runs, filtered by job or status, new runs appear on their own
+- **Snapshots**: the snapshots and statistics of each repository, reloaded after every backup or prune
+- **Drawer**: creating or editing a job (with the cron builder and the restic options form, saving writes `control.yaml` and reschedules at once, deleting is there too), the complete output of a run (streams while the run is active) and the file browser of a snapshot, where a file, a folder or the whole snapshot can be restored. Close it with the button, `Esc` or a click outside; on very wide screens it docks next to the page. Every drawer has its own URL, so views can be linked
+- Light and dark theme, following the system until you pick one
 
 | Setting (`portal.yaml`, `PORTAL_*`) | Default |
 |---|---|
