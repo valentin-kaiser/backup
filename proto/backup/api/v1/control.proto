@@ -1,0 +1,248 @@
+// Resources of the backup control daemon.
+syntax = "proto3";
+
+package backup.api.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1";
+
+option optimize_for = SPEED;
+
+// The state of a run.
+enum RunStatus {
+  RUN_STATUS_UNSPECIFIED = 0;
+  RUN_STATUS_QUEUED      = 1;
+  RUN_STATUS_RUNNING     = 2;
+  RUN_STATUS_SUCCESS     = 3;
+  RUN_STATUS_FAILED      = 4;
+  RUN_STATUS_CANCELLED   = 5;
+  RUN_STATUS_SKIPPED     = 6;
+}
+
+// One execution of a job.
+message Run {
+  // Unique identifier of the run.
+  string id = 1;
+
+  // Name of the job that was run, restore for restores.
+  string job = 2;
+
+  // What started the run: schedule, manual or init.
+  string trigger = 3;
+
+  // Current state of the run.
+  RunStatus status = 4;
+
+  // Time at which the run was queued.
+  google.protobuf.Timestamp queue_time = 5;
+
+  // Time at which restic was started, when it was.
+  google.protobuf.Timestamp start_time = 6;
+
+  // Time at which the run reached a final state, when it did.
+  google.protobuf.Timestamp finish_time = 7;
+
+  // Exit code of restic, 0 when it did not run.
+  int32 exit_code = 8;
+
+  // Human readable reason when the run did not succeed.
+  string error = 9;
+
+  // The last lines of output of restic. Not set in lists.
+  repeated string output = 10;
+}
+
+// The configuration of a job, as stored in control.yaml.
+message JobDefinition {
+  // Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved.
+  string name = 1;
+
+  // What the job does: backup, forget or check.
+  string type = 2;
+
+  // Whether the job is scheduled.
+  bool enabled = 3;
+
+  // Cron expression: minute hour day month weekday.
+  string schedule = 4;
+
+  // Additional restic arguments, split like a shell would without expanding anything.
+  string args = 5;
+
+  // Abort the run after this many minutes, 0 disables the timeout.
+  int32 timeout_minutes = 6;
+
+  // Unhealthy when no run succeeded within this many hours, 0 disables.
+  int32 max_age_hours = 7;
+
+  // Directory to back up, backup jobs only. The default source when empty.
+  string source = 8;
+
+  // Restic repository. The default repository when empty.
+  string repository = 9;
+
+  // File containing the repository password. The default password file when empty.
+  string password_file = 10;
+}
+
+// Settings that jobs inherit when they do not set their own.
+message Defaults {
+  string source = 1;
+  string repository = 2;
+  string password_file = 3;
+
+  // Restores are only allowed below this directory.
+  string restore_root = 4;
+}
+
+// A job, its configuration and its state.
+message Job {
+  // Name of the job, restore for restore runs.
+  string name = 1;
+
+  // Whether the job is enabled in the configuration.
+  bool enabled = 2;
+
+  // Whether scheduling is paused. Manual runs still work.
+  bool paused = 3;
+
+  // Cron expression, empty for jobs that are not scheduled.
+  string schedule = 4;
+
+  // Next scheduled run, not set when the job is disabled or paused.
+  google.protobuf.Timestamp next_run_time = 5;
+
+  // The queued or running run, when there is one.
+  Run active = 6;
+
+  // The most recent finished run.
+  Run last = 7;
+
+  // Finish time of the most recent successful run.
+  google.protobuf.Timestamp last_success_time = 8;
+
+  // What the job does: backup, forget or check. Empty for restore.
+  string type = 9;
+
+  // The configuration of the job, not set for restore.
+  JobDefinition definition = 10;
+}
+
+// The state of the daemon.
+message ControlStatus {
+  // Version of the daemon.
+  string version = 1;
+
+  // Whether the Docker health check passes.
+  bool healthy = 2;
+
+  // Reasons why the daemon is not healthy.
+  repeated string problems = 3;
+
+  // All jobs.
+  repeated Job jobs = 4;
+
+  // What jobs inherit when they do not set their own.
+  Defaults defaults = 5;
+}
+
+// A restic snapshot.
+message Snapshot {
+  // Full snapshot id.
+  string id = 1;
+
+  // Abbreviated snapshot id.
+  string short_id = 2;
+
+  // Time at which the snapshot was taken.
+  google.protobuf.Timestamp time = 3;
+
+  // Host that created the snapshot.
+  string hostname = 4;
+
+  // User that created the snapshot.
+  string username = 5;
+
+  // Backed up paths.
+  repeated string paths = 6;
+
+  // Tags of the snapshot.
+  repeated string tags = 7;
+}
+
+// The kind of an entry in a snapshot.
+enum FileType {
+  FILE_TYPE_UNSPECIFIED = 0;
+  FILE_TYPE_FILE        = 1;
+  FILE_TYPE_DIRECTORY   = 2;
+  FILE_TYPE_SYMLINK     = 3;
+  FILE_TYPE_OTHER       = 4;
+}
+
+// A file, directory or link inside a snapshot.
+message FileNode {
+  // Name without the directory.
+  string name = 1;
+
+  // Absolute path inside the snapshot.
+  string path = 2;
+
+  // What the entry is.
+  FileType type = 3;
+
+  // Size in bytes, 0 for directories.
+  uint64 size = 4;
+
+  // Time of the last modification.
+  google.protobuf.Timestamp modify_time = 5;
+
+  // Permissions in the form of ls -l, e.g. -rw-r--r--.
+  string permissions = 6;
+}
+
+// Statistics of the restic repository.
+message RepositoryStats {
+  // Size of the stored data in bytes.
+  uint64 total_size = 1;
+
+  // Size of the data before compression in bytes.
+  uint64 uncompressed_size = 2;
+
+  // Ratio between uncompressed and stored size.
+  double compression_ratio = 3;
+
+  // Number of blobs in the repository.
+  uint64 blob_count = 4;
+
+  // Number of snapshots in the repository.
+  uint64 snapshot_count = 5;
+}
+
+// The kind of an event.
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_STATUS      = 1;
+  EVENT_TYPE_LINE        = 2;
+}
+
+// Published whenever a run changes its state or prints a line.
+message Event {
+  // Kind of the event.
+  EventType type = 1;
+
+  // Identifier of the run.
+  string run = 2;
+
+  // Name of the job.
+  string job = 3;
+
+  // New state of the run, set for status events.
+  RunStatus status = 4;
+
+  // Line printed by restic, set for line events.
+  string line = 5;
+
+  // Time at which the event happened.
+  google.protobuf.Timestamp time = 6;
+}

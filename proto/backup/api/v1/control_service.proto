@@ -1,0 +1,142 @@
+// RPCs of the backup control daemon.
+syntax = "proto3";
+
+package backup.api.v1;
+
+import "backup/api/v1/control.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1";
+
+option optimize_for = SPEED;
+
+// Controls the backup jobs and inspects the repository.
+service Control {
+  // Returns the health and the state of all jobs.
+  rpc GetStatus(GetStatusRequest) returns (ControlStatus);
+
+  // Lists runs, newest first. Active runs come first.
+  rpc ListRuns(ListRunsRequest) returns (ListRunsResponse);
+
+  // Returns a run including its output.
+  rpc GetRun(GetRunRequest) returns (Run);
+
+  // Creates a job and schedules it. Fails when the name is taken or the configuration is invalid.
+  rpc CreateJob(JobDefinition) returns (Job);
+
+  // Replaces the configuration of an existing job.
+  rpc UpdateJob(JobDefinition) returns (Job);
+
+  // Removes a job. Its history stays. Fails while the job is running.
+  rpc DeleteJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Starts a job now.
+  rpc StartJob(JobRequest) returns (Run);
+
+  // Cancels the queued or running run of a job.
+  rpc CancelJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Stops a job from being scheduled. Manual runs still work.
+  rpc PauseJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Schedules a paused job again.
+  rpc ResumeJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Lists the snapshots of the repository.
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+
+  // Lists the entries directly inside a directory of a snapshot.
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+
+  // Returns the statistics of the repository.
+  rpc GetStats(GetStatsRequest) returns (RepositoryStats);
+
+  // Restores a snapshot below the restore directory.
+  rpc Restore(RestoreRequest) returns (Run);
+
+  // Streams run state changes and output lines as they happen.
+  rpc Watch(WatchRequest) returns (stream Event);
+}
+
+// Requests the status of the daemon.
+message GetStatusRequest {}
+
+// Requests the run history.
+message ListRunsRequest {
+  // Only return runs of this job, all jobs when empty.
+  string job = 1;
+
+  // Maximum number of runs to return, 50 when not set, at most 500.
+  int32 limit = 2;
+}
+
+// A list of runs without their output.
+message ListRunsResponse {
+  repeated Run runs = 1;
+}
+
+// Requests a single run.
+message GetRunRequest {
+  string id = 1;
+}
+
+// Addresses a job.
+message JobRequest {
+  // Name of a configured job. restore may only be cancelled.
+  string job = 1;
+}
+
+// Requests the snapshot list.
+message ListSnapshotsRequest {
+  // Name of a job, its repository is listed. The global repository when empty.
+  string job = 1;
+}
+
+// The snapshots of the repository, newest first.
+message ListSnapshotsResponse {
+  repeated Snapshot snapshots = 1;
+}
+
+// Requests the content of a directory in a snapshot.
+message ListFilesRequest {
+  // Name of a job, the snapshot is read from its repository. The global repository when empty.
+  string job = 1;
+
+  // Snapshot id.
+  string snapshot = 2;
+
+  // Absolute directory inside the snapshot, / when empty.
+  string path = 3;
+}
+
+// The entries of a directory, directories first, then by name.
+message ListFilesResponse {
+  repeated FileNode files = 1;
+
+  // Set when the directory has more entries than are returned.
+  bool truncated = 2;
+}
+
+// Requests the repository statistics.
+message GetStatsRequest {
+  // Name of a job, the statistics of its repository are returned. The global repository when empty.
+  string job = 1;
+}
+
+// Requests a restore.
+message RestoreRequest {
+  // Snapshot id, latest when empty.
+  string snapshot = 1;
+
+  // Target directory, must be below the restore directory.
+  string target = 2;
+
+  // Paths to restore, everything when empty.
+  repeated string include = 3;
+
+  // Name of a job, the snapshot is restored from its repository. The global repository when empty.
+  string job = 4;
+}
+
+// Requests the event stream.
+message WatchRequest {}
