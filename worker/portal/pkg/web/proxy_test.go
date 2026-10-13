@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/audit"
 	"github.com/gorilla/websocket"
 )
 
@@ -142,3 +144,26 @@ const call = `{"jsonrpc":"2.0","id":1,"method":"Control.GetStatus"}`
 
 // admin lets every request in, these tests are about forwarding.
 func admin(*http.Request) bool { return true }
+
+func TestDuplicateIDsInABatchAreFound(t *testing.T) {
+	if _, dup := duplicateID([]frame{{ID: json.RawMessage(`1`)}, {ID: json.RawMessage(`2`)}, {}, {}}); dup {
+		t.Fatal("distinct ids and notifications are fine")
+	}
+	if id, dup := duplicateID([]frame{{ID: json.RawMessage(`7`)}, {ID: json.RawMessage(` 7`)}}); !dup || id != "7" {
+		t.Fatalf("got %q %v", id, dup)
+	}
+}
+
+func TestPendingAnswersSameIDInOrder(t *testing.T) {
+	var p pending
+	p.add("1", audit.Entry{Action: "a"})
+	p.add("1", audit.Entry{Action: "b"})
+	for _, want := range []string{"a", "b"} {
+		if e, ok := p.take("1"); !ok || e.Action != want {
+			t.Fatalf("want %s, got %v %v", want, e.Action, ok)
+		}
+	}
+	if p.any() {
+		t.Fatal("nothing should be pending")
+	}
+}

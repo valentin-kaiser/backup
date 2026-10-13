@@ -25,12 +25,13 @@ import (
 type Access func(r *http.Request) bool
 
 const (
-	subprotocol    = "xrpc.json"
-	maxFrame       = 1 << 20
-	maxBody        = 64 << 10
-	recheckEvery   = 30 * time.Second
-	codeForbidden  = -32001
-	handshakeLimit = 10 * time.Second
+	subprotocol        = "xrpc.json"
+	maxFrame           = 1 << 20
+	maxBody            = 64 << 10
+	recheckEvery       = 30 * time.Second
+	codeForbidden      = -32001
+	codeInvalidRequest = -32600
+	handshakeLimit     = 10 * time.Second
 	// daemonPath is the endpoint of the daemon API, whatever path the browser used on the portal.
 	daemonPath = "/api/v1/rpc"
 )
@@ -67,6 +68,23 @@ func parseFrames(data []byte) ([]frame, bool) {
 	return []frame{f}, true
 }
 
+// duplicateID reports an id used twice in a batch. The answers could not be told apart, and the audit entry of one of the
+// calls would be lost or given the result of the other.
+func duplicateID(frames []frame) (string, bool) {
+	seen := map[string]bool{}
+	for _, f := range frames {
+		k := f.key()
+		if k == "" || k == "null" {
+			continue
+		}
+		if seen[k] {
+			return k, true
+		}
+		seen[k] = true
+	}
+	return "", false
+}
+
 // check refuses requests with a method that is not part of the control API.
 func check(frames []frame) (string, bool) {
 	for _, f := range frames {
@@ -77,27 +95,35 @@ func check(frames []frame) (string, bool) {
 	return "", true
 }
 
-// pending are the audited calls that wait for the answer of the daemon, by the id of the request.
+// pending are the audited calls that wait for the answer of the daemon, by the id of the request. A browser may reuse an id
+// over a websocket, so the entries of one id are answered in the order they were sent.
 type pending struct {
 	mu    sync.Mutex
-	calls map[string]audit.Entry
+	calls map[string][]audit.Entry
 }
 
 func (p *pending) add(id string, e audit.Entry) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.calls == nil {
-		p.calls = map[string]audit.Entry{}
+		p.calls = map[string][]audit.Entry{}
 	}
-	p.calls[id] = e
+	p.calls[id] = append(p.calls[id], e)
 }
 
 func (p *pending) take(id string) (audit.Entry, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	e, ok := p.calls[id]
-	delete(p.calls, id)
-	return e, ok
+	q := p.calls[id]
+	if len(q) == 0 {
+		return audit.Entry{}, false
+	}
+	if len(q) == 1 {
+		delete(p.calls, id)
+	} else {
+		p.calls[id] = q[1:]
+	}
+	return q[0], true
 }
 
 func (p *pending) any() bool {
@@ -109,9 +135,9 @@ func (p *pending) any() bool {
 func (p *pending) drain() []audit.Entry {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	out := make([]audit.Entry, 0, len(p.calls))
-	for _, e := range p.calls {
-		out = append(out, e)
+	var out []audit.Entry
+	for _, q := range p.calls {
+		out = append(out, q...)
 	}
 	p.calls = nil
 	return out
@@ -304,6 +330,11 @@ func newProxy(ctx context.Context, target *url.URL, tlsConfig *tls.Config, token
 			http.Error(w, "this call is not allowed", http.StatusForbidden)
 			return
 		}
+		if id, dup := duplicateID(frames); dup {
+			aud.deny(api.ClientIP(r), "", "the id "+audit.Redact(id)+" is used twice in one batch")
+			http.Error(w, "request ids in a batch must be unique", http.StatusBadRequest)
+			return
+		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		var p pending
 		aud.plan(frames, api.ClientIP(r), &p)
@@ -434,6 +465,18 @@ func relay(ctx context.Context, w http.ResponseWriter, r *http.Request, up *webs
 				if reply(websocket.TextMessage, msg) != nil {
 					return
 				}
+			}
+			continue
+		}
+		if id, dup := duplicateID(frames); dup {
+			aud.deny(ip, "", "the id "+audit.Redact(id)+" is used twice in one batch")
+			msg, _ := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      nil,
+				"error":   map[string]any{"code": codeInvalidRequest, "message": "request ids in a batch must be unique"},
+			})
+			if reply(websocket.TextMessage, msg) != nil {
+				return
 			}
 			continue
 		}
