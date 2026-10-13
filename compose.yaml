@@ -30,6 +30,8 @@ services:
       - ./volumes/restore:/restore
       - ./volumes/control/server:/var/lib/control
       - ./volumes/control/cache:/var/cache/restic
+      # the portal password (portal_password), created with a random value on the first start when it does not exist
+      - ./secrets:/run/secrets
     environment:
       # portal (default): the daemon of the web portal below, any number of jobs and stored secrets, the password file
       # is not used. standalone (CONTROL_MODE=standalone docker compose up -d backup): one source, one repository, one job
@@ -46,10 +48,6 @@ services:
       # - CONTROL_MOUNTCHECK_MARKERFILE=.mounted
       # ping a healthchecks.io style URL on start, success and failure
       # - CONTROL_WEBHOOK_URL=https://hc-ping.com/your-uuid
-    secrets:
-      - portal_password
-      # standalone mode only
-      - backup_password
 
   # The web portal, a separate process that only talks to the daemon above. Standalone mode does not use it.
   backup-portal:
@@ -75,15 +73,14 @@ services:
     volumes:
       # password, sessions and audit log of the portal
       - ./volumes/portal:/var/lib/portal
-    secrets:
-      - portal_password
+      - ./secrets:/run/secrets
     ports:
       # Users have to sign in. Still keep the port on loopback, or put a reverse proxy with a proper
       # certificate in front.
       - "8443:8443"
     environment:
       - PORTAL_DAEMON_URL=http://backup:9080
-      # the password of the portal and of the daemon, the same file the daemon reads
+      # the password of the portal and of the daemon, the same file the daemon reads, created when it does not exist
       - PORTAL_PASSWORDFILE=/run/secrets/portal_password
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1:8443/"]
@@ -92,10 +89,3 @@ services:
       start_period: 15s
       retries: 3
 
-secrets:
-  backup_password:
-    # openssl rand -hex 32 > ./secrets/backup_password
-    file: ./secrets/backup_password
-  portal_password:
-    # openssl rand -hex 12 > ./secrets/portal_password
-    file: ./secrets/portal_password

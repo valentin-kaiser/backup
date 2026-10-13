@@ -145,3 +145,34 @@ func TestMiddlewareRefusesEveryoneWithoutAPassword(t *testing.T) {
 		t.Errorf("status %d", w.Code)
 	}
 }
+
+func TestEnsureCreatesOnlyAMissingPassword(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "portal_password")
+	created, err := Ensure(path)
+	if err != nil || !created {
+		t.Fatalf("created = %v, err = %v", created, err)
+	}
+	first, err := Read(path)
+	if err != nil {
+		t.Fatalf("the generated password is not usable: %v", err)
+	}
+	if created, err := Ensure(path); err != nil || created {
+		t.Fatalf("an existing password must be kept, created = %v, err = %v", created, err)
+	}
+	if again, _ := Read(path); again != first {
+		t.Error("the password changed")
+	}
+	// An empty file counts as not set, a short password is the admin's to fix.
+	if err := os.WriteFile(path, []byte("\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if created, err := Ensure(path); err != nil || !created {
+		t.Fatalf("empty: created = %v, err = %v", created, err)
+	}
+	if err := os.WriteFile(path, []byte("short"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if created, _ := Ensure(path); created {
+		t.Error("a short password must not be replaced")
+	}
+}

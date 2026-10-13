@@ -25,11 +25,13 @@ The [compose file](./compose.yaml) is the recommended starting point. It starts 
 
 ```bash
 mkdir -p secrets
-openssl rand -hex 12 > ./secrets/portal_password   # the one password: portal sign-in and daemon API
+# optional: the one password for the portal sign-in and the daemon API. Without it a random one is created in
+# ./secrets/portal_password on the first start
+openssl rand -hex 12 > ./secrets/portal_password
 docker compose up -d
 ```
 
-Open `https://localhost:8443` (self-signed certificate) and sign in with that password. The three default jobs fail until you create the secret `backup` under *Secrets*; it holds the repository password.
+Open `https://localhost:8443` (self-signed certificate) and sign in with that password (`cat ./secrets/portal_password` if it was created for you). The three default jobs fail until you create the secret `backup` under *Secrets*; it holds the repository password.
 
 For a single source and repository without a portal, use standalone mode:
 
@@ -95,7 +97,7 @@ docker exec -u 1000 backup control status   # the CLI reads CONTROL_PASSWORD_FIL
 | `/source` | Data to back up (mount read-only) |
 | `/backup` | Local restic repository (or any other repository type via `repository` / `CONTROL_REPOSITORY`) |
 | `/run/secrets/backup_password` | Repository password file, standalone mode only (use a Docker secret) |
-| `/run/secrets/portal_password` | The portal password, portal mode (daemon and portal) |
+| `/run/secrets/portal_password` | The portal password, portal mode (daemon and portal). Created with a random value when it does not exist, so the directory must be writable |
 | `/var/lib/control` | State of the daemon: configuration, run history, logs |
 | `/var/lib/portal` | State of the portal: `portal.db` with sessions and audit log, keep it on a volume |
 | `/var/cache/restic` | restic cache, a volume makes check and forget much faster |
@@ -151,36 +153,27 @@ jobs:
 | Field | Meaning |
 |---|---|
 | `name` | Unique, 1-32 characters of `a-z 0-9 - _`. `restore` is reserved |
-| `type` | `backup`, `forget`, `check` (restic commands), `sync` (see [Sync](#sync)) or `group` (see [Groups](#groups)) |
+| `type` | `backup`, `forget`, `check` (restic commands) or `sync` (see [Sync](#sync)) |
 | `schedule`, `enabled` | Cron expression and whether the job is scheduled. Disabled jobs can still be run by hand |
+| `after` | Name of a job that starts this one when it succeeded (see [Chaining](#chaining)). The job has no schedule, `enabled` must be `false` |
 | `args` | Additional restic arguments |
 | `source` (backup jobs), `repository` | Portal mode only: directory to back up and restic repository, default to the global settings |
 | `passwordsecret` | Portal mode: the stored [secret](#secrets) with the repository password, defaults to the global one. `passwordfile` is only used (globally) in standalone mode |
 | `timeoutminutes`, `maxagehours` | Abort the run after this long; flag the daemon unhealthy when there was no success for this long |
 
-In standalone mode the defaults are `backup` (daily 00:00), `forget` (Sundays 03:00) and `check` (Wednesdays 05:00).
+In standalone mode the defaults are `backup` (daily 00:00), followed by `forget` and then `check`, each starting when the previous one succeeded.
 Only one job touches a repository at a time and a running job is not started again; jobs on different repositories run in parallel. Repositories are created on first use and a new repository gets its first backup right away.
 
-### Groups
+### Chaining
 
-A `group` job runs other jobs one after the other on a single schedule, for example the backup, then forget, then check of a repository:
+A job with `after` starts when the named job finished successfully, so the prune only runs after a good backup. Chains of any length work, a failed, skipped or cancelled run ends the chain. Each job keeps its own run history, repository and arguments; the trigger of its runs reads `after:<job>`. A job cannot be deleted while another one follows it.
 
 ```yaml
 jobs:
-  - {name: backup, type: backup}
-  - {name: forget, type: forget, args: --prune --keep-last 7}
-  - {name: check, type: check}
-  - name: nightly
-    type: group
-    enabled: true
-    schedule: 0 1 * * *
-    members: [backup, forget, check]   # run in this order
-    continueonerror: false             # true: run the rest when one fails
-    timeoutminutes: 480                # for the whole group
-    maxagehours: 26
+  - {name: backup, type: backup, enabled: true, schedule: 0 1 * * *}
+  - {name: forget, type: forget, after: backup, args: --prune --keep-last 7}
+  - {name: check, type: check, after: forget}
 ```
-
-Each member is a run of its own, with its own history, repository, password and arguments; the run of the group lists their outcomes. By default the group stops at the first member that does not succeed (so no prune after a failed backup) and ends failed; with `continueonerror` the remaining members still run. A member cannot be a group or a mirrored sync job. While a group is enabled its members must not be scheduled themselves: the portal and API switch their schedule off when the group is saved, in `control.yaml` set `enabled: false` on them. Members can still be started by hand, and a member cannot be deleted before it is removed from its groups.
 
 ### Performance tuning
 

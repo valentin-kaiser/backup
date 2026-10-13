@@ -150,6 +150,13 @@ func main() {
 	}
 
 	if c.Portal() && c.API.Enabled {
+		if !c.API.DisableAuth {
+			if created, err := auth.Ensure(c.API.PasswordFile); err != nil {
+				log.Warn().Err(err).Msg("the API password could not be created")
+			} else if created {
+				log.Info().Msgf("no password was set, a random one was created in %s", c.API.PasswordFile)
+			}
+		}
 		password := auth.New(func() string { return config.Get().API.PasswordFile })
 		if _, err := password.Value(); err != nil && !c.API.DisableAuth {
 			log.Warn().Err(err).Msg("the API has no usable password and refuses every call until the password file is fixed")

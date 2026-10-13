@@ -78,6 +78,11 @@ func main() {
 	rootCtx, cancel := context.WithCancel(context.Background())
 	config.Watch(rootCtx)
 
+	if created, err := auth.Ensure(config.Get().PasswordFile); err != nil {
+		log.Warn().Err(err).Msg("the portal password could not be created")
+	} else if created {
+		log.Info().Msgf("no password was set, a random one was created in %s", config.Get().PasswordFile)
+	}
 	password := auth.New(func() string { return config.Get().PasswordFile })
 	if _, err := password.Value(); err != nil {
 		log.Warn().Err(err).Msg("the portal has no usable password and nobody can sign in until the password file is fixed")
