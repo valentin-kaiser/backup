@@ -3,7 +3,9 @@ package config
 
 import (
 	"context"
+	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -22,7 +24,36 @@ const (
 	TypeBackup = "backup"
 	TypeForget = "forget"
 	TypeCheck  = "check"
+	// TypeSync keeps two directories in sync in both directions (rclone bisync). It does not use a repository.
+	TypeSync = "sync"
 )
+
+// Conflict resolution policies of sync jobs, the values of rclone's --conflict-resolve.
+const (
+	ConflictNewer   = "newer"
+	ConflictOlder   = "older"
+	ConflictLarger  = "larger"
+	ConflictSmaller = "smaller"
+	ConflictPath1   = "path1"
+	ConflictPath2   = "path2"
+	ConflictNone    = "none" // keep both versions, both are renamed
+)
+
+// Loser handling of sync jobs, the values of rclone's --conflict-loser.
+const (
+	LoserNumber   = "num"      // keep the loser next to the winner as file.conflict1
+	LoserPathname = "pathname" // keep the loser as file.path1 or file.path2
+	LoserDelete   = "delete"
+)
+
+// Sync engines. rclone bisync is the default, unison is the mature alternative.
+const (
+	EngineRclone = "rclone"
+	EngineUnison = "unison"
+)
+
+// PeerPrefix starts the second path of a sync job that lives on another worker: peer:<name>[/subdirectory].
+const PeerPrefix = "peer:"
 
 // RestoreJob is the reserved name of restore runs, which are never scheduled.
 const RestoreJob = "restore"
@@ -31,6 +62,9 @@ const RestoreJob = "restore"
 var cron = queue.NewTaskScheduler()
 
 var jobName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
+
+// peerName is stricter than jobName, it becomes part of an rclone remote name and of environment variable names.
+var peerName = regexp.MustCompile(`^[a-z0-9][a-z0-9_]{0,31}$`)
 
 // Job describes one scheduled restic job. Repository, password file and source default to the global
 // settings, so jobs can back up different directories to different repositories.
@@ -46,6 +80,44 @@ type Job struct {
 	Repository     string `usage:"restic repository, defaults to the global repository"`
 	PasswordFile   string `usage:"file containing the repository password, defaults to the global password file"`
 	PasswordSecret string `usage:"name of the stored secret that holds the repository password, replaces the password file"`
+
+	Path1         string `usage:"sync jobs only: first directory, always local"`
+	Path2         string `usage:"sync jobs only: second directory, a local directory or peer:<name>[/subdirectory] on another worker"`
+	Conflict      string `usage:"sync jobs only: which version wins when a file changed on both sides (newer, older, larger, smaller, path1, path2, none = keep both), default newer"`
+	ConflictLoser string `usage:"sync jobs only: what happens to the losing version (num = keep as .conflictN, pathname = keep as .path1/.path2, delete), default num"`
+	MaxDeletePct  int    `usage:"sync jobs only: abort when a run would delete more than this percentage of the files, 0 uses 50"`
+	CheckAccess   bool   `usage:"sync jobs only: abort unless the file RCLONE_TEST exists on both sides, protects against an unmounted volume"`
+	Engine        string `usage:"sync jobs only: rclone (bisync, default) or unison"`
+	Force         bool   `usage:"sync jobs only: do not abort when all files changed or too many would be deleted (rclone --force), for small directories where every file changing is normal"`
+	Owner         string `usage:"sync jobs only: peer that holds the schedule and the state of this job, this worker then only mirrors it and forwards runs and changes"`
+}
+
+// Peer is another worker that exports a directory for sync jobs, see SyncServe on that worker.
+type Peer struct {
+	Name              string `usage:"name used in sync paths (peer:<name>), lower case letters, digits and _"`
+	URL               string `usage:"WebDAV URL of the sync server of the peer, e.g. https://worker-b:9081"`
+	Username          string `usage:"user name of the sync server of the peer"`
+	PasswordFile      string `usage:"file with the password of the sync server of the peer"`
+	PasswordSecret    string `usage:"stored secret with the password of the sync server of the peer, replaces passwordFile"`
+	CAFile            string `usage:"CA file that signed the certificate of the peer, empty uses the system roots"`
+	APIURL            string `usage:"URL of the control API of the peer, enables locking, mirrored jobs and starting jobs on the peer"`
+	APIPasswordFile   string `usage:"file with the password of the control API of the peer"`
+	APIPasswordSecret string `usage:"stored secret with the password of the control API of the peer, replaces apiPasswordFile"`
+	APICAFile         string `usage:"CA file that signed the certificate of the control API of the peer"`
+}
+
+// SyncServe exports a directory of this worker to its peers, so another worker can sync with it.
+type SyncServe struct {
+	Enabled         bool   `usage:"serve the sync directory to peers"`
+	Path            string `usage:"directory to export"`
+	Address         string `usage:"address to bind to"`
+	Port            int    `usage:"port to bind to"`
+	Username        string `usage:"user name peers have to use"`
+	PasswordFile    string `usage:"file with the password peers have to use"`
+	PasswordSecret  string `usage:"stored secret with the password peers have to use, replaces passwordFile"`
+	CertificateFile string `usage:"TLS certificate file, serves plain HTTP when empty"`
+	KeyFile         string `usage:"TLS key file"`
+	Tunnel          bool   `usage:"let peers run unison against the path through the control API (needs the API, no sshd), a peer with the password of the API can then read and write everything this worker can"`
 }
 
 // MountCheck guards against writing into an unmounted repository directory.
@@ -81,6 +153,7 @@ const (
 // Config is the complete control configuration.
 type Config struct {
 	LogLevel        int        `usage:"(-1 = trace, 0 = debug, 1 = info, 2 = warn, 3 = error)"`
+	WorkerName      string     `usage:"name of this worker, the name its peers use for it (lower case letters, digits and _), defaults to the host name"`
 	Mode            string     `usage:"standalone (one source, one repository, one job per type, password file, no API) or ui (management API for the portal, many jobs, stored secrets)"`
 	Repository      string     `usage:"restic repository"`
 	PasswordFile    string     `usage:"file containing the repository password"`
@@ -100,6 +173,9 @@ type Config struct {
 	WebhookURL      string     `usage:"URL pinged with /start, /fail or no suffix on success (healthchecks.io compatible)"`
 	Jobs            []Job      `usage:"jobs, a list of name, type, schedule, ..."`
 	MountCheck      MountCheck `usage:"repository mount guard"`
+	SyncDir         string     `usage:"directory for the state of sync jobs (rclone bisync listings), keep it on a volume"`
+	Peers           []Peer     `usage:"other workers that sync jobs can use as second path"`
+	SyncServe       SyncServe  `usage:"export a directory to peers"`
 	API             API        `usage:"management API used by the CLI and the web UI"`
 }
 
@@ -125,6 +201,8 @@ func Default() *Config {
 		StopGraceSecs:   60,
 		HistoryLimit:    500,
 		RestoreRoot:     "/restore",
+		SyncDir:         "/var/lib/control/bisync",
+		SyncServe:       SyncServe{Address: "0.0.0.0", Port: 9081, Path: "/sync", Username: "sync"},
 		Jobs: []Job{
 			{
 				Name:        "backup",
@@ -201,6 +279,9 @@ func (c *Config) Validate() error {
 	default:
 		return apperror.NewErrorf("compression %q must be auto, off or max", c.Compression)
 	}
+	if err := c.validatePeers(); err != nil {
+		return err
+	}
 	seen, types := map[string]bool{}, map[string]bool{}
 	for i, j := range c.Jobs {
 		if !jobName.MatchString(j.Name) || j.Name == RestoreJob {
@@ -211,9 +292,9 @@ func (c *Config) Validate() error {
 		}
 		seen[j.Name] = true
 		switch j.Type {
-		case TypeBackup, TypeForget, TypeCheck:
+		case TypeBackup, TypeForget, TypeCheck, TypeSync:
 		default:
-			return apperror.NewErrorf("job %s: type %q must be backup, forget or check", j.Name, j.Type)
+			return apperror.NewErrorf("job %s: type %q must be backup, forget, check or sync", j.Name, j.Type)
 		}
 		if j.Enabled && strings.TrimSpace(j.Schedule) == "" {
 			return apperror.NewErrorf("job %s: schedule must not be empty when the job is enabled", j.Name)
@@ -234,6 +315,16 @@ func (c *Config) Validate() error {
 		}
 		if j.Source != "" && j.Type != TypeBackup {
 			return apperror.NewErrorf("job %s: source is only valid for backup jobs", j.Name)
+		}
+		if j.Type == TypeSync {
+			// Sync jobs have no repository and no password, they only need their paths.
+			if err := c.validateSync(j); err != nil {
+				return err
+			}
+			continue
+		}
+		if j.Owner != "" || j.Path1 != "" || j.Path2 != "" || j.Conflict != "" || j.ConflictLoser != "" || j.MaxDeletePct != 0 || j.CheckAccess || j.Force || j.Engine != "" {
+			return apperror.NewErrorf("job %s: path1, path2, engine, conflict, conflictLoser, maxDeletePct, force and checkAccess are only valid for sync jobs", j.Name)
 		}
 		if c.Portal() {
 			if jc := c.ForJob(j); jc.PasswordFile != "" {
@@ -267,6 +358,190 @@ func (c *Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+// validatePeers checks the peers and the sync server.
+func (c *Config) validatePeers() error {
+	names := map[string]bool{}
+	for i, p := range c.Peers {
+		if !peerName.MatchString(p.Name) {
+			return apperror.NewErrorf("peers[%d].name %q must be 1-32 lower case letters, digits or _", i, p.Name)
+		}
+		if names[p.Name] {
+			return apperror.NewErrorf("peer name %q is used twice", p.Name)
+		}
+		names[p.Name] = true
+		if u, err := url.Parse(p.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return apperror.NewErrorf("peer %s: url %q must be an http or https URL", p.Name, p.URL)
+		}
+		if p.APIURL != "" {
+			if u, err := url.Parse(p.APIURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				return apperror.NewErrorf("peer %s: apiUrl %q must be an http or https URL", p.Name, p.APIURL)
+			}
+		}
+		if p.PasswordFile != "" && p.PasswordSecret != "" || p.APIPasswordFile != "" && p.APIPasswordSecret != "" {
+			return apperror.NewErrorf("peer %s: set either a password file or a password secret, not both", p.Name)
+		}
+		for _, s := range []string{p.PasswordSecret, p.APIPasswordSecret} {
+			if s != "" && !jobName.MatchString(s) {
+				return apperror.NewErrorf("peer %s: secret %q must be 1-32 lower case letters, digits, - or _", p.Name, s)
+			}
+		}
+	}
+	if c.WorkerName != "" && !peerName.MatchString(c.WorkerName) {
+		return apperror.NewErrorf("workerName %q must be 1-32 lower case letters, digits or _", c.WorkerName)
+	}
+	if c.SyncServe.PasswordFile != "" && c.SyncServe.PasswordSecret != "" {
+		return apperror.NewError("set either syncServe.passwordFile or syncServe.passwordSecret, not both")
+	}
+	if s := c.SyncServe; s.Tunnel && !filepath.IsAbs(s.Path) {
+		return apperror.NewError("syncServe.path must be an absolute path")
+	}
+	if s := c.SyncServe; s.Enabled {
+		if !filepath.IsAbs(s.Path) {
+			return apperror.NewError("syncServe.path must be an absolute path")
+		}
+		if s.Port < 1 || s.Port > 65535 {
+			return apperror.NewError("syncServe.port must be between 1 and 65535")
+		}
+		if s.Username == "" || (s.PasswordFile == "" && s.PasswordSecret == "") {
+			return apperror.NewError("syncServe.username and a passwordFile or passwordSecret are required: peers have to authenticate")
+		}
+		if (s.CertificateFile == "") != (s.KeyFile == "") {
+			return apperror.NewError("syncServe.certificateFile and syncServe.keyFile have to be set together")
+		}
+	}
+	return nil
+}
+
+// validateSync checks a sync job.
+func (c *Config) validateSync(j Job) error {
+	if j.Repository != "" || j.Source != "" || j.PasswordFile != "" || j.PasswordSecret != "" {
+		return apperror.NewErrorf("job %s: repository, source and password are not used by sync jobs", j.Name)
+	}
+	if !filepath.IsAbs(j.Path1) {
+		return apperror.NewErrorf("job %s: path1 %q must be an absolute local path", j.Name, j.Path1)
+	}
+	if j.Owner != "" {
+		if _, found := c.Peer(j.Owner); !found {
+			return apperror.NewErrorf("job %s: owner %q is not a peer", j.Name, j.Owner)
+		}
+		if peer, _, ok := j.PeerPath(); !ok || peer != j.Owner {
+			return apperror.NewErrorf("job %s: the path2 of a mirrored job must be peer:%s", j.Name, j.Owner)
+		}
+	}
+	if peer, _, ok := j.PeerPath(); ok {
+		if _, found := c.Peer(peer); !found {
+			return apperror.NewErrorf("job %s: path2 refers to unknown peer %q", j.Name, peer)
+		}
+	} else {
+		if !filepath.IsAbs(j.Path2) {
+			return apperror.NewErrorf("job %s: path2 %q must be an absolute local path or peer:<name>", j.Name, j.Path2)
+		}
+		a, b := filepath.Clean(j.Path1), filepath.Clean(j.Path2)
+		if a == b || strings.HasPrefix(a, b+string(filepath.Separator)) || strings.HasPrefix(b, a+string(filepath.Separator)) {
+			return apperror.NewErrorf("job %s: path1 and path2 must not be the same or inside each other", j.Name)
+		}
+	}
+	switch j.Engine {
+	case "", EngineRclone, EngineUnison:
+	default:
+		return apperror.NewErrorf("job %s: engine %q must be rclone or unison", j.Name, j.Engine)
+	}
+	if j.Unison() {
+		if err := c.validateUnison(j); err != nil {
+			return err
+		}
+	}
+	switch j.Conflict {
+	case "", ConflictNewer, ConflictOlder, ConflictLarger, ConflictSmaller, ConflictPath1, ConflictPath2, ConflictNone:
+	default:
+		return apperror.NewErrorf("job %s: conflict %q must be newer, older, larger, smaller, path1, path2 or none", j.Name, j.Conflict)
+	}
+	switch j.ConflictLoser {
+	case "", LoserNumber, LoserPathname, LoserDelete:
+	default:
+		return apperror.NewErrorf("job %s: conflictLoser %q must be num, pathname or delete", j.Name, j.ConflictLoser)
+	}
+	if j.MaxDeletePct < 0 || j.MaxDeletePct > 100 {
+		return apperror.NewErrorf("job %s: maxDeletePct must be between 0 and 100", j.Name)
+	}
+	return nil
+}
+
+// validateUnison checks what only matters to the unison engine: it has fewer policies than rclone and talks to a peer
+// through the control API.
+func (c *Config) validateUnison(j Job) error {
+	switch j.Conflict {
+	case "", ConflictNewer, ConflictOlder, ConflictPath1, ConflictPath2, ConflictNone:
+	default:
+		return apperror.NewErrorf("job %s: unison resolves conflicts with newer, older, path1, path2 or none (skip and report), not %q", j.Name, j.Conflict)
+	}
+	if j.MaxDeletePct != 0 || j.Force {
+		return apperror.NewErrorf("job %s: maxDeletePct and force belong to rclone, unison refuses to empty a replica on its own", j.Name)
+	}
+	if peer, _, ok := j.PeerPath(); ok {
+		if p, found := c.Peer(peer); found && p.APIURL == "" {
+			return apperror.NewErrorf("job %s: unison reaches peer %s through its control API, set the apiUrl of the peer", j.Name, peer)
+		}
+	}
+	return nil
+}
+
+// Unison reports whether the job syncs with unison.
+func (j Job) Unison() bool { return j.Engine == EngineUnison }
+
+// PeerPath splits the second path of a sync job that lives on a peer into the peer name and the subdirectory.
+func (j Job) PeerPath() (peer, dir string, ok bool) {
+	rest, ok := strings.CutPrefix(j.Path2, PeerPrefix)
+	if !ok {
+		return "", "", false
+	}
+	peer, dir, _ = strings.Cut(rest, "/")
+	return peer, strings.Trim(dir, "/"), true
+}
+
+// Mirror reports whether this worker only mirrors the job: a peer owns its schedule and state.
+func (j Job) Mirror() bool { return j.Owner != "" }
+
+// Worker returns the name of this worker, the host name when none is configured.
+func (c Config) Worker() string {
+	if c.WorkerName != "" {
+		return c.WorkerName
+	}
+	h, _ := os.Hostname()
+	h = strings.ToLower(h)
+	var b strings.Builder
+	for _, r := range h {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	if n := b.String(); peerName.MatchString(n) {
+		return n
+	}
+	return "worker"
+}
+
+// Peer returns the peer with the given name.
+func (c Config) Peer(name string) (Peer, bool) {
+	for _, p := range c.Peers {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return Peer{}, false
+}
+
+// SyncKey identifies the pair of directories of a sync job, jobs with the same pair never run at the same time.
+func SyncKey(j Job) string {
+	a, b := j.Path1, j.Path2
+	if b < a {
+		a, b = b, a
+	}
+	return "sync:" + a + "|" + b
 }
 
 // Addr returns host:port of the API server.
@@ -361,6 +636,9 @@ func (c Config) ForJob(j Job) Config {
 
 // RepositoryKey identifies the repository a job works on, jobs with the same key never run at the same time.
 func (c Config) RepositoryKey(j Job) string {
+	if j.Type == TypeSync {
+		return SyncKey(j)
+	}
 	return c.ForJob(j).Repository
 }
 

@@ -36,6 +36,9 @@ service Control {
   // Cancels the queued or running run of a job.
   rpc CancelJob(JobRequest) returns (google.protobuf.Empty);
 
+  // Removes all locks from the repository of a job. Only use it when no other process works on the repository.
+  rpc UnlockJob(JobRequest) returns (google.protobuf.Empty);
+
   // Stops a job from being scheduled. Manual runs still work.
   rpc PauseJob(JobRequest) returns (google.protobuf.Empty);
 
@@ -67,6 +70,40 @@ service Control {
 
   // Deletes a secret that no job uses.
   rpc DeleteSecret(SecretRequest) returns (google.protobuf.Empty);
+
+  // Runs a sync job from scratch: its state is dropped, so the next run rebuilds the listings of both sides. Files
+  // are copied, nothing is deleted. Forwarded to the owner of a mirrored job.
+  rpc ResyncJob(JobRequest) returns (Run);
+
+  // Lists the peers and the name of this worker.
+  rpc ListPeers(ListPeersRequest) returns (ListPeersResponse);
+
+  // Creates a peer or replaces it.
+  rpc SetPeer(Peer) returns (Peer);
+
+  // Removes a peer. Fails while a sync job uses it.
+  rpc DeletePeer(PeerRequest) returns (google.protobuf.Empty);
+
+  // Tests the connections to a peer.
+  rpc TestPeer(PeerRequest) returns (PeerStatus);
+
+  // Returns how this worker exports a directory to its peers.
+  rpc GetSyncServe(GetSyncServeRequest) returns (SyncServe);
+
+  // Changes how this worker exports a directory to its peers.
+  rpc SetSyncServe(SyncServe) returns (SyncServe);
+
+  // Called by a peer: reserves a sync job for the caller so this worker does not run it at the same time.
+  rpc AcquireSyncLock(SyncLockRequest) returns (SyncLockResponse);
+
+  // Called by a peer: releases the reservation.
+  rpc ReleaseSyncLock(SyncLockRequest) returns (google.protobuf.Empty);
+
+  // Called by a peer: creates or replaces the mirror of a job the peer owns.
+  rpc PushJob(PushJobRequest) returns (google.protobuf.Empty);
+
+  // Called by a peer: removes the mirror of a job the peer owned.
+  rpc DropJob(PushJobRequest) returns (google.protobuf.Empty);
 
   // Streams run state changes and output lines as they happen.
   rpc Watch(WatchRequest) returns (stream Event);
@@ -213,3 +250,53 @@ message ChangeRepositoryPasswordResponse {
 
 // Requests the event stream.
 message WatchRequest {}
+
+// Requests the peers.
+message ListPeersRequest {}
+
+// The peers sorted by name.
+message ListPeersResponse {
+  repeated Peer peers = 1;
+
+  // Name of this worker.
+  string worker_name = 2;
+}
+
+// Addresses a peer.
+message PeerRequest {
+  string name = 1;
+}
+
+// Requests the export settings.
+message GetSyncServeRequest {}
+
+// Reserves or releases a sync job.
+message SyncLockRequest {
+  // Name of the sync job.
+  string job = 1;
+
+  // Worker name of the caller.
+  string owner = 2;
+
+  // Seconds the reservation lasts when it is not released, 1 hour when 0.
+  int32 ttl_seconds = 3;
+}
+
+// The result of a reservation.
+message SyncLockResponse {
+  // Whether the job is reserved for the caller.
+  bool granted = 1;
+
+  // Who holds the reservation when it was not granted.
+  string holder = 2;
+}
+
+// Hands a job definition to a peer.
+message PushJobRequest {
+  // The job as the owner has it. The receiver turns it into its mirror: its own path1, path2 pointing back at the
+  // owner, no schedule.
+  JobDefinition definition = 1;
+
+  // Worker name of the caller, the owner of the job.
+  string owner = 2;
+}

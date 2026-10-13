@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestDefaultIsValid(t *testing.T) {
 	if err := Default().Validate(); err != nil {
@@ -23,7 +26,7 @@ func TestValidateJobs(t *testing.T) {
 		{"reserved", []Job{job("restore", TypeBackup)}, false},
 		{"bad name", []Job{job("My Job", TypeBackup)}, false},
 		{"empty name", []Job{job("", TypeBackup)}, false},
-		{"bad type", []Job{job("a", "sync")}, false},
+		{"bad type", []Job{job("a", "mirror")}, false},
 		{"no schedule", []Job{{Name: "a", Type: TypeBackup, Enabled: true}}, false},
 		{"disabled without schedule", []Job{{Name: "a", Type: TypeBackup}}, true},
 		{"source on forget", []Job{{Name: "a", Type: TypeForget, Source: "/x"}}, false},
@@ -184,5 +187,153 @@ func TestPortalRequiresSecrets(t *testing.T) {
 		if err := c.Validate(); (err == nil) != wantOK {
 			t.Errorf("%s: err = %v", name, err)
 		}
+	}
+}
+
+func TestValidateSyncJobs(t *testing.T) {
+	abs := func(p string) string { a, _ := filepath.Abs(p); return a }
+	a, b := abs("/sync/a"), abs("/sync/b")
+	sync := func(mod func(*Job)) Job {
+		j := Job{Name: "mirror", Type: TypeSync, Enabled: true, Schedule: "*/5 * * * *", Path1: a, Path2: b}
+		if mod != nil {
+			mod(&j)
+		}
+		return j
+	}
+	tests := []struct {
+		name string
+		job  Job
+		ok   bool
+	}{
+		{"two local paths", sync(nil), true},
+		{"peer", sync(func(j *Job) { j.Path2 = "peer:west/data" }), true},
+		{"unknown peer", sync(func(j *Job) { j.Path2 = "peer:east" }), false},
+		{"same path", sync(func(j *Job) { j.Path2 = a }), false},
+		{"nested path", sync(func(j *Job) { j.Path2 = filepath.Join(a, "sub") }), false},
+		{"relative path1", sync(func(j *Job) { j.Path1 = "a" }), false},
+		{"relative path2", sync(func(j *Job) { j.Path2 = "b" }), false},
+		{"no path2", sync(func(j *Job) { j.Path2 = "" }), false},
+		{"conflict policy", sync(func(j *Job) { j.Conflict = ConflictNone; j.ConflictLoser = LoserPathname }), true},
+		{"bad conflict", sync(func(j *Job) { j.Conflict = "random" }), false},
+		{"bad loser", sync(func(j *Job) { j.ConflictLoser = "random" }), false},
+		{"max delete", sync(func(j *Job) { j.MaxDeletePct = 101 }), false},
+		{"force", sync(func(j *Job) { j.Force = true }), true},
+		{"force on a backup job", Job{Name: "x", Type: TypeBackup, Force: true}, false},
+		{"repository", sync(func(j *Job) { j.Repository = "/repo" }), false},
+		{"password secret", sync(func(j *Job) { j.PasswordSecret = "main" }), false},
+		{"paths on a backup job", Job{Name: "x", Type: TypeBackup, Path1: a}, false},
+	}
+	for _, mode := range []string{ModeStandalone, ModePortal} {
+		for _, tt := range tests {
+			c := portalConfig()
+			if mode == ModeStandalone {
+				c = *Default()
+			}
+			c.Peers = []Peer{{Name: "west", URL: "https://west:9081", Username: "sync", PasswordFile: "/pw"}}
+			c.Jobs = []Job{tt.job}
+			if err := c.Validate(); (err == nil) != tt.ok {
+				t.Errorf("%s/%s: err = %v", mode, tt.name, err)
+			}
+		}
+	}
+}
+
+func TestValidateSyncJobsAreNotLimitedPerType(t *testing.T) {
+	c := *Default()
+	abs := func(p string) string { a, _ := filepath.Abs(p); return a }
+	c.Jobs = []Job{
+		{Name: "one", Type: TypeSync, Path1: abs("/a"), Path2: abs("/b")},
+		{Name: "two", Type: TypeSync, Path1: abs("/c"), Path2: abs("/d")},
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestValidatePeersAndSyncServe(t *testing.T) {
+	tests := []struct {
+		name string
+		mod  func(*Config)
+		ok   bool
+	}{
+		{"valid peer", func(c *Config) { c.Peers = []Peer{{Name: "west", URL: "http://west:9081"}} }, true},
+		{"duplicate", func(c *Config) { c.Peers = []Peer{{Name: "w", URL: "http://w"}, {Name: "w", URL: "http://w"}} }, false},
+		{"hyphen in name", func(c *Config) { c.Peers = []Peer{{Name: "west-1", URL: "http://w"}} }, false},
+		{"bad url", func(c *Config) { c.Peers = []Peer{{Name: "w", URL: "ftp://w"}} }, false},
+		{"serve needs auth", func(c *Config) { c.SyncServe.Enabled = true }, false},
+		{"serve", func(c *Config) { c.SyncServe.Enabled, c.SyncServe.PasswordFile = true, "/pw" }, true},
+		{"serve certificate without key", func(c *Config) {
+			c.SyncServe.Enabled, c.SyncServe.PasswordFile, c.SyncServe.CertificateFile = true, "/pw", "/c.pem"
+		}, false},
+	}
+	for _, tt := range tests {
+		c := *Default()
+		c.SyncServe.Path, _ = filepath.Abs("/sync")
+		tt.mod(&c)
+		if err := c.Validate(); (err == nil) != tt.ok {
+			t.Errorf("%s: err = %v", tt.name, err)
+		}
+	}
+}
+
+func TestSyncKeyIgnoresTheOrderOfThePaths(t *testing.T) {
+	if SyncKey(Job{Path1: "/a", Path2: "/b"}) != SyncKey(Job{Path1: "/b", Path2: "/a"}) {
+		t.Error("the same pair must give the same key")
+	}
+	c := *Default()
+	if got := c.RepositoryKey(Job{Type: TypeSync, Path1: "/a", Path2: "/b"}); got == c.Repository {
+		t.Errorf("sync jobs must not lock the repository, got %q", got)
+	}
+}
+
+func TestValidateUnisonJobs(t *testing.T) {
+	abs := func(p string) string { a, _ := filepath.Abs(p); return a }
+	a, b := abs("/sync/a"), abs("/sync/b")
+	job := func(mod func(*Job)) Job {
+		j := Job{Name: "mirror", Type: TypeSync, Engine: EngineUnison, Path1: a, Path2: b}
+		if mod != nil {
+			mod(&j)
+		}
+		return j
+	}
+	tests := []struct {
+		name string
+		job  Job
+		ok   bool
+	}{
+		{"local", job(nil), true},
+		{"path1 wins", job(func(j *Job) { j.Conflict = ConflictPath1 }), true},
+		{"skip conflicts", job(func(j *Job) { j.Conflict = ConflictNone }), true},
+		{"larger is rclone only", job(func(j *Job) { j.Conflict = ConflictLarger }), false},
+		{"max delete is rclone only", job(func(j *Job) { j.MaxDeletePct = 20 }), false},
+		{"force is rclone only", job(func(j *Job) { j.Force = true }), false},
+		{"peer with api", job(func(j *Job) { j.Path2 = "peer:west" }), true},
+		{"peer without api", job(func(j *Job) { j.Path2 = "peer:east" }), false},
+		{"unknown engine", job(func(j *Job) { j.Engine = "rsync" }), false},
+		{"engine on a backup job", Job{Name: "x", Type: TypeBackup, Engine: EngineUnison}, false},
+	}
+	for _, tt := range tests {
+		c := portalConfig()
+		c.Peers = []Peer{
+			{Name: "west", URL: "https://west:9081", APIURL: "https://west:9080"},
+			{Name: "east", URL: "https://east:9081"},
+		}
+		c.Jobs = []Job{tt.job}
+		if err := c.Validate(); (err == nil) != tt.ok {
+			t.Errorf("%s: err = %v", tt.name, err)
+		}
+	}
+}
+
+func TestSyncServeTunnelNeedsOnlyAPath(t *testing.T) {
+	c := *Default()
+	c.SyncServe.Tunnel = true
+	c.SyncServe.Path, _ = filepath.Abs("/sync")
+	if err := c.Validate(); err != nil {
+		t.Errorf("the tunnel uses the API for authentication: %v", err)
+	}
+	c.SyncServe.Path = "sync"
+	if err := c.Validate(); err == nil {
+		t.Error("the exported path must be absolute")
 	}
 }

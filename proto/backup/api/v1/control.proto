@@ -58,7 +58,7 @@ message JobDefinition {
   // Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved.
   string name = 1;
 
-  // What the job does: backup, forget or check.
+  // What the job does: backup, forget, check or sync.
   string type = 2;
 
   // Whether the job is scheduled.
@@ -88,6 +88,36 @@ message JobDefinition {
   // Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the
   // default.
   string password_secret = 12;
+
+  // Sync jobs only: first directory, always local.
+  string path1 = 13;
+
+  // Sync jobs only: second directory. A local directory, or peer:<name>[/subdirectory] on another worker.
+  string path2 = 14;
+
+  // Sync jobs only: which version wins when a file changed on both sides: newer, older, larger, smaller,
+  // path1, path2 or none (keep both). newer when empty.
+  string conflict = 15;
+
+  // Sync jobs only: what happens to the losing version: num, pathname or delete. num when empty.
+  string conflict_loser = 16;
+
+  // Sync jobs only: abort when a run would delete more than this percentage of the files, 50 when 0.
+  int32 max_delete_pct = 17;
+
+  // Sync jobs only: abort unless the file RCLONE_TEST exists on both sides.
+  bool check_access = 18;
+
+  // Sync jobs only: name of the peer that holds the schedule and the state of this job. When set this worker
+  // only mirrors the job: it shows its state and forwards starts and changes to the owner.
+  string owner = 19;
+
+  // Sync jobs only: do not abort when all files changed or too many would be deleted (rclone --force). For small
+  // directories, where every file changing is normal. Also turns off max_delete_pct.
+  bool force = 20;
+
+  // Sync jobs only: the program that syncs, rclone (bisync) when empty or unison.
+  string engine = 21;
 }
 
 // Settings that jobs inherit when they do not set their own.
@@ -147,7 +177,7 @@ message Job {
   // Finish time of the most recent successful run.
   google.protobuf.Timestamp last_success_time = 8;
 
-  // What the job does: backup, forget or check. Empty for restore.
+  // What the job does: backup, forget, check or sync. Empty for restore.
   string type = 9;
 
   // The configuration of the job, not set for restore.
@@ -170,6 +200,9 @@ message ControlStatus {
 
   // What jobs inherit when they do not set their own.
   Defaults defaults = 5;
+
+  // Name of this worker. Peers refer to it by this name, see Peer.
+  string worker_name = 6;
 }
 
 // A restic snapshot.
@@ -270,4 +303,92 @@ message Event {
 
   // Time at which the event happened.
   google.protobuf.Timestamp time = 6;
+}
+
+// Another worker that sync jobs can use as their second path.
+message Peer {
+  // Name, 1-32 characters of lower case letters, digits and _. It is the name the peer has as worker name.
+  string name = 1;
+
+  // WebDAV URL of the sync server of the peer, e.g. https://east:9081.
+  string url = 2;
+
+  // User name of the sync server of the peer.
+  string username = 3;
+
+  // File with the password of the sync server of the peer.
+  string password_file = 4;
+
+  // Name of the stored secret that holds the password of the sync server of the peer. Replaces password_file.
+  string password_secret = 5;
+
+  // CA file that signed the certificate of the sync server of the peer, the system roots when empty.
+  string ca_file = 6;
+
+  // URL of the control API of the peer, e.g. https://east:9080. Needed to manage the jobs from both sides, to
+  // lock a pair of directories while it syncs and to start jobs on the peer. Empty uses the data connection only.
+  string api_url = 7;
+
+  // File with the password of the control API of the peer.
+  string api_password_file = 8;
+
+  // Name of the stored secret that holds the password of the control API of the peer. Replaces api_password_file.
+  string api_password_secret = 9;
+
+  // CA file that signed the certificate of the control API of the peer, the system roots when empty.
+  string api_ca_file = 10;
+}
+
+// How this worker exports a directory to its peers.
+message SyncServe {
+  // Whether the directory is served.
+  bool enabled = 1;
+
+  // Directory to export.
+  string path = 2;
+
+  // Address to bind to.
+  string address = 3;
+
+  // Port to bind to.
+  int32 port = 4;
+
+  // User name the peers have to use.
+  string username = 5;
+
+  // File with the password the peers have to use.
+  string password_file = 6;
+
+  // Name of the stored secret that holds the password the peers have to use. Replaces password_file.
+  string password_secret = 7;
+
+  // TLS certificate file, plain HTTP when empty.
+  string certificate_file = 8;
+
+  // TLS key file.
+  string key_file = 9;
+
+  // Whether peers may run unison against the exported directory through the control API.
+  bool tunnel = 10;
+}
+
+// The result of a connection test to a peer.
+message PeerStatus {
+  // Name of the peer.
+  string name = 1;
+
+  // Whether the sync server answered with the given credentials.
+  bool data_ok = 2;
+
+  // Whether the control API answered with the given credentials. False when the peer has no API URL.
+  bool api_ok = 3;
+
+  // Round trip time to the control API in milliseconds, 0 when it was not tested.
+  int64 latency_ms = 4;
+
+  // Why a test failed.
+  string error = 5;
+
+  // Worker name the peer reports, to check that it is the worker the peer entry is named after.
+  string worker_name = 6;
 }
