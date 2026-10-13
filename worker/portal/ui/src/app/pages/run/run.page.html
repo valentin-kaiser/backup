@@ -3,7 +3,7 @@
   <header class="page-header">
     <div>
       <h1>
-        <a [routerLink]="run.job === 'restore' ? '/history' : ['/jobs', run.job]">{{ run.job }}</a>
+        <a [routerLink]="run.job === 'restore' ? '/' : ['/jobs', run.job]" [fragment]="run.job === 'restore' ? 'history' : undefined">{{ run.job }}</a>
         <app-status-chip [status]="run.status" />
       </h1>
       <p class="muted">Run {{ run.id }}, started by {{ run.trigger }}</p>
