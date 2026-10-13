@@ -49,6 +49,8 @@ export class SnapshotsPage {
   protected readonly loading = signal(false);
   protected readonly filter = signal('');
   private request = 0;
+  /** Repositories whose statistics are being scanned. A scan reads the whole repository and can outlast a refresh. */
+  private readonly scanning = new Set<string>();
 
   /** The repository in view: the one of the job in the URL, else the first. */
   protected readonly selected = computed<Repository | undefined>(() => {
@@ -92,10 +94,7 @@ export class SnapshotsPage {
         this.error.set('');
         this.loading.set(false);
       }
-      const stats = await this.control.loadStats(repository.job).catch(() => null);
-      if (request === this.request) {
-        this.stats.set(stats);
-      }
+      await this.scan(repository);
     } catch (error) {
       if (request === this.request) {
         this.error.set(message(error));
@@ -104,6 +103,22 @@ export class SnapshotsPage {
       if (request === this.request) {
         this.loading.set(false);
       }
+    }
+  }
+
+  /** Scans the statistics of a repository, unless a scan of it is already running, then that one delivers. */
+  private async scan(repository: Repository): Promise<void> {
+    if (this.scanning.has(repository.key)) {
+      return;
+    }
+    this.scanning.add(repository.key);
+    try {
+      const stats = await this.control.loadStats(repository.job).catch(() => null);
+      if (this.selected()?.key === repository.key) {
+        this.stats.set(stats);
+      }
+    } finally {
+      this.scanning.delete(repository.key);
     }
   }
 

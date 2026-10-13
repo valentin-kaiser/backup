@@ -84,7 +84,9 @@ export class RunPage {
         this.error.set('');
       }
     } catch (error) {
-      this.error.set(message(error));
+      if (id === this.id()) {
+        this.error.set(message(error));
+      }
     }
   }
 

@@ -26,11 +26,15 @@ export class RestoreDialogComponent {
   /** Paths the restore starts with, e.g. the folder that was being looked at. */
   protected readonly include = signal('');
   private job = '';
+  /** Counts the openings of the dialog, an answer that belongs to an earlier one is dropped. */
+  private generation = 0;
 
   /** Restores from the repository that the job works on, everything or only the paths in include. */
   open(job: string, snapshot: Snapshot, include = ''): void {
     this.include.set(include);
     const root = (this.control.defaults()?.restoreRoot || '/restore').replace(/\/+$/, '');
+    this.generation++;
+    this.busy.set(false);
     this.job = job;
     this.snapshot.set(snapshot);
     this.target.set(`${root}/${snapshot.shortId || snapshot.id.slice(0, 8)}`);
@@ -38,8 +42,17 @@ export class RestoreDialogComponent {
     this.dialog().nativeElement.showModal();
   }
 
+  /** A restore that is being started cannot be cancelled, the dialog stays until the daemon has answered. */
   protected close(): void {
-    this.dialog().nativeElement.close();
+    if (!this.busy()) {
+      this.dialog().nativeElement.close();
+    }
+  }
+
+  /** Escape asks the dialog to cancel itself. */
+  protected escape(event: Event): void {
+    event.preventDefault();
+    this.close();
   }
 
   protected async submit(include: string): Promise<void> {
@@ -47,6 +60,7 @@ export class RestoreDialogComponent {
     if (!snapshot) {
       return;
     }
+    const generation = this.generation;
     this.busy.set(true);
     this.error.set('');
     try {
@@ -59,12 +73,20 @@ export class RestoreDialogComponent {
           .map((path) => path.trim())
           .filter(Boolean),
       });
+      if (generation !== this.generation) {
+        return;
+      }
+      this.busy.set(false);
       this.close();
       await this.router.navigate(['/runs', run.id]);
     } catch (error) {
-      this.error.set(message(error));
+      if (generation === this.generation) {
+        this.error.set(message(error));
+      }
     } finally {
-      this.busy.set(false);
+      if (generation === this.generation) {
+        this.busy.set(false);
+      }
     }
   }
 }

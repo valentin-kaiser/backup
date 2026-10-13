@@ -54,6 +54,7 @@ export class BrowsePage {
   protected readonly loading = signal(false);
   protected readonly filter = signal('');
   private request = 0;
+  private detailsRequest = 0;
 
   protected readonly directory = computed(() => `/${(this.path() ?? '').split('/').filter(Boolean).join('/')}`);
   protected readonly crumbs = computed(() => breadcrumbs(this.directory()));
@@ -77,10 +78,20 @@ export class BrowsePage {
       const job = this.job() ?? '';
       const snapshot = this.snapshot();
       untracked(() => {
+        const request = ++this.detailsRequest;
+        this.details.set(null);
         this.control
           .loadSnapshots(job)
-          .then((list) => this.details.set(list.find((s) => s.id === snapshot || s.shortId === snapshot) ?? null))
-          .catch(() => this.details.set(null));
+          .then((list) => {
+            if (request === this.detailsRequest) {
+              this.details.set(list.find((s) => s.id === snapshot || s.shortId === snapshot) ?? null);
+            }
+          })
+          .catch(() => {
+            if (request === this.detailsRequest) {
+              this.details.set(null);
+            }
+          });
       });
     });
   }

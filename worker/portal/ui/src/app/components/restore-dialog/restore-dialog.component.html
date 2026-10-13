@@ -1,4 +1,4 @@
-<dialog #dialog>
+<dialog #dialog (cancel)="escape($event)">
   @if (snapshot(); as snapshot) {
     <form (submit)="$event.preventDefault(); submit(includeInput.value)">
       <h3>Restore snapshot {{ snapshot.shortId }}</h3>
@@ -29,7 +29,7 @@
       }
 
       <div class="actions">
-        <button type="button" class="secondary" (click)="close()">Cancel</button>
+        <button type="button" class="secondary" [disabled]="busy()" (click)="close()">Cancel</button>
         <button type="submit" class="primary" [disabled]="busy() || !target().trim()">
           <app-icon name="settings_backup_restore" /> {{ busy() ? 'Starting…' : 'Restore' }}
         </button>
