@@ -60,9 +60,13 @@ services:
     restart: unless-stopped
     init: true
     read_only: true
-    user: "1000:1000"
     cap_drop:
       - ALL
+    cap_add:
+      # CHOWN/SETUID/SETGID let the entrypoint fix the ownership of the volumes and drop to PUID/PGID
+      - CHOWN
+      - SETUID
+      - SETGID
     security_opt:
       - no-new-privileges:true
     tmpfs:
@@ -75,10 +79,12 @@ services:
       - ./volumes/portal:/var/lib/portal
       - ./secrets:/run/secrets
     ports:
-      # Users have to sign in. Still keep the port on loopback, or put a reverse proxy with a proper
-      # certificate in front.
-      - "8443:8443"
+      # Users have to sign in. The port is published on loopback only, put a reverse proxy with a proper certificate in
+      # front to reach it from the network (and set PORTAL_TRUSTEDPROXIES to its address).
+      - "127.0.0.1:8443:8443"
     environment:
+      - PUID=1000
+      - PGID=1000
       - PORTAL_DAEMON_URL=http://backup:9080
       # the password of the portal and of the daemon, the same file the daemon reads, created when it does not exist
       - PORTAL_PASSWORDFILE=/run/secrets/portal_password

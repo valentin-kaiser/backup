@@ -10,6 +10,15 @@ DATA="${CONTROL_PATH:-/var/lib/control}"
 CACHE="${CONTROL_CACHEDIR:-/var/cache/restic}"
 PORTAL_DATA="${PORTAL_PATH:-/var/lib/portal}"
 
+# The directory of a password file that is created on the first start has to be writable by the unprivileged user, a
+# bind mount that did not exist is created as root. Only the directory is changed, best effort.
+prepare_secret_dir() {
+	[ -n "$1" ] || return 0
+	dir="$(dirname "$1")"
+	[ -d "$dir" ] || return 0
+	chown "$PUID:$PGID" "$dir" 2>/dev/null || true
+}
+
 # Client commands (status, once, run, ...) are passed straight through.
 MODE="${1:-${CONTROL_MODE:-standalone}}"
 case "$MODE" in
@@ -25,6 +34,8 @@ if [ "$MODE" = "web" ]; then
 		PGID="${PGID:-1000}"
 		mkdir -p "$PORTAL_DATA"
 		chown "$PUID:$PGID" "$PORTAL_DATA"
+		chown -R "$PUID:$PGID" "$PORTAL_DATA" 2>/dev/null || true
+		prepare_secret_dir "${PORTAL_PASSWORDFILE:-}"
 		exec su-exec "$PUID:$PGID" control-portal --path "$PORTAL_DATA" "$@"
 	fi
 	mkdir -p "$PORTAL_DATA"
@@ -40,6 +51,7 @@ if [ "$(id -u)" = "0" ]; then
 	# chmod needs CAP_FOWNER once the directory belongs to PUID, which the container drops, so it is best effort.
 	chmod 0750 "$DATA" 2>/dev/null || true
 	chown "$PUID:$PGID" "$DATA" "$CACHE" /restore
+	prepare_secret_dir "${CONTROL_API_PASSWORDFILE:-}"
 	# The tokens and history are owned by the unprivileged user, the healthcheck runs as root.
 	chown -R "$PUID:$PGID" "$DATA" 2>/dev/null || true
 	export HOME="$DATA"
