@@ -324,7 +324,7 @@ type JobDefinition struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// What the job does: backup, forget, check or sync.
+	// What the job does: backup, forget, check, sync or group.
 	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	// Whether the job is scheduled.
 	Enabled bool `protobuf:"varint,3,opt,name=enabled,proto3" json:"enabled,omitempty"`
@@ -365,9 +365,15 @@ type JobDefinition struct {
 	// directories, where every file changing is normal. Also turns off max_delete_pct.
 	Force bool `protobuf:"varint,20,opt,name=force,proto3" json:"force,omitempty"`
 	// Sync jobs only: the program that syncs, rclone (bisync) when empty or unison.
-	Engine        string `protobuf:"bytes,21,opt,name=engine,proto3" json:"engine,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Engine string `protobuf:"bytes,21,opt,name=engine,proto3" json:"engine,omitempty"`
+	// Group jobs only: names of the jobs to run one after the other, in this order. A group has the schedule, the
+	// timeout and the health check, its members keep their own arguments, repository and password. Members are not
+	// scheduled on their own while the group is enabled.
+	Members []string `protobuf:"bytes,22,rep,name=members,proto3" json:"members,omitempty"`
+	// Group jobs only: run the remaining members when one fails. By default the group stops at the first failure.
+	ContinueOnError bool `protobuf:"varint,23,opt,name=continue_on_error,json=continueOnError,proto3" json:"continue_on_error,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *JobDefinition) Reset() {
@@ -538,6 +544,20 @@ func (x *JobDefinition) GetEngine() string {
 		return x.Engine
 	}
 	return ""
+}
+
+func (x *JobDefinition) GetMembers() []string {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+func (x *JobDefinition) GetContinueOnError() bool {
+	if x != nil {
+		return x.ContinueOnError
+	}
+	return false
 }
 
 // Settings that jobs inherit when they do not set their own.
@@ -720,7 +740,7 @@ type Job struct {
 	Last *Run `protobuf:"bytes,7,opt,name=last,proto3" json:"last,omitempty"`
 	// Finish time of the most recent successful run.
 	LastSuccessTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_success_time,json=lastSuccessTime,proto3" json:"last_success_time,omitempty"`
-	// What the job does: backup, forget, check or sync. Empty for restore.
+	// What the job does: backup, forget, check, sync or group. Empty for restore.
 	Type string `protobuf:"bytes,9,opt,name=type,proto3" json:"type,omitempty"`
 	// The configuration of the job, not set for restore.
 	Definition    *JobDefinition `protobuf:"bytes,10,opt,name=definition,proto3" json:"definition,omitempty"`
@@ -1648,7 +1668,7 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\texit_code\x18\b \x01(\x05R\bexitCode\x12\x14\n" +
 	"\x05error\x18\t \x01(\tR\x05error\x12\x16\n" +
 	"\x06output\x18\n" +
-	" \x03(\tR\x06output\"\xd0\x04\n" +
+	" \x03(\tR\x06output\"\x96\x05\n" +
 	"\rJobDefinition\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x18\n" +
@@ -1672,7 +1692,9 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\fcheck_access\x18\x12 \x01(\bR\vcheckAccess\x12\x14\n" +
 	"\x05owner\x18\x13 \x01(\tR\x05owner\x12\x14\n" +
 	"\x05force\x18\x14 \x01(\bR\x05force\x12\x16\n" +
-	"\x06engine\x18\x15 \x01(\tR\x06engine\"\xb3\x01\n" +
+	"\x06engine\x18\x15 \x01(\tR\x06engine\x12\x18\n" +
+	"\amembers\x18\x16 \x03(\tR\amembers\x12*\n" +
+	"\x11continue_on_error\x18\x17 \x01(\bR\x0fcontinueOnError\"\xb3\x01\n" +
 	"\bDefaults\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1e\n" +
 	"\n" +

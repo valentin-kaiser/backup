@@ -19,7 +19,7 @@ export const messages: Record<string, Record<number, FieldSchema>> = {
   "backup.api.v1.GetStatusRequest": {},
   "backup.api.v1.GetSyncServeRequest": {},
   "backup.api.v1.Job": {1: ["name"], 2: ["enabled"], 3: ["paused"], 4: ["schedule"], 5: ["nextRunTime"], 6: ["active", "backup.api.v1.Run"], 7: ["last", "backup.api.v1.Run"], 8: ["lastSuccessTime"], 9: ["type"], 10: ["definition", "backup.api.v1.JobDefinition"]},
-  "backup.api.v1.JobDefinition": {1: ["name"], 2: ["type"], 3: ["enabled"], 4: ["schedule"], 5: ["args"], 6: ["timeoutMinutes"], 7: ["maxAgeHours"], 8: ["source"], 9: ["repository"], 10: ["passwordFile"], 12: ["passwordSecret"], 13: ["path1"], 14: ["path2"], 15: ["conflict"], 16: ["conflictLoser"], 17: ["maxDeletePct"], 18: ["checkAccess"], 19: ["owner"], 20: ["force"], 21: ["engine"]},
+  "backup.api.v1.JobDefinition": {1: ["name"], 2: ["type"], 3: ["enabled"], 4: ["schedule"], 5: ["args"], 6: ["timeoutMinutes"], 7: ["maxAgeHours"], 8: ["source"], 9: ["repository"], 10: ["passwordFile"], 12: ["passwordSecret"], 13: ["path1"], 14: ["path2"], 15: ["conflict"], 16: ["conflictLoser"], 17: ["maxDeletePct"], 18: ["checkAccess"], 19: ["owner"], 20: ["force"], 21: ["engine"], 22: ["members"], 23: ["continueOnError"]},
   "backup.api.v1.JobRequest": {1: ["job"]},
   "backup.api.v1.ListAuditLogRequest": {1: ["filter", "backup.api.v1.AuditFilter"], 2: ["beforeId"], 3: ["limit"]},
   "backup.api.v1.ListAuditLogResponse": {1: ["entries", "backup.api.v1.AuditEntry", 1], 2: ["nextId"]},
