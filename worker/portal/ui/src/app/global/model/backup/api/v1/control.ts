@@ -200,7 +200,7 @@ export interface Run {
 export interface JobDefinition {
   /** Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved. */
   name: string;
-  /** What the job does: backup, forget, check, sync or group. */
+  /** What the job does: backup, forget, check or sync. */
   type: string;
   /** Whether the job is scheduled. */
   enabled: boolean;
@@ -250,14 +250,8 @@ export interface JobDefinition {
   force: boolean;
   /** Sync jobs only: the program that syncs, rclone (bisync) when empty or unison. */
   engine: string;
-  /**
-   * Group jobs only: names of the jobs to run one after the other, in this order. A group has the schedule, the
-   * timeout and the health check, its members keep their own arguments, repository and password. Members are not
-   * scheduled on their own while the group is enabled.
-   */
-  members: string[];
-  /** Group jobs only: run the remaining members when one fails. By default the group stops at the first failure. */
-  continueOnError: boolean;
+  /** Name of a job that starts this job when it succeeds. Such a job has no schedule of its own. */
+  after: string;
 }
 
 /** Settings that jobs inherit when they do not set their own. */
@@ -315,7 +309,7 @@ export interface Job {
   lastSuccessTime:
     | Date
     | undefined;
-  /** What the job does: backup, forget, check, sync or group. Empty for restore. */
+  /** What the job does: backup, forget, check or sync. Empty for restore. */
   type: string;
   /** The configuration of the job, not set for restore. */
   definition: JobDefinition | undefined;
@@ -738,8 +732,7 @@ function createBaseJobDefinition(): JobDefinition {
     owner: "",
     force: false,
     engine: "",
-    members: [],
-    continueOnError: false,
+    after: "",
   };
 }
 
@@ -805,11 +798,8 @@ export const JobDefinition: MessageFns<JobDefinition> = {
     if (message.engine !== "") {
       writer.uint32(170).string(message.engine);
     }
-    for (const v of message.members) {
-      writer.uint32(178).string(v!);
-    }
-    if (message.continueOnError !== false) {
-      writer.uint32(184).bool(message.continueOnError);
+    if (message.after !== "") {
+      writer.uint32(178).string(message.after);
     }
     return writer;
   },
@@ -992,15 +982,7 @@ export const JobDefinition: MessageFns<JobDefinition> = {
               break;
             }
 
-            message.members.push(reader.string());
-            continue;
-          }
-          case 23: {
-            if (tag !== 184) {
-              break;
-            }
-
-            message.continueOnError = reader.bool();
+            message.after = reader.string();
             continue;
           }
         }
@@ -1065,14 +1047,7 @@ export const JobDefinition: MessageFns<JobDefinition> = {
       owner: isSet(object.owner) ? globalThis.String(object.owner) : "",
       force: isSet(object.force) ? globalThis.Boolean(object.force) : false,
       engine: isSet(object.engine) ? globalThis.String(object.engine) : "",
-      members: globalThis.Array.isArray(object?.members)
-        ? object.members.map((e: any) => globalThis.String(e))
-        : [],
-      continueOnError: isSet(object.continueOnError)
-        ? globalThis.Boolean(object.continueOnError)
-        : isSet(object.continue_on_error)
-        ? globalThis.Boolean(object.continue_on_error)
-        : false,
+      after: isSet(object.after) ? globalThis.String(object.after) : "",
     };
   },
 
@@ -1138,11 +1113,8 @@ export const JobDefinition: MessageFns<JobDefinition> = {
     if (message.engine !== "") {
       obj.engine = message.engine;
     }
-    if (message.members?.length) {
-      obj.members = message.members;
-    }
-    if (message.continueOnError !== false) {
-      obj.continueOnError = message.continueOnError;
+    if (message.after !== "") {
+      obj.after = message.after;
     }
     return obj;
   },
@@ -1172,8 +1144,7 @@ export const JobDefinition: MessageFns<JobDefinition> = {
     message.owner = object.owner ?? "";
     message.force = object.force ?? false;
     message.engine = object.engine ?? "";
-    message.members = object.members?.map((e) => e) || [];
-    message.continueOnError = object.continueOnError ?? false;
+    message.after = object.after ?? "";
     return message;
   },
 };

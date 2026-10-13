@@ -17,6 +17,8 @@ interface Draft {
   type: string;
   enabled: boolean;
   schedule: string;
+  /** The job that starts this one when it succeeded, empty for a scheduled job. */
+  after: string;
   args: string;
   timeoutMinutes: number;
   maxAgeHours: number;
@@ -40,9 +42,6 @@ interface Draft {
   engine: string;
   /** Sync jobs: the peer that owns this job, then it is only mirrored here. */
   owner: string;
-  /** Group jobs: the jobs to run, in order. */
-  members: string[];
-  continueOnError: boolean;
 }
 
 /** Arguments that make sense for a type, offered instead of an empty field. */
@@ -51,7 +50,6 @@ const SUGGESTED_ARGS: Record<string, string> = {
   forget: '--prune --keep-last 7 --keep-daily 14 --keep-weekly 4 --keep-monthly 6 --keep-yearly 1',
   check: '--read-data-subset=5%',
   sync: '',
-  group: '',
 };
 
 const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;
@@ -71,6 +69,7 @@ function blank(type = 'backup'): Draft {
     type,
     enabled: true,
     schedule: '0 2 * * *',
+    after: '',
     args: SUGGESTED_ARGS[type],
     timeoutMinutes: 0,
     maxAgeHours: type === 'backup' ? 26 : 0,
@@ -89,8 +88,6 @@ function blank(type = 'backup'): Draft {
     force: false,
     engine: 'unison',
     owner: '',
-    members: [],
-    continueOnError: false,
   };
 }
 
@@ -101,6 +98,7 @@ function fromDefinition(d: JobDefinition): Draft {
     type: d.type,
     enabled: d.enabled,
     schedule: d.schedule,
+    after: d.after,
     args: d.args,
     timeoutMinutes: d.timeoutMinutes,
     maxAgeHours: d.maxAgeHours,
@@ -119,8 +117,6 @@ function fromDefinition(d: JobDefinition): Draft {
     force: d.force,
     engine: d.engine || 'rclone',
     owner: d.owner,
-    members: [...d.members],
-    continueOnError: d.continueOnError,
   };
 }
 
@@ -158,7 +154,7 @@ export class JobEditPage {
 
   protected readonly errors = computed(() => {
     const d = this.draft();
-    const errors: Partial<Record<'name' | 'schedule' | 'timeout' | 'maxAge' | 'path1' | 'path2' | 'maxDelete' | 'members', string>> = {};
+    const errors: Partial<Record<'name' | 'schedule' | 'timeout' | 'maxAge' | 'path1' | 'path2' | 'maxDelete', string>> = {};
     if (d.type === 'sync' && !d.owner) {
       if (!d.path1.trim().startsWith('/')) {
         errors.path1 = 'Enter an absolute path of this worker';
@@ -176,9 +172,6 @@ export class JobEditPage {
         errors.maxDelete = 'Enter a percentage from 1 to 100';
       }
     }
-    if (d.type === 'group' && d.members.length === 0) {
-      errors.members = 'Add at least one job';
-    }
     if (this.isNew()) {
       if (!NAME.test(d.name)) {
         errors.name = 'Use 1-32 lower case letters, digits, - or _, starting with a letter or digit';
@@ -186,7 +179,7 @@ export class JobEditPage {
         errors.name = 'This name is already taken';
       }
     }
-    if (d.enabled || d.schedule.trim()) {
+    if (!d.after && (d.enabled || d.schedule.trim())) {
       const problem = validateCron(d.schedule);
       if (problem) {
         errors.schedule = problem;
@@ -213,14 +206,16 @@ export class JobEditPage {
   /** A mirrored job is changed at its owner: only its settings, not its paths. */
   protected readonly mirrored = computed(() => !!this.draft().owner);
   protected readonly isSync = computed(() => this.draft().type === 'sync');
-  protected readonly isGroup = computed(() => this.draft().type === 'group');
-  /** Jobs a group can still add: not a group, not mirrored, not in the group yet. */
-  protected readonly addable = computed(() =>
-    this.control
-      .definedJobs()
-      .filter((j) => j.type !== 'group' && !j.definition?.owner && !this.draft().members.includes(j.name) && j.name !== this.name()),
-  );
   protected readonly isUnison = computed(() => this.draft().type === 'sync' && this.draft().engine === 'unison');
+  /** The jobs this one can follow: not itself and not a mirrored job, the worker cannot start those. */
+  protected readonly afterChoices = computed(() => {
+    const choices = this.control
+      .definedJobs()
+      .filter((job) => job.name !== this.draft().name && job.name !== this.name() && !job.definition?.owner)
+      .map((job) => job.name);
+    const current = this.draft().after;
+    return current && !choices.includes(current) ? [...choices, current] : choices;
+  });
   protected readonly peerKnown = computed(() => this.control.peers().some((p) => p.name === this.draft().peer));
 
   constructor() {
@@ -247,6 +242,11 @@ export class JobEditPage {
 
   protected set<K extends keyof Draft>(key: K, value: Draft[K]): void {
     this.draft.update((draft) => ({ ...draft, [key]: value }));
+  }
+
+  /** A job that follows another one is not scheduled, going back to a schedule enables it again. */
+  protected setAfter(after: string): void {
+    this.draft.update((draft) => ({ ...draft, after, enabled: !after }));
   }
 
   /** Unison has fewer conflict policies than rclone, a policy it cannot do is replaced. */
@@ -287,8 +287,9 @@ export class JobEditPage {
     const definition = JobDefinition.create({
       name: d.name.trim(),
       type: d.type,
-      enabled: d.enabled,
-      schedule: d.schedule.trim(),
+      enabled: d.after ? false : d.enabled,
+      schedule: d.after ? '' : d.schedule.trim(),
+      after: d.after,
       args: d.args.trim(),
       timeoutMinutes: d.timeoutMinutes,
       maxAgeHours: d.maxAgeHours,
@@ -298,7 +299,6 @@ export class JobEditPage {
       passwordFile: d.passwordSecret ? '' : d.passwordFile.trim(),
       passwordSecret: d.passwordSecret,
       ...(d.type === 'sync' ? this.syncFields(d) : {}),
-      ...(d.type === 'group' ? this.groupFields(d) : {}),
     });
     try {
       await (this.isNew() ? this.control.createJob(definition) : this.control.updateJob(definition));
@@ -308,42 +308,6 @@ export class JobEditPage {
     } finally {
       this.saving.set(false);
     }
-  }
-
-  protected addMember(name: string): void {
-    if (name) {
-      this.set('members', [...this.draft().members, name]);
-    }
-  }
-
-  protected removeMember(index: number): void {
-    this.set(
-      'members',
-      this.draft().members.filter((_, i) => i !== index),
-    );
-  }
-
-  protected moveMember(index: number, by: -1 | 1): void {
-    const members = [...this.draft().members];
-    const target = index + by;
-    if (target < 0 || target >= members.length) {
-      return;
-    }
-    [members[index], members[target]] = [members[target], members[index]];
-    this.set('members', members);
-  }
-
-  /** A group only has a schedule, a timeout and its members. */
-  private groupFields(d: Draft): Partial<JobDefinition> {
-    return {
-      args: '',
-      source: '',
-      repository: '',
-      passwordFile: '',
-      passwordSecret: '',
-      members: d.members,
-      continueOnError: d.continueOnError,
-    };
   }
 
   /** The fields of a sync job. Sync jobs have no repository and no password. */

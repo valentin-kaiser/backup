@@ -55,69 +55,39 @@
         </div>
       </div>
 
-      <label class="check">
-        <input #enabled type="checkbox" [checked]="draft().enabled" (change)="set('enabled', enabled.checked)" />
-        <span>
-          <strong>Scheduled</strong>
-          <span class="hint">When off, the job only runs when you start it.</span>
-        </span>
-      </label>
+      @if (!draft().after) {
+        <label class="check">
+          <input #enabled type="checkbox" [checked]="draft().enabled" (change)="set('enabled', enabled.checked)" />
+          <span>
+            <strong>Scheduled</strong>
+            <span class="hint">When off, the job only runs when you start it.</span>
+          </span>
+        </label>
+      }
     </section>
 
     <section class="card">
       <h2>Schedule</h2>
-      <div class="field">
-        <label for="schedule">When it runs</label>
-        <app-cron-builder [value]="draft().schedule" (valueChange)="set('schedule', $event)" [error]="errors().schedule ?? ''" />
-      </div>
-    </section>
-    @if (isGroup()) {
-      <section class="card">
-        <h2>Jobs in this group</h2>
-        <p class="muted">
-          They run one after the other in this order. Scheduling a group takes the schedule away from its jobs, they can still be
-          started on their own.
-        </p>
-        @if (draft().members.length) {
-          <ol class="members">
-            @for (member of draft().members; track member; let i = $index; let last = $last) {
-              <li>
-                <strong>{{ member }}</strong>
-                <span class="spacer"></span>
-                <button type="button" class="ghost small" aria-label="Move up" [disabled]="i === 0" (click)="moveMember(i, -1)">
-                  <app-icon name="arrow_upward" />
-                </button>
-                <button type="button" class="ghost small" aria-label="Move down" [disabled]="last" (click)="moveMember(i, 1)">
-                  <app-icon name="arrow_downward" />
-                </button>
-                <button type="button" class="ghost small" aria-label="Remove" (click)="removeMember(i)">
-                  <app-icon name="delete" />
-                </button>
-              </li>
-            }
-          </ol>
-        }
+      @if (!mirrored()) {
         <div class="field">
-          <label for="addmember">Add a job</label>
-          <select #add id="addmember" (change)="addMember(add.value); add.value = ''">
-            <option value="" selected>Choose a job…</option>
-            @for (j of addable(); track j.name) {
-              <option [value]="j.name">{{ j.name }} ({{ j.type }})</option>
+          <label for="after">Starts</label>
+          <select #after id="after" [value]="draft().after" (change)="setAfter(after.value)">
+            <option value="" [selected]="!draft().after">On a schedule</option>
+            @for (j of afterChoices(); track j) {
+              <option [value]="j" [selected]="j === draft().after">After {{ j }} succeeded</option>
             }
           </select>
-          @if (submitted() && errors().members) {
-            <span class="field-error">{{ errors().members }}</span>
-          }
+          <span class="hint">A job that follows another one only starts when that run succeeded, e.g. forget after backup.</span>
         </div>
-        <label class="check">
-          <input #cont type="checkbox" [checked]="draft().continueOnError" (change)="set('continueOnError', cont.checked)" />
-          <span>
-            <strong>Keep going when a job fails</strong>
-            <span class="hint">Off: the group stops at the first job that does not succeed. Either way the group run is marked failed.</span>
-          </span>
-        </label>
-      </section>
-    } @else if (isSync()) {
+      }
+      @if (!draft().after) {
+        <div class="field">
+          <label for="schedule">When it runs</label>
+          <app-cron-builder [value]="draft().schedule" (valueChange)="set('schedule', $event)" [error]="errors().schedule ?? ''" />
+        </div>
+      }
+    </section>
+    @if (isSync()) {
       <section class="card">
         <h2>Directories</h2>
         @if (mirrored()) {
@@ -338,7 +308,7 @@
     <details class="card" [open]="advancedOpen()">
       <summary><h2>Advanced</h2></summary>
       <div class="grid">
-        @if (!isSync() && !isGroup()) {
+        @if (!isSync()) {
         <div class="field">
           <label for="repository">Repository</label>
           <input

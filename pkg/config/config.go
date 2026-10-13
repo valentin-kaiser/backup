@@ -26,8 +26,6 @@ const (
 	TypeCheck  = "check"
 	// TypeSync keeps two directories in sync in both directions (rclone bisync). It does not use a repository.
 	TypeSync = "sync"
-	// TypeGroup runs other jobs one after the other on a single schedule. It has no repository of its own.
-	TypeGroup = "group"
 )
 
 // Conflict resolution policies of sync jobs, the values of rclone's --conflict-resolve.
@@ -75,6 +73,7 @@ type Job struct {
 	Type           string `usage:"what the job does: backup, forget or check"`
 	Enabled        bool   `usage:"schedule this job"`
 	Schedule       string `usage:"cron expression (minute hour day month weekday)"`
+	After          string `usage:"name of a job that starts this job when it succeeds, instead of a schedule"`
 	Args           string `usage:"additional restic arguments, split like a shell would"`
 	TimeoutMinutes int    `usage:"abort the run after this many minutes, 0 disables the timeout"`
 	MaxAgeHours    int    `usage:"health check fails when no run succeeded within this many hours, 0 disables"`
@@ -92,9 +91,6 @@ type Job struct {
 	Engine        string `usage:"sync jobs only: rclone (bisync, default) or unison"`
 	Force         bool   `usage:"sync jobs only: do not abort when all files changed or too many would be deleted (rclone --force), for small directories where every file changing is normal"`
 	Owner         string `usage:"sync jobs only: peer that holds the schedule and the state of this job, this worker then only mirrors it and forwards runs and changes"`
-
-	Members         []string `usage:"group jobs only: names of the jobs to run one after the other, in this order"`
-	ContinueOnError bool     `usage:"group jobs only: run the remaining jobs when one fails, by default the group stops at the first failure"`
 }
 
 // Peer is another worker that exports a directory for sync jobs, see SyncServe on that worker.
@@ -218,17 +214,15 @@ func Default() *Config {
 				MaxAgeHours: 26,
 			},
 			{
-				Name:     "forget",
-				Type:     TypeForget,
-				Enabled:  true,
-				Schedule: "0 3 * * 0",
-				Args:     "--prune --keep-last 7 --keep-daily 14 --keep-weekly 4 --keep-monthly 6 --keep-yearly 1",
+				Name:  "forget",
+				Type:  TypeForget,
+				After: "backup",
+				Args:  "--prune --keep-last 7 --keep-daily 14 --keep-weekly 4 --keep-monthly 6 --keep-yearly 1",
 			},
 			{
 				Name:           "check",
 				Type:           TypeCheck,
-				Enabled:        true,
-				Schedule:       "0 5 * * 3",
+				After:          "forget",
 				Args:           "--read-data-subset=5%",
 				TimeoutMinutes: 360,
 			},
@@ -297,9 +291,9 @@ func (c *Config) Validate() error {
 		}
 		seen[j.Name] = true
 		switch j.Type {
-		case TypeBackup, TypeForget, TypeCheck, TypeSync, TypeGroup:
+		case TypeBackup, TypeForget, TypeCheck, TypeSync:
 		default:
-			return apperror.NewErrorf("job %s: type %q must be backup, forget, check, sync or group", j.Name, j.Type)
+			return apperror.NewErrorf("job %s: type %q must be backup, forget, check or sync", j.Name, j.Type)
 		}
 		if j.Enabled && strings.TrimSpace(j.Schedule) == "" {
 			return apperror.NewErrorf("job %s: schedule must not be empty when the job is enabled", j.Name)
@@ -308,6 +302,9 @@ func (c *Config) Validate() error {
 			if err := cron.ValidateCronSpec(j.Schedule); err != nil {
 				return apperror.NewErrorf("job %s: invalid schedule %q", j.Name, j.Schedule).AddError(err)
 			}
+		}
+		if err := c.validateAfter(j); err != nil {
+			return err
 		}
 		if j.TimeoutMinutes < 0 || j.MaxAgeHours < 0 {
 			return apperror.NewErrorf("job %s: timeoutMinutes and maxAgeHours must not be negative", j.Name)
@@ -320,15 +317,6 @@ func (c *Config) Validate() error {
 		}
 		if j.Source != "" && j.Type != TypeBackup {
 			return apperror.NewErrorf("job %s: source is only valid for backup jobs", j.Name)
-		}
-		if j.Type == TypeGroup {
-			if err := c.validateGroup(j); err != nil {
-				return err
-			}
-			continue
-		}
-		if len(j.Members) > 0 || j.ContinueOnError {
-			return apperror.NewErrorf("job %s: members and continueOnError are only valid for group jobs", j.Name)
 		}
 		if j.Type == TypeSync {
 			// Sync jobs have no repository and no password, they only need their paths.
@@ -374,42 +362,39 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// validateGroup checks a group job: it only has a schedule, a timeout and the jobs it runs.
-func (c *Config) validateGroup(j Job) error {
-	if j.Args != "" || j.Source != "" || j.Repository != "" || j.PasswordFile != "" || j.PasswordSecret != "" ||
-		j.Owner != "" || j.Path1 != "" || j.Path2 != "" || j.Conflict != "" || j.ConflictLoser != "" ||
-		j.MaxDeletePct != 0 || j.CheckAccess || j.Force || j.Engine != "" {
-		return apperror.NewErrorf("job %s: a group only has a schedule, a timeout and members, repository, password and arguments belong to its members", j.Name)
+// validateAfter checks the job that has to succeed before j starts: it must exist, be run by this worker and not lead
+// back to j. A job that follows another one has no schedule of its own.
+func (c *Config) validateAfter(j Job) error {
+	if j.After == "" {
+		return nil
 	}
-	if len(j.Members) == 0 {
-		return apperror.NewErrorf("job %s: a group needs at least one member", j.Name)
+	if j.Enabled {
+		return apperror.NewErrorf("job %s: a job that runs after %q is not scheduled, set enabled to false", j.Name, j.After)
 	}
-	seen := map[string]bool{}
-	for _, name := range j.Members {
-		m, ok := c.Job(name)
+	if j.Mirror() {
+		return apperror.NewErrorf("job %s: a mirrored job cannot run after another job", j.Name)
+	}
+	for cur, steps := j, 0; cur.After != ""; steps++ {
+		prev, ok := c.Job(cur.After)
 		switch {
 		case !ok:
-			return apperror.NewErrorf("job %s: member %q does not exist", j.Name, name)
-		case seen[name]:
-			return apperror.NewErrorf("job %s: member %q is listed twice", j.Name, name)
-		case m.Type == TypeGroup:
-			return apperror.NewErrorf("job %s: member %q is a group, groups cannot be nested", j.Name, name)
-		case m.Mirror():
-			return apperror.NewErrorf("job %s: member %q is mirrored from a peer and cannot be run by a group", j.Name, name)
-		case j.Enabled && m.Enabled:
-			return apperror.NewErrorf("job %s: member %q has its own schedule, disable it so it only runs with the group", j.Name, name)
+			return apperror.NewErrorf("job %s: job %q does not exist", cur.Name, cur.After)
+		case prev.Mirror():
+			return apperror.NewErrorf("job %s: job %q is mirrored from a peer and cannot start other jobs", cur.Name, prev.Name)
+		case prev.Name == j.Name || steps > len(c.Jobs):
+			return apperror.NewErrorf("job %s: runs after itself through %q", j.Name, cur.After)
 		}
-		seen[name] = true
+		cur = prev
 	}
 	return nil
 }
 
-// Groups returns the names of the groups that run the job.
-func (c Config) Groups(name string) []string {
+// Followers returns the names of the jobs that start when the job succeeds.
+func (c Config) Followers(name string) []string {
 	var out []string
-	for _, g := range c.Jobs {
-		if g.Type == TypeGroup && slices.Contains(g.Members, name) {
-			out = append(out, g.Name)
+	for _, j := range c.Jobs {
+		if j.After == name {
+			out = append(out, j.Name)
 		}
 	}
 	return out

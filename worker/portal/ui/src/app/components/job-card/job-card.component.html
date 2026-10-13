@@ -9,9 +9,6 @@
         <span class="tag" title="This job runs on a peer, starts and changes are forwarded to it">mirrored from {{ job().definition?.owner }}</span>
       }
     </div>
-    @if (job().type === 'group' && job().definition; as d) {
-      <div class="muted ellip" [title]="d.members.join(' → ')">{{ d.members.join(' → ') }}</div>
-    }
     @if (job().type === 'sync' && job().definition; as d) {
       <div class="muted ellip mono" [title]="d.path1 + ' ⇄ ' + d.path2">{{ d.path1 }} ⇄ {{ d.path2 }}</div>
     }
@@ -56,7 +53,7 @@
       <app-icon name="refresh" />
     </button>
   }
-  @if (job().type !== 'sync' && job().type !== 'group' && !job().active) {
+  @if (job().type !== 'sync' && !job().active) {
     <button type="button" class="ghost small" data-label="Unlock repository" aria-label="Unlock repository" (click)="unlock()">
       <app-icon name="lock_open" />
     </button>

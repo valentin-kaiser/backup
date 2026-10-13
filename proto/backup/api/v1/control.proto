@@ -58,7 +58,7 @@ message JobDefinition {
   // Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved.
   string name = 1;
 
-  // What the job does: backup, forget, check, sync or group.
+  // What the job does: backup, forget, check or sync.
   string type = 2;
 
   // Whether the job is scheduled.
@@ -119,13 +119,8 @@ message JobDefinition {
   // Sync jobs only: the program that syncs, rclone (bisync) when empty or unison.
   string engine = 21;
 
-  // Group jobs only: names of the jobs to run one after the other, in this order. A group has the schedule, the
-  // timeout and the health check, its members keep their own arguments, repository and password. Members are not
-  // scheduled on their own while the group is enabled.
-  repeated string members = 22;
-
-  // Group jobs only: run the remaining members when one fails. By default the group stops at the first failure.
-  bool continue_on_error = 23;
+  // Name of a job that starts this job when it succeeds. Such a job has no schedule of its own.
+  string after = 22;
 }
 
 // Settings that jobs inherit when they do not set their own.
@@ -185,7 +180,7 @@ message Job {
   // Finish time of the most recent successful run.
   google.protobuf.Timestamp last_success_time = 8;
 
-  // What the job does: backup, forget, check, sync or group. Empty for restore.
+  // What the job does: backup, forget, check or sync. Empty for restore.
   string type = 9;
 
   // The configuration of the job, not set for restore.

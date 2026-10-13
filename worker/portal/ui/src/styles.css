@@ -898,18 +898,6 @@ details.card[open] summary {
 details.card[open] summary h2 {
   margin-bottom: 0;
 }
-.members {
-  list-style: decimal inside;
-  margin: 0 0 var(--space-3, 12px);
-  padding: 0;
-}
-.members li {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 0;
-}
-
 .form-actions {
   display: flex;
   align-items: center;

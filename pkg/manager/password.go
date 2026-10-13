@@ -57,7 +57,7 @@ func (m *Manager) withSecret(ex runner.Executor, c config.Config) runner.Executo
 func (m *Manager) SecretUsers(name string) (jobs []string, global bool) {
 	c := m.cfg()
 	for _, j := range c.Jobs {
-		if j.Type != config.TypeSync && j.Type != config.TypeGroup && c.ForJob(j).PasswordSecret == name {
+		if j.Type != config.TypeSync && c.ForJob(j).PasswordSecret == name {
 			jobs = append(jobs, j.Name)
 		}
 	}
@@ -83,9 +83,7 @@ func (m *Manager) secretRepositories(name string) []config.Config {
 	}
 	add(c)
 	for _, j := range c.Jobs {
-		if j.Type != config.TypeGroup {
-			add(c.ForJob(j))
-		}
+		add(c.ForJob(j))
 	}
 	out := make([]config.Config, 0, len(found))
 	for _, jc := range found {

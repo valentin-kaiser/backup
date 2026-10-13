@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"path"
@@ -237,7 +236,7 @@ func (m *Manager) initRepositories() {
 	}
 	done := map[string]bool{}
 	for _, j := range c.Jobs {
-		if j.Type == config.TypeSync || j.Type == config.TypeGroup {
+		if j.Type == config.TypeSync {
 			continue // no repository
 		}
 		jc := c.ForJob(j)
@@ -276,50 +275,18 @@ func (m *Manager) initRepository(c config.Config) bool {
 
 // Trigger starts a configured job. When wait is set it returns after the run finished.
 func (m *Manager) Trigger(name, trigger string, wait bool) (store.Run, error) {
-	l, err := m.launch(name, trigger)
-	if err != nil {
-		return store.Run{}, err
-	}
-	return l.result(m, wait), nil
-}
-
-// launched is a run that was started. a and done are not set for a run that a peer executes.
-type launched struct {
-	run  store.Run
-	a    *active
-	done <-chan struct{}
-}
-
-// result returns the run, after it finished when wait is set.
-func (l launched) result(m *Manager, wait bool) store.Run {
-	if !wait || l.done == nil {
-		return l.run
-	}
-	<-l.done
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return l.a.run
-}
-
-// launch starts a configured job in the background.
-func (m *Manager) launch(name, trigger string) (launched, error) {
 	c := m.cfg()
 	j, ok := c.Job(name)
 	if !ok {
-		return launched{}, apperror.NewErrorf("unknown job %q", name)
+		return store.Run{}, apperror.NewErrorf("unknown job %q", name)
 	}
 	if j.Mirror() {
-		r, err := m.forwardRun(j, func(ctx context.Context, cl peer.Client) (*pb.Run, error) {
+		return m.forwardRun(j, func(ctx context.Context, cl peer.Client) (*pb.Run, error) {
 			return cl.StartJob(ctx, &pb.JobRequest{Job: name})
 		})
-		return launched{run: r}, err
 	}
 	if holder, locked := m.lockedByPeer(name); locked {
-		return launched{}, apperror.NewErrorf("peer %s is syncing this job", holder).AddError(ErrBusy)
-	}
-	timeout := time.Duration(j.TimeoutMinutes) * time.Minute
-	if j.Type == config.TypeGroup {
-		return m.begin(name, trigger, func(ctx context.Context, a *active) { m.executeGroup(ctx, a, j, timeout) })
+		return store.Run{}, apperror.NewErrorf("peer %s is syncing this job", holder).AddError(ErrBusy)
 	}
 	jc := c.ForJob(j)
 	if j.Type == config.TypeSync {
@@ -328,9 +295,10 @@ func (m *Manager) launch(name, trigger string) (launched, error) {
 	}
 	args, err := runner.Args(jc, j)
 	if err != nil {
-		return launched{}, err
+		return store.Run{}, err
 	}
-	return m.begin(name, trigger, func(ctx context.Context, a *active) { m.execute(ctx, a, jc, args, timeout) })
+	timeout := time.Duration(j.TimeoutMinutes) * time.Minute
+	return m.start(name, trigger, jc, args, timeout, wait)
 }
 
 // ResyncJob drops the state of a sync job and runs it again. The next run builds the listings of both sides from
@@ -457,9 +425,6 @@ func (m *Manager) repository(job string) (config.Config, error) {
 	if !ok {
 		return config.Config{}, apperror.NewErrorf("unknown job %q", job)
 	}
-	if j.Type == config.TypeGroup {
-		return config.Config{}, apperror.NewErrorf("job %q is a group and has no repository, use one of its members", job)
-	}
 	return c.ForJob(j), nil
 }
 
@@ -476,19 +441,10 @@ func (m *Manager) sem(repository string) chan struct{} {
 }
 
 func (m *Manager) start(name, trigger string, c config.Config, args []string, timeout time.Duration, wait bool) (store.Run, error) {
-	l, err := m.begin(name, trigger, func(ctx context.Context, a *active) { m.execute(ctx, a, c, args, timeout) })
-	if err != nil {
-		return store.Run{}, err
-	}
-	return l.result(m, wait), nil
-}
-
-// begin registers the run of a job and executes body in the background.
-func (m *Manager) begin(name, trigger string, body func(ctx context.Context, a *active)) (launched, error) {
 	m.mu.Lock()
 	if _, busy := m.active[name]; busy {
 		m.mu.Unlock()
-		return launched{}, ErrBusy
+		return store.Run{}, ErrBusy
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	a := &active{
@@ -505,87 +461,15 @@ func (m *Manager) begin(name, trigger string, body func(ctx context.Context, a *
 	go func() {
 		defer m.wg.Done()
 		defer close(done)
-		body(ctx, a)
+		m.execute(ctx, a, c, args, timeout)
 	}()
-	return launched{run: snapshot, a: a, done: done}, nil
-}
-
-// executeGroup runs the members of a group one after the other. Every member is a run of its own with its own
-// history, the run of the group lists their outcome. A member that does not succeed stops the group unless
-// ContinueOnError is set, the group then ends with the worst status of its members.
-func (m *Manager) executeGroup(ctx context.Context, a *active, g config.Job, timeout time.Duration) {
-	defer a.cancel()
-	now := time.Now()
-	m.setStatus(a, store.StatusRunning, func(r *store.Run) { r.Started = &now })
-
-	runCtx := ctx
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
+	if wait {
+		<-done
+		m.mu.Lock()
+		snapshot = a.run
+		m.mu.Unlock()
 	}
-
-	result, failed := store.StatusSuccess, []string{}
-	worse := func(s store.Status) {
-		rank := map[store.Status]int{store.StatusSuccess: 0, store.StatusSkipped: 1, store.StatusCancelled: 2, store.StatusFailed: 3}
-		if rank[s] > rank[result] {
-			result = s
-		}
-	}
-	for i, name := range g.Members {
-		if runCtx.Err() != nil {
-			break
-		}
-		m.line(a, fmt.Sprintf("[%d/%d] %s", i+1, len(g.Members), name))
-		l, err := m.launch(name, "group:"+g.Name)
-		var status store.Status
-		switch {
-		case err != nil:
-			status = store.StatusSkipped
-			if !errors.Is(err, ErrBusy) {
-				status = store.StatusFailed
-			}
-			m.line(a, fmt.Sprintf("%s: %s: %v", name, status, err))
-		case l.done == nil:
-			status = store.StatusFailed
-			m.line(a, name+": cannot be run by a group")
-		default:
-			select {
-			case <-l.done:
-			case <-runCtx.Done():
-				// Cancelled, or the timeout of the group ran out: stop the member and wait until it let go of the repository.
-				_ = m.Cancel(name)
-				<-l.done
-			}
-			m.mu.Lock()
-			r := l.a.run
-			m.mu.Unlock()
-			status = r.Status
-			m.line(a, fmt.Sprintf("%s: %s (run %s)", name, status, r.ID))
-			if r.Error != "" {
-				m.line(a, name+": "+r.Error)
-			}
-		}
-		if status == store.StatusSuccess {
-			continue
-		}
-		worse(status)
-		failed = append(failed, name)
-		if !g.ContinueOnError {
-			break
-		}
-	}
-
-	switch {
-	case ctx.Err() != nil:
-		m.finish(a, store.StatusCancelled, 0, "cancelled")
-	case runCtx.Err() != nil:
-		m.finish(a, store.StatusFailed, 1, "timeout exceeded")
-	case result != store.StatusSuccess:
-		m.finish(a, result, 1, "not successful: "+strings.Join(failed, ", "))
-	default:
-		m.finish(a, store.StatusSuccess, 0, "")
-	}
+	return snapshot, nil
 }
 
 func (m *Manager) setStatus(a *active, s store.Status, mutate func(*store.Run)) {
@@ -725,8 +609,8 @@ func (m *Manager) Unlock(name string) error {
 	if !ok {
 		return apperror.NewErrorf("unknown job %q", name)
 	}
-	if j.Type == config.TypeSync || j.Type == config.TypeGroup {
-		return apperror.NewErrorf("job %q is a %s job and has no repository", name, j.Type)
+	if j.Type == config.TypeSync {
+		return apperror.NewErrorf("job %q is a sync job and has no repository", name)
 	}
 	c, err := m.repository(name)
 	if err != nil {
@@ -784,6 +668,15 @@ func (m *Manager) finish(a *active, s store.Status, exit int, msg string) {
 		log.Error().Err(err).Msg("failed to persist run")
 	}
 	m.publish(Event{Type: "status", Run: r.ID, Job: r.Job, Status: s})
+	if s == store.StatusSuccess {
+		for _, next := range m.cfg().Followers(r.Job) {
+			go func() {
+				if _, err := m.Trigger(next, "after:"+r.Job, false); err != nil {
+					log.Warn().Err(err).Msgf("%s not started after %s", next, r.Job)
+				}
+			}()
+		}
+	}
 }
 
 // ping notifies the configured healthchecks-style webhook.
@@ -916,7 +809,6 @@ func (m *Manager) CreateJob(j config.Job) (JobStatus, error) {
 			return apperror.NewErrorf("job %q already exists", j.Name)
 		}
 		c.Jobs = append(c.Jobs, j)
-		claimMembers(c, j)
 		return nil
 	})
 	if err != nil {
@@ -944,7 +836,6 @@ func (m *Manager) UpdateJob(j config.Job) (JobStatus, error) {
 		for i := range c.Jobs {
 			if c.Jobs[i].Name == j.Name {
 				c.Jobs[i] = j
-				claimMembers(c, j)
 				return nil
 			}
 		}
@@ -965,8 +856,8 @@ func (m *Manager) DeleteJob(name string) error {
 	if running {
 		return apperror.NewErrorf("job %q is running, cancel it first", name)
 	}
-	if groups := m.cfg().Groups(name); len(groups) > 0 {
-		return apperror.NewErrorf("job %q is a member of %s, remove it from the group first", name, strings.Join(groups, ", "))
+	if next := m.cfg().Followers(name); len(next) > 0 {
+		return apperror.NewErrorf("job %q is followed by %s, change their \"after\" first", name, strings.Join(next, ", "))
 	}
 	old, found := m.cfg().Job(name)
 	if found && old.Mirror() {
@@ -999,18 +890,6 @@ func (m *Manager) DeleteJob(name string) error {
 	return err
 }
 
-// claimMembers takes the schedule away from the members of an enabled group, they run with the group from now on.
-func claimMembers(c *config.Config, g config.Job) {
-	if g.Type != config.TypeGroup || !g.Enabled {
-		return
-	}
-	for i := range c.Jobs {
-		if slices.Contains(g.Members, c.Jobs[i].Name) {
-			c.Jobs[i].Enabled = false
-		}
-	}
-}
-
 func (m *Manager) change(f func(*config.Config) error) error {
 	if m.update == nil {
 		return ErrReadOnly
@@ -1032,9 +911,6 @@ func normalize(j config.Job) config.Job {
 
 // check rejects jobs whose restic arguments cannot be built, the rest is validated with the configuration.
 func (m *Manager) check(j config.Job) error {
-	if j.Type == config.TypeGroup {
-		return nil
-	}
 	_, err := runner.Args(m.cfg().ForJob(j), j)
 	return err
 }

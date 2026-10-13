@@ -178,33 +178,6 @@ describe('JobEditPage', () => {
     expect(control.createJob.mock.calls[0][0].path2).toBe('peer:east/projects');
   });
 
-  it('needs members for a group, keeps their order and sends only group fields', async () => {
-    const { page } = create();
-    page.setType('group');
-    page.set('name', 'nightly');
-    expect(page.errors().members).toBeTruthy();
-
-    page.addMember('backup');
-    page.addMember('check');
-    page.addMember('forget');
-    page.moveMember(2, -1);
-    page.moveMember(0, -1);
-    page.removeMember(0);
-    page.set('continueOnError', true);
-    expect(page.draft().members).toEqual(['forget', 'check']);
-    expect(page.valid()).toBe(true);
-
-    await page.save();
-    expect(control.createJob.mock.calls[0][0]).toMatchObject({
-      name: 'nightly',
-      type: 'group',
-      members: ['forget', 'check'],
-      continueOnError: true,
-      args: '',
-      repository: '',
-    });
-  });
-
   it('does not require a schedule for jobs that only run by hand', () => {
     const { page } = create();
     page.set('name', 'manual');

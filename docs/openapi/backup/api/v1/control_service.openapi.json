@@ -276,7 +276,7 @@
             "type": "string"
           },
           "type": {
-            "description": "What the job does: backup, forget, check, sync or group. Empty for restore.",
+            "description": "What the job does: backup, forget, check or sync. Empty for restore.",
             "type": "string"
           }
         },
@@ -285,6 +285,10 @@
       "backup.api.v1.JobDefinition": {
         "description": "The configuration of a job, as stored in control.yaml.",
         "properties": {
+          "after": {
+            "description": "Name of a job that starts this job when it succeeds. Such a job has no schedule of its own.",
+            "type": "string"
+          },
           "args": {
             "description": "Additional restic arguments, split like a shell would without expanding anything.",
             "type": "string"
@@ -300,10 +304,6 @@
           "conflictLoser": {
             "description": "Sync jobs only: what happens to the losing version: num, pathname or delete. num when empty.",
             "type": "string"
-          },
-          "continueOnError": {
-            "description": "Group jobs only: run the remaining members when one fails. By default the group stops at the first failure.",
-            "type": "boolean"
           },
           "enabled": {
             "description": "Whether the job is scheduled.",
@@ -326,13 +326,6 @@
             "description": "Sync jobs only: abort when a run would delete more than this percentage of the files, 50 when 0.",
             "format": "int32",
             "type": "integer"
-          },
-          "members": {
-            "description": "Group jobs only: names of the jobs to run one after the other, in this order. A group has the schedule, the\ntimeout and the health check, its members keep their own arguments, repository and password. Members are not\nscheduled on their own while the group is enabled.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
           },
           "name": {
             "description": "Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved.",
@@ -376,7 +369,7 @@
             "type": "integer"
           },
           "type": {
-            "description": "What the job does: backup, forget, check, sync or group.",
+            "description": "What the job does: backup, forget, check or sync.",
             "type": "string"
           }
         },
