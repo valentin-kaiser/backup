@@ -1,0 +1,317 @@
+{
+  "components": {
+    "schemas": {
+      "backup.api.v1.LoginRequest": {
+        "description": "Requests a session.",
+        "properties": {
+          "password": {
+            "description": "The password of the portal.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.Session": {
+        "description": "The state of the session of the caller.",
+        "properties": {
+          "signedIn": {
+            "description": "Whether the caller is signed in.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "google.protobuf.Empty": {
+        "type": "object"
+      },
+      "xrpc.Error": {
+        "description": "JSON-RPC 2.0 error object.",
+        "properties": {
+          "code": {
+            "description": "-32700 parse error, -32600 invalid request, -32601 method not found, -32602 invalid params, -32603 internal error, -32000 server error.",
+            "type": "integer"
+          },
+          "data": {
+            "description": "Optional additional information."
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "backup.api.v1",
+    "version": "0.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/Auth/GetSession": {
+      "post": {
+        "description": "Returns the session of the caller. Fails with 401 without a valid session.\n\nJSON-RPC 2.0 call of `Auth.GetSession`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Auth.GetSession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Auth.GetSession",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Auth.GetSession"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/google.protobuf.Empty"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Session"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Returns the session of the caller.",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/Auth/Login": {
+      "post": {
+        "description": "Checks the password and starts a session. Too many wrong passwords lock the address for a while.\n\nJSON-RPC 2.0 call of `Auth.Login`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Auth.Login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Auth.Login",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Auth.Login"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.LoginRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Session"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Checks the password and starts a session.",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/Auth/Logout": {
+      "post": {
+        "description": "Ends the session of the caller.\n\nJSON-RPC 2.0 call of `Auth.Logout`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Auth.Logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Auth.Logout",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Auth.Logout"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/google.protobuf.Empty"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Ends the session of the caller.",
+        "tags": [
+          "Auth"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Signs in to the portal. The session is an HttpOnly cookie. The portal has one password and no users, the one the daemon expects too.",
+      "name": "Auth"
+    }
+  ]
+}

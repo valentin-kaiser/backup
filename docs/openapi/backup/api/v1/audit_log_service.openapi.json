@@ -1,0 +1,340 @@
+{
+  "components": {
+    "schemas": {
+      "backup.api.v1.AuditEntry": {
+        "description": "One line of the audit log.",
+        "properties": {
+          "action": {
+            "description": "What was done, e.g. login or start_job.",
+            "type": "string"
+          },
+          "detail": {
+            "description": "Further information, never a secret.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Increasing identifier of the entry.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "ip": {
+            "description": "Address the request came from.",
+            "type": "string"
+          },
+          "result": {
+            "description": "ok, failed, denied or unknown.",
+            "type": "string"
+          },
+          "target": {
+            "description": "What the action was done to, e.g. the name of a job.",
+            "type": "string"
+          },
+          "time": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time at which it happened."
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.AuditFilter": {
+        "description": "Selects entries of the audit log. Fields that are not set match everything.",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "since": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Only entries from this time on."
+          },
+          "text": {
+            "description": "Text that the target, the detail or the address contains.",
+            "type": "string"
+          },
+          "until": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Only entries before this time."
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ExportAuditLogRequest": {
+        "description": "Requests the matching entries as a file.",
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/backup.api.v1.AuditFilter"
+          },
+          "format": {
+            "description": "csv or json (one object per line).",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ExportAuditLogResponse": {
+        "description": "The exported entries, oldest first.",
+        "properties": {
+          "contentType": {
+            "description": "Media type of the data.",
+            "type": "string"
+          },
+          "data": {
+            "contentEncoding": "base64",
+            "description": "The file.",
+            "type": "string"
+          },
+          "filename": {
+            "description": "Suggested name of the file.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListAuditLogRequest": {
+        "description": "Requests a page of the audit log.",
+        "properties": {
+          "beforeId": {
+            "description": "Only entries with a lower id, to continue after the last entry of a page.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/backup.api.v1.AuditFilter"
+          },
+          "limit": {
+            "description": "Maximum number of entries, 100 when not set, at most 1000.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListAuditLogResponse": {
+        "description": "A page of the audit log, newest first.",
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.AuditEntry"
+            },
+            "type": "array"
+          },
+          "nextId": {
+            "description": "Pass as before_id to get the next page, 0 when there is nothing more.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "google.protobuf.Timestamp": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "xrpc.Error": {
+        "description": "JSON-RPC 2.0 error object.",
+        "properties": {
+          "code": {
+            "description": "-32700 parse error, -32600 invalid request, -32601 method not found, -32602 invalid params, -32603 internal error, -32000 server error.",
+            "type": "integer"
+          },
+          "data": {
+            "description": "Optional additional information."
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "backup.api.v1",
+    "version": "0.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/AuditLog/ExportAuditLog": {
+      "post": {
+        "description": "Returns the matching entries as a file. The export is recorded in the log.\n\nJSON-RPC 2.0 call of `AuditLog.ExportAuditLog`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.AuditLog.ExportAuditLog",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "AuditLog.ExportAuditLog",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "AuditLog.ExportAuditLog"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ExportAuditLogRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ExportAuditLogResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Returns the matching entries as a file.",
+        "tags": [
+          "AuditLog"
+        ]
+      }
+    },
+    "/AuditLog/ListAuditLog": {
+      "post": {
+        "description": "Lists entries, newest first.\n\nJSON-RPC 2.0 call of `AuditLog.ListAuditLog`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.AuditLog.ListAuditLog",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "AuditLog.ListAuditLog",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "AuditLog.ListAuditLog"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ListAuditLogRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ListAuditLogResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Lists entries, newest first.",
+        "tags": [
+          "AuditLog"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Reads what was done through the portal. Needs a session.",
+      "name": "AuditLog"
+    }
+  ]
+}

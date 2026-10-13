@@ -580,6 +580,387 @@ func (x *RestoreRequest) GetJob() string {
 	return ""
 }
 
+// Requests the secrets.
+type ListSecretsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSecretsRequest) Reset() {
+	*x = ListSecretsRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSecretsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSecretsRequest) ProtoMessage() {}
+
+func (x *ListSecretsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSecretsRequest.ProtoReflect.Descriptor instead.
+func (*ListSecretsRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{11}
+}
+
+// The secrets sorted by name.
+type ListSecretsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Secrets       []*SecretInfo          `protobuf:"bytes,1,rep,name=secrets,proto3" json:"secrets,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSecretsResponse) Reset() {
+	*x = ListSecretsResponse{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSecretsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSecretsResponse) ProtoMessage() {}
+
+func (x *ListSecretsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSecretsResponse.ProtoReflect.Descriptor instead.
+func (*ListSecretsResponse) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListSecretsResponse) GetSecrets() []*SecretInfo {
+	if x != nil {
+		return x.Secrets
+	}
+	return nil
+}
+
+// Addresses a secret.
+type SecretRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SecretRequest) Reset() {
+	*x = SecretRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SecretRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SecretRequest) ProtoMessage() {}
+
+func (x *SecretRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SecretRequest.ProtoReflect.Descriptor instead.
+func (*SecretRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SecretRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Requests a secret to be created or its value replaced.
+type SetSecretRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name: 1-32 characters of lower case letters, digits, - and _.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The value, a single line. Ignored when generate is set.
+	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	// Generate a strong random value instead of taking one. It is returned once.
+	Generate      bool `protobuf:"varint,3,opt,name=generate,proto3" json:"generate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetSecretRequest) Reset() {
+	*x = SetSecretRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetSecretRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetSecretRequest) ProtoMessage() {}
+
+func (x *SetSecretRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetSecretRequest.ProtoReflect.Descriptor instead.
+func (*SetSecretRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *SetSecretRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SetSecretRequest) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *SetSecretRequest) GetGenerate() bool {
+	if x != nil {
+		return x.Generate
+	}
+	return false
+}
+
+// The secret and, when it was generated, its value.
+type SetSecretResponse struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Secret *SecretInfo            `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
+	// The generated value. Only returned now, store it somewhere safe: without it the repository is lost.
+	GeneratedValue string `protobuf:"bytes,2,opt,name=generated_value,json=generatedValue,proto3" json:"generated_value,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SetSecretResponse) Reset() {
+	*x = SetSecretResponse{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetSecretResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetSecretResponse) ProtoMessage() {}
+
+func (x *SetSecretResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetSecretResponse.ProtoReflect.Descriptor instead.
+func (*SetSecretResponse) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SetSecretResponse) GetSecret() *SecretInfo {
+	if x != nil {
+		return x.Secret
+	}
+	return nil
+}
+
+func (x *SetSecretResponse) GetGeneratedValue() string {
+	if x != nil {
+		return x.GeneratedValue
+	}
+	return ""
+}
+
+// Requests a new password for the repositories of a secret.
+type ChangeRepositoryPasswordRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the secret that the repositories use.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The new password, a single line. Ignored when generate is set.
+	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	// Generate a strong random password. It is returned once.
+	Generate      bool `protobuf:"varint,3,opt,name=generate,proto3" json:"generate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangeRepositoryPasswordRequest) Reset() {
+	*x = ChangeRepositoryPasswordRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeRepositoryPasswordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeRepositoryPasswordRequest) ProtoMessage() {}
+
+func (x *ChangeRepositoryPasswordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeRepositoryPasswordRequest.ProtoReflect.Descriptor instead.
+func (*ChangeRepositoryPasswordRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ChangeRepositoryPasswordRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ChangeRepositoryPasswordRequest) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *ChangeRepositoryPasswordRequest) GetGenerate() bool {
+	if x != nil {
+		return x.Generate
+	}
+	return false
+}
+
+// The outcome of a password change.
+type ChangeRepositoryPasswordResponse struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Secret *SecretInfo            `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
+	// The generated password. Only returned now, store it somewhere safe.
+	GeneratedValue string `protobuf:"bytes,2,opt,name=generated_value,json=generatedValue,proto3" json:"generated_value,omitempty"`
+	// Number of repositories that were changed.
+	Repositories int32 `protobuf:"varint,3,opt,name=repositories,proto3" json:"repositories,omitempty"`
+	// Things that did not work but did not stop the change, e.g. an old key that is still there.
+	Warnings      []string `protobuf:"bytes,4,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangeRepositoryPasswordResponse) Reset() {
+	*x = ChangeRepositoryPasswordResponse{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeRepositoryPasswordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeRepositoryPasswordResponse) ProtoMessage() {}
+
+func (x *ChangeRepositoryPasswordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeRepositoryPasswordResponse.ProtoReflect.Descriptor instead.
+func (*ChangeRepositoryPasswordResponse) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ChangeRepositoryPasswordResponse) GetSecret() *SecretInfo {
+	if x != nil {
+		return x.Secret
+	}
+	return nil
+}
+
+func (x *ChangeRepositoryPasswordResponse) GetGeneratedValue() string {
+	if x != nil {
+		return x.GeneratedValue
+	}
+	return ""
+}
+
+func (x *ChangeRepositoryPasswordResponse) GetRepositories() int32 {
+	if x != nil {
+		return x.Repositories
+	}
+	return 0
+}
+
+func (x *ChangeRepositoryPasswordResponse) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
+}
+
 // Requests the event stream.
 type WatchRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -589,7 +970,7 @@ type WatchRequest struct {
 
 func (x *WatchRequest) Reset() {
 	*x = WatchRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[11]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +982,7 @@ func (x *WatchRequest) String() string {
 func (*WatchRequest) ProtoMessage() {}
 
 func (x *WatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[11]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +995,355 @@ func (x *WatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchRequest.ProtoReflect.Descriptor instead.
 func (*WatchRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{11}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{18}
+}
+
+// Requests the peers.
+type ListPeersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPeersRequest) Reset() {
+	*x = ListPeersRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPeersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPeersRequest) ProtoMessage() {}
+
+func (x *ListPeersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPeersRequest.ProtoReflect.Descriptor instead.
+func (*ListPeersRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{19}
+}
+
+// The peers sorted by name.
+type ListPeersResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Peers []*Peer                `protobuf:"bytes,1,rep,name=peers,proto3" json:"peers,omitempty"`
+	// Name of this worker.
+	WorkerName    string `protobuf:"bytes,2,opt,name=worker_name,json=workerName,proto3" json:"worker_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPeersResponse) Reset() {
+	*x = ListPeersResponse{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPeersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPeersResponse) ProtoMessage() {}
+
+func (x *ListPeersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPeersResponse.ProtoReflect.Descriptor instead.
+func (*ListPeersResponse) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListPeersResponse) GetPeers() []*Peer {
+	if x != nil {
+		return x.Peers
+	}
+	return nil
+}
+
+func (x *ListPeersResponse) GetWorkerName() string {
+	if x != nil {
+		return x.WorkerName
+	}
+	return ""
+}
+
+// Addresses a peer.
+type PeerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PeerRequest) Reset() {
+	*x = PeerRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerRequest) ProtoMessage() {}
+
+func (x *PeerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerRequest.ProtoReflect.Descriptor instead.
+func (*PeerRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *PeerRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Requests the export settings.
+type GetSyncServeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSyncServeRequest) Reset() {
+	*x = GetSyncServeRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSyncServeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSyncServeRequest) ProtoMessage() {}
+
+func (x *GetSyncServeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSyncServeRequest.ProtoReflect.Descriptor instead.
+func (*GetSyncServeRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{22}
+}
+
+// Reserves or releases a sync job.
+type SyncLockRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the sync job.
+	Job string `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	// Worker name of the caller.
+	Owner string `protobuf:"bytes,2,opt,name=owner,proto3" json:"owner,omitempty"`
+	// Seconds the reservation lasts when it is not released, 1 hour when 0.
+	TtlSeconds    int32 `protobuf:"varint,3,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncLockRequest) Reset() {
+	*x = SyncLockRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncLockRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncLockRequest) ProtoMessage() {}
+
+func (x *SyncLockRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncLockRequest.ProtoReflect.Descriptor instead.
+func (*SyncLockRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *SyncLockRequest) GetJob() string {
+	if x != nil {
+		return x.Job
+	}
+	return ""
+}
+
+func (x *SyncLockRequest) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+func (x *SyncLockRequest) GetTtlSeconds() int32 {
+	if x != nil {
+		return x.TtlSeconds
+	}
+	return 0
+}
+
+// The result of a reservation.
+type SyncLockResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether the job is reserved for the caller.
+	Granted bool `protobuf:"varint,1,opt,name=granted,proto3" json:"granted,omitempty"`
+	// Who holds the reservation when it was not granted.
+	Holder        string `protobuf:"bytes,2,opt,name=holder,proto3" json:"holder,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncLockResponse) Reset() {
+	*x = SyncLockResponse{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncLockResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncLockResponse) ProtoMessage() {}
+
+func (x *SyncLockResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncLockResponse.ProtoReflect.Descriptor instead.
+func (*SyncLockResponse) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *SyncLockResponse) GetGranted() bool {
+	if x != nil {
+		return x.Granted
+	}
+	return false
+}
+
+func (x *SyncLockResponse) GetHolder() string {
+	if x != nil {
+		return x.Holder
+	}
+	return ""
+}
+
+// Hands a job definition to a peer.
+type PushJobRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The job as the owner has it. The receiver turns it into its mirror: its own path1, path2 pointing back at the
+	// owner, no schedule.
+	Definition *JobDefinition `protobuf:"bytes,1,opt,name=definition,proto3" json:"definition,omitempty"`
+	// Worker name of the caller, the owner of the job.
+	Owner         string `protobuf:"bytes,2,opt,name=owner,proto3" json:"owner,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PushJobRequest) Reset() {
+	*x = PushJobRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushJobRequest) ProtoMessage() {}
+
+func (x *PushJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushJobRequest.ProtoReflect.Descriptor instead.
+func (*PushJobRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *PushJobRequest) GetDefinition() *JobDefinition {
+	if x != nil {
+		return x.Definition
+	}
+	return nil
+}
+
+func (x *PushJobRequest) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
 }
 
 var File_backup_api_v1_control_service_proto protoreflect.FileDescriptor
@@ -650,8 +1379,50 @@ const file_backup_api_v1_control_service_proto_rawDesc = "" +
 	"\bsnapshot\x18\x01 \x01(\tR\bsnapshot\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x18\n" +
 	"\ainclude\x18\x03 \x03(\tR\ainclude\x12\x10\n" +
-	"\x03job\x18\x04 \x01(\tR\x03job\"\x0e\n" +
-	"\fWatchRequest2\x8a\b\n" +
+	"\x03job\x18\x04 \x01(\tR\x03job\"\x14\n" +
+	"\x12ListSecretsRequest\"J\n" +
+	"\x13ListSecretsResponse\x123\n" +
+	"\asecrets\x18\x01 \x03(\v2\x19.backup.api.v1.SecretInfoR\asecrets\"#\n" +
+	"\rSecretRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"X\n" +
+	"\x10SetSecretRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12\x1a\n" +
+	"\bgenerate\x18\x03 \x01(\bR\bgenerate\"o\n" +
+	"\x11SetSecretResponse\x121\n" +
+	"\x06secret\x18\x01 \x01(\v2\x19.backup.api.v1.SecretInfoR\x06secret\x12'\n" +
+	"\x0fgenerated_value\x18\x02 \x01(\tR\x0egeneratedValue\"g\n" +
+	"\x1fChangeRepositoryPasswordRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12\x1a\n" +
+	"\bgenerate\x18\x03 \x01(\bR\bgenerate\"\xbe\x01\n" +
+	" ChangeRepositoryPasswordResponse\x121\n" +
+	"\x06secret\x18\x01 \x01(\v2\x19.backup.api.v1.SecretInfoR\x06secret\x12'\n" +
+	"\x0fgenerated_value\x18\x02 \x01(\tR\x0egeneratedValue\x12\"\n" +
+	"\frepositories\x18\x03 \x01(\x05R\frepositories\x12\x1a\n" +
+	"\bwarnings\x18\x04 \x03(\tR\bwarnings\"\x0e\n" +
+	"\fWatchRequest\"\x12\n" +
+	"\x10ListPeersRequest\"_\n" +
+	"\x11ListPeersResponse\x12)\n" +
+	"\x05peers\x18\x01 \x03(\v2\x13.backup.api.v1.PeerR\x05peers\x12\x1f\n" +
+	"\vworker_name\x18\x02 \x01(\tR\n" +
+	"workerName\"!\n" +
+	"\vPeerRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x15\n" +
+	"\x13GetSyncServeRequest\"Z\n" +
+	"\x0fSyncLockRequest\x12\x10\n" +
+	"\x03job\x18\x01 \x01(\tR\x03job\x12\x14\n" +
+	"\x05owner\x18\x02 \x01(\tR\x05owner\x12\x1f\n" +
+	"\vttl_seconds\x18\x03 \x01(\x05R\n" +
+	"ttlSeconds\"D\n" +
+	"\x10SyncLockResponse\x12\x18\n" +
+	"\agranted\x18\x01 \x01(\bR\agranted\x12\x16\n" +
+	"\x06holder\x18\x02 \x01(\tR\x06holder\"d\n" +
+	"\x0ePushJobRequest\x12<\n" +
+	"\n" +
+	"definition\x18\x01 \x01(\v2\x1c.backup.api.v1.JobDefinitionR\n" +
+	"definition\x12\x14\n" +
+	"\x05owner\x18\x02 \x01(\tR\x05owner2\xae\x11\n" +
 	"\aControl\x12J\n" +
 	"\tGetStatus\x12\x1f.backup.api.v1.GetStatusRequest\x1a\x1c.backup.api.v1.ControlStatus\x12K\n" +
 	"\bListRuns\x12\x1e.backup.api.v1.ListRunsRequest\x1a\x1f.backup.api.v1.ListRunsResponse\x12:\n" +
@@ -660,13 +1431,30 @@ const file_backup_api_v1_control_service_proto_rawDesc = "" +
 	"\tUpdateJob\x12\x1c.backup.api.v1.JobDefinition\x1a\x12.backup.api.v1.Job\x12>\n" +
 	"\tDeleteJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x129\n" +
 	"\bStartJob\x12\x19.backup.api.v1.JobRequest\x1a\x12.backup.api.v1.Run\x12>\n" +
-	"\tCancelJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12=\n" +
+	"\tCancelJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12>\n" +
+	"\tUnlockJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12=\n" +
 	"\bPauseJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12>\n" +
 	"\tResumeJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12Z\n" +
 	"\rListSnapshots\x12#.backup.api.v1.ListSnapshotsRequest\x1a$.backup.api.v1.ListSnapshotsResponse\x12N\n" +
 	"\tListFiles\x12\x1f.backup.api.v1.ListFilesRequest\x1a .backup.api.v1.ListFilesResponse\x12J\n" +
 	"\bGetStats\x12\x1e.backup.api.v1.GetStatsRequest\x1a\x1e.backup.api.v1.RepositoryStats\x12<\n" +
-	"\aRestore\x12\x1d.backup.api.v1.RestoreRequest\x1a\x12.backup.api.v1.Run\x12<\n" +
+	"\aRestore\x12\x1d.backup.api.v1.RestoreRequest\x1a\x12.backup.api.v1.Run\x12T\n" +
+	"\vListSecrets\x12!.backup.api.v1.ListSecretsRequest\x1a\".backup.api.v1.ListSecretsResponse\x12N\n" +
+	"\tSetSecret\x12\x1f.backup.api.v1.SetSecretRequest\x1a .backup.api.v1.SetSecretResponse\x12{\n" +
+	"\x18ChangeRepositoryPassword\x12..backup.api.v1.ChangeRepositoryPasswordRequest\x1a/.backup.api.v1.ChangeRepositoryPasswordResponse\x12D\n" +
+	"\fDeleteSecret\x12\x1c.backup.api.v1.SecretRequest\x1a\x16.google.protobuf.Empty\x12:\n" +
+	"\tResyncJob\x12\x19.backup.api.v1.JobRequest\x1a\x12.backup.api.v1.Run\x12N\n" +
+	"\tListPeers\x12\x1f.backup.api.v1.ListPeersRequest\x1a .backup.api.v1.ListPeersResponse\x123\n" +
+	"\aSetPeer\x12\x13.backup.api.v1.Peer\x1a\x13.backup.api.v1.Peer\x12@\n" +
+	"\n" +
+	"DeletePeer\x12\x1a.backup.api.v1.PeerRequest\x1a\x16.google.protobuf.Empty\x12A\n" +
+	"\bTestPeer\x12\x1a.backup.api.v1.PeerRequest\x1a\x19.backup.api.v1.PeerStatus\x12L\n" +
+	"\fGetSyncServe\x12\".backup.api.v1.GetSyncServeRequest\x1a\x18.backup.api.v1.SyncServe\x12B\n" +
+	"\fSetSyncServe\x12\x18.backup.api.v1.SyncServe\x1a\x18.backup.api.v1.SyncServe\x12R\n" +
+	"\x0fAcquireSyncLock\x12\x1e.backup.api.v1.SyncLockRequest\x1a\x1f.backup.api.v1.SyncLockResponse\x12I\n" +
+	"\x0fReleaseSyncLock\x12\x1e.backup.api.v1.SyncLockRequest\x1a\x16.google.protobuf.Empty\x12@\n" +
+	"\aPushJob\x12\x1d.backup.api.v1.PushJobRequest\x1a\x16.google.protobuf.Empty\x12@\n" +
+	"\aDropJob\x12\x1d.backup.api.v1.PushJobRequest\x1a\x16.google.protobuf.Empty\x12<\n" +
 	"\x05Watch\x12\x1b.backup.api.v1.WatchRequest\x1a\x14.backup.api.v1.Event0\x01B6H\x01Z2github.com/Valentin-Kaiser/backup/pkg/proto/api/v1b\x06proto3"
 
 var (
@@ -681,69 +1469,124 @@ func file_backup_api_v1_control_service_proto_rawDescGZIP() []byte {
 	return file_backup_api_v1_control_service_proto_rawDescData
 }
 
-var file_backup_api_v1_control_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_backup_api_v1_control_service_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_backup_api_v1_control_service_proto_goTypes = []any{
-	(*GetStatusRequest)(nil),      // 0: backup.api.v1.GetStatusRequest
-	(*ListRunsRequest)(nil),       // 1: backup.api.v1.ListRunsRequest
-	(*ListRunsResponse)(nil),      // 2: backup.api.v1.ListRunsResponse
-	(*GetRunRequest)(nil),         // 3: backup.api.v1.GetRunRequest
-	(*JobRequest)(nil),            // 4: backup.api.v1.JobRequest
-	(*ListSnapshotsRequest)(nil),  // 5: backup.api.v1.ListSnapshotsRequest
-	(*ListSnapshotsResponse)(nil), // 6: backup.api.v1.ListSnapshotsResponse
-	(*ListFilesRequest)(nil),      // 7: backup.api.v1.ListFilesRequest
-	(*ListFilesResponse)(nil),     // 8: backup.api.v1.ListFilesResponse
-	(*GetStatsRequest)(nil),       // 9: backup.api.v1.GetStatsRequest
-	(*RestoreRequest)(nil),        // 10: backup.api.v1.RestoreRequest
-	(*WatchRequest)(nil),          // 11: backup.api.v1.WatchRequest
-	(*Run)(nil),                   // 12: backup.api.v1.Run
-	(*Snapshot)(nil),              // 13: backup.api.v1.Snapshot
-	(*FileNode)(nil),              // 14: backup.api.v1.FileNode
-	(*JobDefinition)(nil),         // 15: backup.api.v1.JobDefinition
-	(*ControlStatus)(nil),         // 16: backup.api.v1.ControlStatus
-	(*Job)(nil),                   // 17: backup.api.v1.Job
-	(*emptypb.Empty)(nil),         // 18: google.protobuf.Empty
-	(*RepositoryStats)(nil),       // 19: backup.api.v1.RepositoryStats
-	(*Event)(nil),                 // 20: backup.api.v1.Event
+	(*GetStatusRequest)(nil),                 // 0: backup.api.v1.GetStatusRequest
+	(*ListRunsRequest)(nil),                  // 1: backup.api.v1.ListRunsRequest
+	(*ListRunsResponse)(nil),                 // 2: backup.api.v1.ListRunsResponse
+	(*GetRunRequest)(nil),                    // 3: backup.api.v1.GetRunRequest
+	(*JobRequest)(nil),                       // 4: backup.api.v1.JobRequest
+	(*ListSnapshotsRequest)(nil),             // 5: backup.api.v1.ListSnapshotsRequest
+	(*ListSnapshotsResponse)(nil),            // 6: backup.api.v1.ListSnapshotsResponse
+	(*ListFilesRequest)(nil),                 // 7: backup.api.v1.ListFilesRequest
+	(*ListFilesResponse)(nil),                // 8: backup.api.v1.ListFilesResponse
+	(*GetStatsRequest)(nil),                  // 9: backup.api.v1.GetStatsRequest
+	(*RestoreRequest)(nil),                   // 10: backup.api.v1.RestoreRequest
+	(*ListSecretsRequest)(nil),               // 11: backup.api.v1.ListSecretsRequest
+	(*ListSecretsResponse)(nil),              // 12: backup.api.v1.ListSecretsResponse
+	(*SecretRequest)(nil),                    // 13: backup.api.v1.SecretRequest
+	(*SetSecretRequest)(nil),                 // 14: backup.api.v1.SetSecretRequest
+	(*SetSecretResponse)(nil),                // 15: backup.api.v1.SetSecretResponse
+	(*ChangeRepositoryPasswordRequest)(nil),  // 16: backup.api.v1.ChangeRepositoryPasswordRequest
+	(*ChangeRepositoryPasswordResponse)(nil), // 17: backup.api.v1.ChangeRepositoryPasswordResponse
+	(*WatchRequest)(nil),                     // 18: backup.api.v1.WatchRequest
+	(*ListPeersRequest)(nil),                 // 19: backup.api.v1.ListPeersRequest
+	(*ListPeersResponse)(nil),                // 20: backup.api.v1.ListPeersResponse
+	(*PeerRequest)(nil),                      // 21: backup.api.v1.PeerRequest
+	(*GetSyncServeRequest)(nil),              // 22: backup.api.v1.GetSyncServeRequest
+	(*SyncLockRequest)(nil),                  // 23: backup.api.v1.SyncLockRequest
+	(*SyncLockResponse)(nil),                 // 24: backup.api.v1.SyncLockResponse
+	(*PushJobRequest)(nil),                   // 25: backup.api.v1.PushJobRequest
+	(*Run)(nil),                              // 26: backup.api.v1.Run
+	(*Snapshot)(nil),                         // 27: backup.api.v1.Snapshot
+	(*FileNode)(nil),                         // 28: backup.api.v1.FileNode
+	(*SecretInfo)(nil),                       // 29: backup.api.v1.SecretInfo
+	(*Peer)(nil),                             // 30: backup.api.v1.Peer
+	(*JobDefinition)(nil),                    // 31: backup.api.v1.JobDefinition
+	(*SyncServe)(nil),                        // 32: backup.api.v1.SyncServe
+	(*ControlStatus)(nil),                    // 33: backup.api.v1.ControlStatus
+	(*Job)(nil),                              // 34: backup.api.v1.Job
+	(*emptypb.Empty)(nil),                    // 35: google.protobuf.Empty
+	(*RepositoryStats)(nil),                  // 36: backup.api.v1.RepositoryStats
+	(*PeerStatus)(nil),                       // 37: backup.api.v1.PeerStatus
+	(*Event)(nil),                            // 38: backup.api.v1.Event
 }
 var file_backup_api_v1_control_service_proto_depIdxs = []int32{
-	12, // 0: backup.api.v1.ListRunsResponse.runs:type_name -> backup.api.v1.Run
-	13, // 1: backup.api.v1.ListSnapshotsResponse.snapshots:type_name -> backup.api.v1.Snapshot
-	14, // 2: backup.api.v1.ListFilesResponse.files:type_name -> backup.api.v1.FileNode
-	0,  // 3: backup.api.v1.Control.GetStatus:input_type -> backup.api.v1.GetStatusRequest
-	1,  // 4: backup.api.v1.Control.ListRuns:input_type -> backup.api.v1.ListRunsRequest
-	3,  // 5: backup.api.v1.Control.GetRun:input_type -> backup.api.v1.GetRunRequest
-	15, // 6: backup.api.v1.Control.CreateJob:input_type -> backup.api.v1.JobDefinition
-	15, // 7: backup.api.v1.Control.UpdateJob:input_type -> backup.api.v1.JobDefinition
-	4,  // 8: backup.api.v1.Control.DeleteJob:input_type -> backup.api.v1.JobRequest
-	4,  // 9: backup.api.v1.Control.StartJob:input_type -> backup.api.v1.JobRequest
-	4,  // 10: backup.api.v1.Control.CancelJob:input_type -> backup.api.v1.JobRequest
-	4,  // 11: backup.api.v1.Control.PauseJob:input_type -> backup.api.v1.JobRequest
-	4,  // 12: backup.api.v1.Control.ResumeJob:input_type -> backup.api.v1.JobRequest
-	5,  // 13: backup.api.v1.Control.ListSnapshots:input_type -> backup.api.v1.ListSnapshotsRequest
-	7,  // 14: backup.api.v1.Control.ListFiles:input_type -> backup.api.v1.ListFilesRequest
-	9,  // 15: backup.api.v1.Control.GetStats:input_type -> backup.api.v1.GetStatsRequest
-	10, // 16: backup.api.v1.Control.Restore:input_type -> backup.api.v1.RestoreRequest
-	11, // 17: backup.api.v1.Control.Watch:input_type -> backup.api.v1.WatchRequest
-	16, // 18: backup.api.v1.Control.GetStatus:output_type -> backup.api.v1.ControlStatus
-	2,  // 19: backup.api.v1.Control.ListRuns:output_type -> backup.api.v1.ListRunsResponse
-	12, // 20: backup.api.v1.Control.GetRun:output_type -> backup.api.v1.Run
-	17, // 21: backup.api.v1.Control.CreateJob:output_type -> backup.api.v1.Job
-	17, // 22: backup.api.v1.Control.UpdateJob:output_type -> backup.api.v1.Job
-	18, // 23: backup.api.v1.Control.DeleteJob:output_type -> google.protobuf.Empty
-	12, // 24: backup.api.v1.Control.StartJob:output_type -> backup.api.v1.Run
-	18, // 25: backup.api.v1.Control.CancelJob:output_type -> google.protobuf.Empty
-	18, // 26: backup.api.v1.Control.PauseJob:output_type -> google.protobuf.Empty
-	18, // 27: backup.api.v1.Control.ResumeJob:output_type -> google.protobuf.Empty
-	6,  // 28: backup.api.v1.Control.ListSnapshots:output_type -> backup.api.v1.ListSnapshotsResponse
-	8,  // 29: backup.api.v1.Control.ListFiles:output_type -> backup.api.v1.ListFilesResponse
-	19, // 30: backup.api.v1.Control.GetStats:output_type -> backup.api.v1.RepositoryStats
-	12, // 31: backup.api.v1.Control.Restore:output_type -> backup.api.v1.Run
-	20, // 32: backup.api.v1.Control.Watch:output_type -> backup.api.v1.Event
-	18, // [18:33] is the sub-list for method output_type
-	3,  // [3:18] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	26, // 0: backup.api.v1.ListRunsResponse.runs:type_name -> backup.api.v1.Run
+	27, // 1: backup.api.v1.ListSnapshotsResponse.snapshots:type_name -> backup.api.v1.Snapshot
+	28, // 2: backup.api.v1.ListFilesResponse.files:type_name -> backup.api.v1.FileNode
+	29, // 3: backup.api.v1.ListSecretsResponse.secrets:type_name -> backup.api.v1.SecretInfo
+	29, // 4: backup.api.v1.SetSecretResponse.secret:type_name -> backup.api.v1.SecretInfo
+	29, // 5: backup.api.v1.ChangeRepositoryPasswordResponse.secret:type_name -> backup.api.v1.SecretInfo
+	30, // 6: backup.api.v1.ListPeersResponse.peers:type_name -> backup.api.v1.Peer
+	31, // 7: backup.api.v1.PushJobRequest.definition:type_name -> backup.api.v1.JobDefinition
+	0,  // 8: backup.api.v1.Control.GetStatus:input_type -> backup.api.v1.GetStatusRequest
+	1,  // 9: backup.api.v1.Control.ListRuns:input_type -> backup.api.v1.ListRunsRequest
+	3,  // 10: backup.api.v1.Control.GetRun:input_type -> backup.api.v1.GetRunRequest
+	31, // 11: backup.api.v1.Control.CreateJob:input_type -> backup.api.v1.JobDefinition
+	31, // 12: backup.api.v1.Control.UpdateJob:input_type -> backup.api.v1.JobDefinition
+	4,  // 13: backup.api.v1.Control.DeleteJob:input_type -> backup.api.v1.JobRequest
+	4,  // 14: backup.api.v1.Control.StartJob:input_type -> backup.api.v1.JobRequest
+	4,  // 15: backup.api.v1.Control.CancelJob:input_type -> backup.api.v1.JobRequest
+	4,  // 16: backup.api.v1.Control.UnlockJob:input_type -> backup.api.v1.JobRequest
+	4,  // 17: backup.api.v1.Control.PauseJob:input_type -> backup.api.v1.JobRequest
+	4,  // 18: backup.api.v1.Control.ResumeJob:input_type -> backup.api.v1.JobRequest
+	5,  // 19: backup.api.v1.Control.ListSnapshots:input_type -> backup.api.v1.ListSnapshotsRequest
+	7,  // 20: backup.api.v1.Control.ListFiles:input_type -> backup.api.v1.ListFilesRequest
+	9,  // 21: backup.api.v1.Control.GetStats:input_type -> backup.api.v1.GetStatsRequest
+	10, // 22: backup.api.v1.Control.Restore:input_type -> backup.api.v1.RestoreRequest
+	11, // 23: backup.api.v1.Control.ListSecrets:input_type -> backup.api.v1.ListSecretsRequest
+	14, // 24: backup.api.v1.Control.SetSecret:input_type -> backup.api.v1.SetSecretRequest
+	16, // 25: backup.api.v1.Control.ChangeRepositoryPassword:input_type -> backup.api.v1.ChangeRepositoryPasswordRequest
+	13, // 26: backup.api.v1.Control.DeleteSecret:input_type -> backup.api.v1.SecretRequest
+	4,  // 27: backup.api.v1.Control.ResyncJob:input_type -> backup.api.v1.JobRequest
+	19, // 28: backup.api.v1.Control.ListPeers:input_type -> backup.api.v1.ListPeersRequest
+	30, // 29: backup.api.v1.Control.SetPeer:input_type -> backup.api.v1.Peer
+	21, // 30: backup.api.v1.Control.DeletePeer:input_type -> backup.api.v1.PeerRequest
+	21, // 31: backup.api.v1.Control.TestPeer:input_type -> backup.api.v1.PeerRequest
+	22, // 32: backup.api.v1.Control.GetSyncServe:input_type -> backup.api.v1.GetSyncServeRequest
+	32, // 33: backup.api.v1.Control.SetSyncServe:input_type -> backup.api.v1.SyncServe
+	23, // 34: backup.api.v1.Control.AcquireSyncLock:input_type -> backup.api.v1.SyncLockRequest
+	23, // 35: backup.api.v1.Control.ReleaseSyncLock:input_type -> backup.api.v1.SyncLockRequest
+	25, // 36: backup.api.v1.Control.PushJob:input_type -> backup.api.v1.PushJobRequest
+	25, // 37: backup.api.v1.Control.DropJob:input_type -> backup.api.v1.PushJobRequest
+	18, // 38: backup.api.v1.Control.Watch:input_type -> backup.api.v1.WatchRequest
+	33, // 39: backup.api.v1.Control.GetStatus:output_type -> backup.api.v1.ControlStatus
+	2,  // 40: backup.api.v1.Control.ListRuns:output_type -> backup.api.v1.ListRunsResponse
+	26, // 41: backup.api.v1.Control.GetRun:output_type -> backup.api.v1.Run
+	34, // 42: backup.api.v1.Control.CreateJob:output_type -> backup.api.v1.Job
+	34, // 43: backup.api.v1.Control.UpdateJob:output_type -> backup.api.v1.Job
+	35, // 44: backup.api.v1.Control.DeleteJob:output_type -> google.protobuf.Empty
+	26, // 45: backup.api.v1.Control.StartJob:output_type -> backup.api.v1.Run
+	35, // 46: backup.api.v1.Control.CancelJob:output_type -> google.protobuf.Empty
+	35, // 47: backup.api.v1.Control.UnlockJob:output_type -> google.protobuf.Empty
+	35, // 48: backup.api.v1.Control.PauseJob:output_type -> google.protobuf.Empty
+	35, // 49: backup.api.v1.Control.ResumeJob:output_type -> google.protobuf.Empty
+	6,  // 50: backup.api.v1.Control.ListSnapshots:output_type -> backup.api.v1.ListSnapshotsResponse
+	8,  // 51: backup.api.v1.Control.ListFiles:output_type -> backup.api.v1.ListFilesResponse
+	36, // 52: backup.api.v1.Control.GetStats:output_type -> backup.api.v1.RepositoryStats
+	26, // 53: backup.api.v1.Control.Restore:output_type -> backup.api.v1.Run
+	12, // 54: backup.api.v1.Control.ListSecrets:output_type -> backup.api.v1.ListSecretsResponse
+	15, // 55: backup.api.v1.Control.SetSecret:output_type -> backup.api.v1.SetSecretResponse
+	17, // 56: backup.api.v1.Control.ChangeRepositoryPassword:output_type -> backup.api.v1.ChangeRepositoryPasswordResponse
+	35, // 57: backup.api.v1.Control.DeleteSecret:output_type -> google.protobuf.Empty
+	26, // 58: backup.api.v1.Control.ResyncJob:output_type -> backup.api.v1.Run
+	20, // 59: backup.api.v1.Control.ListPeers:output_type -> backup.api.v1.ListPeersResponse
+	30, // 60: backup.api.v1.Control.SetPeer:output_type -> backup.api.v1.Peer
+	35, // 61: backup.api.v1.Control.DeletePeer:output_type -> google.protobuf.Empty
+	37, // 62: backup.api.v1.Control.TestPeer:output_type -> backup.api.v1.PeerStatus
+	32, // 63: backup.api.v1.Control.GetSyncServe:output_type -> backup.api.v1.SyncServe
+	32, // 64: backup.api.v1.Control.SetSyncServe:output_type -> backup.api.v1.SyncServe
+	24, // 65: backup.api.v1.Control.AcquireSyncLock:output_type -> backup.api.v1.SyncLockResponse
+	35, // 66: backup.api.v1.Control.ReleaseSyncLock:output_type -> google.protobuf.Empty
+	35, // 67: backup.api.v1.Control.PushJob:output_type -> google.protobuf.Empty
+	35, // 68: backup.api.v1.Control.DropJob:output_type -> google.protobuf.Empty
+	38, // 69: backup.api.v1.Control.Watch:output_type -> backup.api.v1.Event
+	39, // [39:70] is the sub-list for method output_type
+	8,  // [8:39] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_backup_api_v1_control_service_proto_init() }
@@ -758,7 +1601,7 @@ func file_backup_api_v1_control_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backup_api_v1_control_service_proto_rawDesc), len(file_backup_api_v1_control_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

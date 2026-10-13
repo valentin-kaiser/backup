@@ -24,12 +24,28 @@ type ControlServer interface {
 	DeleteJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	StartJob(ctx context.Context, in *JobRequest) (*Run, error)
 	CancelJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
+	UnlockJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	PauseJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	ResumeJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	ListSnapshots(ctx context.Context, in *ListSnapshotsRequest) (*ListSnapshotsResponse, error)
 	ListFiles(ctx context.Context, in *ListFilesRequest) (*ListFilesResponse, error)
 	GetStats(ctx context.Context, in *GetStatsRequest) (*RepositoryStats, error)
 	Restore(ctx context.Context, in *RestoreRequest) (*Run, error)
+	ListSecrets(ctx context.Context, in *ListSecretsRequest) (*ListSecretsResponse, error)
+	SetSecret(ctx context.Context, in *SetSecretRequest) (*SetSecretResponse, error)
+	ChangeRepositoryPassword(ctx context.Context, in *ChangeRepositoryPasswordRequest) (*ChangeRepositoryPasswordResponse, error)
+	DeleteSecret(ctx context.Context, in *SecretRequest) (*emptypb.Empty, error)
+	ResyncJob(ctx context.Context, in *JobRequest) (*Run, error)
+	ListPeers(ctx context.Context, in *ListPeersRequest) (*ListPeersResponse, error)
+	SetPeer(ctx context.Context, in *Peer) (*Peer, error)
+	DeletePeer(ctx context.Context, in *PeerRequest) (*emptypb.Empty, error)
+	TestPeer(ctx context.Context, in *PeerRequest) (*PeerStatus, error)
+	GetSyncServe(ctx context.Context, in *GetSyncServeRequest) (*SyncServe, error)
+	SetSyncServe(ctx context.Context, in *SyncServe) (*SyncServe, error)
+	AcquireSyncLock(ctx context.Context, in *SyncLockRequest) (*SyncLockResponse, error)
+	ReleaseSyncLock(ctx context.Context, in *SyncLockRequest) (*emptypb.Empty, error)
+	PushJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error)
+	DropJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error)
 	Watch(ctx context.Context, in *WatchRequest, out chan<- *Event) error
 }
 
@@ -71,6 +87,10 @@ func (UnimplementedControlServer) CancelJob(ctx context.Context, in *JobRequest)
 	return nil, errors.New("method Control.CancelJob not implemented")
 }
 
+func (UnimplementedControlServer) UnlockJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error) {
+	return nil, errors.New("method Control.UnlockJob not implemented")
+}
+
 func (UnimplementedControlServer) PauseJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error) {
 	return nil, errors.New("method Control.PauseJob not implemented")
 }
@@ -93,6 +113,66 @@ func (UnimplementedControlServer) GetStats(ctx context.Context, in *GetStatsRequ
 
 func (UnimplementedControlServer) Restore(ctx context.Context, in *RestoreRequest) (*Run, error) {
 	return nil, errors.New("method Control.Restore not implemented")
+}
+
+func (UnimplementedControlServer) ListSecrets(ctx context.Context, in *ListSecretsRequest) (*ListSecretsResponse, error) {
+	return nil, errors.New("method Control.ListSecrets not implemented")
+}
+
+func (UnimplementedControlServer) SetSecret(ctx context.Context, in *SetSecretRequest) (*SetSecretResponse, error) {
+	return nil, errors.New("method Control.SetSecret not implemented")
+}
+
+func (UnimplementedControlServer) ChangeRepositoryPassword(ctx context.Context, in *ChangeRepositoryPasswordRequest) (*ChangeRepositoryPasswordResponse, error) {
+	return nil, errors.New("method Control.ChangeRepositoryPassword not implemented")
+}
+
+func (UnimplementedControlServer) DeleteSecret(ctx context.Context, in *SecretRequest) (*emptypb.Empty, error) {
+	return nil, errors.New("method Control.DeleteSecret not implemented")
+}
+
+func (UnimplementedControlServer) ResyncJob(ctx context.Context, in *JobRequest) (*Run, error) {
+	return nil, errors.New("method Control.ResyncJob not implemented")
+}
+
+func (UnimplementedControlServer) ListPeers(ctx context.Context, in *ListPeersRequest) (*ListPeersResponse, error) {
+	return nil, errors.New("method Control.ListPeers not implemented")
+}
+
+func (UnimplementedControlServer) SetPeer(ctx context.Context, in *Peer) (*Peer, error) {
+	return nil, errors.New("method Control.SetPeer not implemented")
+}
+
+func (UnimplementedControlServer) DeletePeer(ctx context.Context, in *PeerRequest) (*emptypb.Empty, error) {
+	return nil, errors.New("method Control.DeletePeer not implemented")
+}
+
+func (UnimplementedControlServer) TestPeer(ctx context.Context, in *PeerRequest) (*PeerStatus, error) {
+	return nil, errors.New("method Control.TestPeer not implemented")
+}
+
+func (UnimplementedControlServer) GetSyncServe(ctx context.Context, in *GetSyncServeRequest) (*SyncServe, error) {
+	return nil, errors.New("method Control.GetSyncServe not implemented")
+}
+
+func (UnimplementedControlServer) SetSyncServe(ctx context.Context, in *SyncServe) (*SyncServe, error) {
+	return nil, errors.New("method Control.SetSyncServe not implemented")
+}
+
+func (UnimplementedControlServer) AcquireSyncLock(ctx context.Context, in *SyncLockRequest) (*SyncLockResponse, error) {
+	return nil, errors.New("method Control.AcquireSyncLock not implemented")
+}
+
+func (UnimplementedControlServer) ReleaseSyncLock(ctx context.Context, in *SyncLockRequest) (*emptypb.Empty, error) {
+	return nil, errors.New("method Control.ReleaseSyncLock not implemented")
+}
+
+func (UnimplementedControlServer) PushJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error) {
+	return nil, errors.New("method Control.PushJob not implemented")
+}
+
+func (UnimplementedControlServer) DropJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error) {
+	return nil, errors.New("method Control.DropJob not implemented")
 }
 
 func (UnimplementedControlServer) Watch(ctx context.Context, in *WatchRequest, out chan<- *Event) error {
@@ -118,12 +198,28 @@ type ControlClientDefinition interface {
 	DeleteJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	StartJob(ctx context.Context, in *JobRequest) (*Run, error)
 	CancelJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
+	UnlockJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	PauseJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	ResumeJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	ListSnapshots(ctx context.Context, in *ListSnapshotsRequest) (*ListSnapshotsResponse, error)
 	ListFiles(ctx context.Context, in *ListFilesRequest) (*ListFilesResponse, error)
 	GetStats(ctx context.Context, in *GetStatsRequest) (*RepositoryStats, error)
 	Restore(ctx context.Context, in *RestoreRequest) (*Run, error)
+	ListSecrets(ctx context.Context, in *ListSecretsRequest) (*ListSecretsResponse, error)
+	SetSecret(ctx context.Context, in *SetSecretRequest) (*SetSecretResponse, error)
+	ChangeRepositoryPassword(ctx context.Context, in *ChangeRepositoryPasswordRequest) (*ChangeRepositoryPasswordResponse, error)
+	DeleteSecret(ctx context.Context, in *SecretRequest) (*emptypb.Empty, error)
+	ResyncJob(ctx context.Context, in *JobRequest) (*Run, error)
+	ListPeers(ctx context.Context, in *ListPeersRequest) (*ListPeersResponse, error)
+	SetPeer(ctx context.Context, in *Peer) (*Peer, error)
+	DeletePeer(ctx context.Context, in *PeerRequest) (*emptypb.Empty, error)
+	TestPeer(ctx context.Context, in *PeerRequest) (*PeerStatus, error)
+	GetSyncServe(ctx context.Context, in *GetSyncServeRequest) (*SyncServe, error)
+	SetSyncServe(ctx context.Context, in *SyncServe) (*SyncServe, error)
+	AcquireSyncLock(ctx context.Context, in *SyncLockRequest) (*SyncLockResponse, error)
+	ReleaseSyncLock(ctx context.Context, in *SyncLockRequest) (*emptypb.Empty, error)
+	PushJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error)
+	DropJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error)
 	Watch(ctx context.Context, in *WatchRequest, out chan<- *Event) error
 }
 
@@ -218,6 +314,15 @@ func (c *ControlClient) CancelJob(ctx context.Context, in *JobRequest) (*emptypb
 	return out, nil
 }
 
+func (c *ControlClient) UnlockJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error) {
+	out := &emptypb.Empty{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/UnlockJob", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *ControlClient) PauseJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error) {
 	out := &emptypb.Empty{}
 	err := c.client.Call(ctx, "backup.api.v1.Control/PauseJob", in, out)
@@ -266,6 +371,141 @@ func (c *ControlClient) GetStats(ctx context.Context, in *GetStatsRequest) (*Rep
 func (c *ControlClient) Restore(ctx context.Context, in *RestoreRequest) (*Run, error) {
 	out := &Run{}
 	err := c.client.Call(ctx, "backup.api.v1.Control/Restore", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) ListSecrets(ctx context.Context, in *ListSecretsRequest) (*ListSecretsResponse, error) {
+	out := &ListSecretsResponse{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/ListSecrets", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) SetSecret(ctx context.Context, in *SetSecretRequest) (*SetSecretResponse, error) {
+	out := &SetSecretResponse{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/SetSecret", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) ChangeRepositoryPassword(ctx context.Context, in *ChangeRepositoryPasswordRequest) (*ChangeRepositoryPasswordResponse, error) {
+	out := &ChangeRepositoryPasswordResponse{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/ChangeRepositoryPassword", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) DeleteSecret(ctx context.Context, in *SecretRequest) (*emptypb.Empty, error) {
+	out := &emptypb.Empty{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/DeleteSecret", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) ResyncJob(ctx context.Context, in *JobRequest) (*Run, error) {
+	out := &Run{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/ResyncJob", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) ListPeers(ctx context.Context, in *ListPeersRequest) (*ListPeersResponse, error) {
+	out := &ListPeersResponse{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/ListPeers", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) SetPeer(ctx context.Context, in *Peer) (*Peer, error) {
+	out := &Peer{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/SetPeer", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) DeletePeer(ctx context.Context, in *PeerRequest) (*emptypb.Empty, error) {
+	out := &emptypb.Empty{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/DeletePeer", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) TestPeer(ctx context.Context, in *PeerRequest) (*PeerStatus, error) {
+	out := &PeerStatus{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/TestPeer", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) GetSyncServe(ctx context.Context, in *GetSyncServeRequest) (*SyncServe, error) {
+	out := &SyncServe{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/GetSyncServe", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) SetSyncServe(ctx context.Context, in *SyncServe) (*SyncServe, error) {
+	out := &SyncServe{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/SetSyncServe", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) AcquireSyncLock(ctx context.Context, in *SyncLockRequest) (*SyncLockResponse, error) {
+	out := &SyncLockResponse{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/AcquireSyncLock", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) ReleaseSyncLock(ctx context.Context, in *SyncLockRequest) (*emptypb.Empty, error) {
+	out := &emptypb.Empty{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/ReleaseSyncLock", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) PushJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error) {
+	out := &emptypb.Empty{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/PushJob", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) DropJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error) {
+	out := &emptypb.Empty{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/DropJob", in, out)
 	if err != nil {
 		return nil, err
 	}

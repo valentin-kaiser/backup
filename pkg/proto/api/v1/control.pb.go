@@ -324,7 +324,7 @@ type JobDefinition struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// What the job does: backup, forget or check.
+	// What the job does: backup, forget, check or sync.
 	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	// Whether the job is scheduled.
 	Enabled bool `protobuf:"varint,3,opt,name=enabled,proto3" json:"enabled,omitempty"`
@@ -341,7 +341,31 @@ type JobDefinition struct {
 	// Restic repository. The default repository when empty.
 	Repository string `protobuf:"bytes,9,opt,name=repository,proto3" json:"repository,omitempty"`
 	// File containing the repository password. The default password file when empty.
-	PasswordFile  string `protobuf:"bytes,10,opt,name=password_file,json=passwordFile,proto3" json:"password_file,omitempty"`
+	PasswordFile string `protobuf:"bytes,10,opt,name=password_file,json=passwordFile,proto3" json:"password_file,omitempty"`
+	// Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the
+	// default.
+	PasswordSecret string `protobuf:"bytes,12,opt,name=password_secret,json=passwordSecret,proto3" json:"password_secret,omitempty"`
+	// Sync jobs only: first directory, always local.
+	Path1 string `protobuf:"bytes,13,opt,name=path1,proto3" json:"path1,omitempty"`
+	// Sync jobs only: second directory. A local directory, or peer:<name>[/subdirectory] on another worker.
+	Path2 string `protobuf:"bytes,14,opt,name=path2,proto3" json:"path2,omitempty"`
+	// Sync jobs only: which version wins when a file changed on both sides: newer, older, larger, smaller,
+	// path1, path2 or none (keep both). newer when empty.
+	Conflict string `protobuf:"bytes,15,opt,name=conflict,proto3" json:"conflict,omitempty"`
+	// Sync jobs only: what happens to the losing version: num, pathname or delete. num when empty.
+	ConflictLoser string `protobuf:"bytes,16,opt,name=conflict_loser,json=conflictLoser,proto3" json:"conflict_loser,omitempty"`
+	// Sync jobs only: abort when a run would delete more than this percentage of the files, 50 when 0.
+	MaxDeletePct int32 `protobuf:"varint,17,opt,name=max_delete_pct,json=maxDeletePct,proto3" json:"max_delete_pct,omitempty"`
+	// Sync jobs only: abort unless the file RCLONE_TEST exists on both sides.
+	CheckAccess bool `protobuf:"varint,18,opt,name=check_access,json=checkAccess,proto3" json:"check_access,omitempty"`
+	// Sync jobs only: name of the peer that holds the schedule and the state of this job. When set this worker
+	// only mirrors the job: it shows its state and forwards starts and changes to the owner.
+	Owner string `protobuf:"bytes,19,opt,name=owner,proto3" json:"owner,omitempty"`
+	// Sync jobs only: do not abort when all files changed or too many would be deleted (rclone --force). For small
+	// directories, where every file changing is normal. Also turns off max_delete_pct.
+	Force bool `protobuf:"varint,20,opt,name=force,proto3" json:"force,omitempty"`
+	// Sync jobs only: the program that syncs, rclone (bisync) when empty or unison.
+	Engine        string `protobuf:"bytes,21,opt,name=engine,proto3" json:"engine,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -446,6 +470,76 @@ func (x *JobDefinition) GetPasswordFile() string {
 	return ""
 }
 
+func (x *JobDefinition) GetPasswordSecret() string {
+	if x != nil {
+		return x.PasswordSecret
+	}
+	return ""
+}
+
+func (x *JobDefinition) GetPath1() string {
+	if x != nil {
+		return x.Path1
+	}
+	return ""
+}
+
+func (x *JobDefinition) GetPath2() string {
+	if x != nil {
+		return x.Path2
+	}
+	return ""
+}
+
+func (x *JobDefinition) GetConflict() string {
+	if x != nil {
+		return x.Conflict
+	}
+	return ""
+}
+
+func (x *JobDefinition) GetConflictLoser() string {
+	if x != nil {
+		return x.ConflictLoser
+	}
+	return ""
+}
+
+func (x *JobDefinition) GetMaxDeletePct() int32 {
+	if x != nil {
+		return x.MaxDeletePct
+	}
+	return 0
+}
+
+func (x *JobDefinition) GetCheckAccess() bool {
+	if x != nil {
+		return x.CheckAccess
+	}
+	return false
+}
+
+func (x *JobDefinition) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+func (x *JobDefinition) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+func (x *JobDefinition) GetEngine() string {
+	if x != nil {
+		return x.Engine
+	}
+	return ""
+}
+
 // Settings that jobs inherit when they do not set their own.
 type Defaults struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
@@ -453,9 +547,11 @@ type Defaults struct {
 	Repository   string                 `protobuf:"bytes,2,opt,name=repository,proto3" json:"repository,omitempty"`
 	PasswordFile string                 `protobuf:"bytes,3,opt,name=password_file,json=passwordFile,proto3" json:"password_file,omitempty"`
 	// Restores are only allowed below this directory.
-	RestoreRoot   string `protobuf:"bytes,4,opt,name=restore_root,json=restoreRoot,proto3" json:"restore_root,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RestoreRoot string `protobuf:"bytes,4,opt,name=restore_root,json=restoreRoot,proto3" json:"restore_root,omitempty"`
+	// The stored secret that holds the default repository password, empty when the password file is used.
+	PasswordSecret string `protobuf:"bytes,6,opt,name=password_secret,json=passwordSecret,proto3" json:"password_secret,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Defaults) Reset() {
@@ -516,6 +612,95 @@ func (x *Defaults) GetRestoreRoot() string {
 	return ""
 }
 
+func (x *Defaults) GetPasswordSecret() string {
+	if x != nil {
+		return x.PasswordSecret
+	}
+	return ""
+}
+
+// A stored secret, a repository password. The value is never returned.
+type SecretInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the secret.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Time at which the secret was created.
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Time at which the value was last set or changed.
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	// Names of the jobs that take their password from this secret.
+	Jobs []string `protobuf:"bytes,4,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	// Whether the default password of the daemon is this secret.
+	DefaultPassword bool `protobuf:"varint,5,opt,name=default_password,json=defaultPassword,proto3" json:"default_password,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SecretInfo) Reset() {
+	*x = SecretInfo{}
+	mi := &file_backup_api_v1_control_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SecretInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SecretInfo) ProtoMessage() {}
+
+func (x *SecretInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SecretInfo.ProtoReflect.Descriptor instead.
+func (*SecretInfo) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SecretInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SecretInfo) GetCreateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreateTime
+	}
+	return nil
+}
+
+func (x *SecretInfo) GetUpdateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdateTime
+	}
+	return nil
+}
+
+func (x *SecretInfo) GetJobs() []string {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+func (x *SecretInfo) GetDefaultPassword() bool {
+	if x != nil {
+		return x.DefaultPassword
+	}
+	return false
+}
+
 // A job, its configuration and its state.
 type Job struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -535,7 +720,7 @@ type Job struct {
 	Last *Run `protobuf:"bytes,7,opt,name=last,proto3" json:"last,omitempty"`
 	// Finish time of the most recent successful run.
 	LastSuccessTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_success_time,json=lastSuccessTime,proto3" json:"last_success_time,omitempty"`
-	// What the job does: backup, forget or check. Empty for restore.
+	// What the job does: backup, forget, check or sync. Empty for restore.
 	Type string `protobuf:"bytes,9,opt,name=type,proto3" json:"type,omitempty"`
 	// The configuration of the job, not set for restore.
 	Definition    *JobDefinition `protobuf:"bytes,10,opt,name=definition,proto3" json:"definition,omitempty"`
@@ -545,7 +730,7 @@ type Job struct {
 
 func (x *Job) Reset() {
 	*x = Job{}
-	mi := &file_backup_api_v1_control_proto_msgTypes[3]
+	mi := &file_backup_api_v1_control_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -557,7 +742,7 @@ func (x *Job) String() string {
 func (*Job) ProtoMessage() {}
 
 func (x *Job) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_proto_msgTypes[3]
+	mi := &file_backup_api_v1_control_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -570,7 +755,7 @@ func (x *Job) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Job.ProtoReflect.Descriptor instead.
 func (*Job) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{3}
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Job) GetName() string {
@@ -655,14 +840,16 @@ type ControlStatus struct {
 	// All jobs.
 	Jobs []*Job `protobuf:"bytes,4,rep,name=jobs,proto3" json:"jobs,omitempty"`
 	// What jobs inherit when they do not set their own.
-	Defaults      *Defaults `protobuf:"bytes,5,opt,name=defaults,proto3" json:"defaults,omitempty"`
+	Defaults *Defaults `protobuf:"bytes,5,opt,name=defaults,proto3" json:"defaults,omitempty"`
+	// Name of this worker. Peers refer to it by this name, see Peer.
+	WorkerName    string `protobuf:"bytes,6,opt,name=worker_name,json=workerName,proto3" json:"worker_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ControlStatus) Reset() {
 	*x = ControlStatus{}
-	mi := &file_backup_api_v1_control_proto_msgTypes[4]
+	mi := &file_backup_api_v1_control_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -674,7 +861,7 @@ func (x *ControlStatus) String() string {
 func (*ControlStatus) ProtoMessage() {}
 
 func (x *ControlStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_proto_msgTypes[4]
+	mi := &file_backup_api_v1_control_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -687,7 +874,7 @@ func (x *ControlStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlStatus.ProtoReflect.Descriptor instead.
 func (*ControlStatus) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{4}
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ControlStatus) GetVersion() string {
@@ -725,6 +912,13 @@ func (x *ControlStatus) GetDefaults() *Defaults {
 	return nil
 }
 
+func (x *ControlStatus) GetWorkerName() string {
+	if x != nil {
+		return x.WorkerName
+	}
+	return ""
+}
+
 // A restic snapshot.
 type Snapshot struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -748,7 +942,7 @@ type Snapshot struct {
 
 func (x *Snapshot) Reset() {
 	*x = Snapshot{}
-	mi := &file_backup_api_v1_control_proto_msgTypes[5]
+	mi := &file_backup_api_v1_control_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -760,7 +954,7 @@ func (x *Snapshot) String() string {
 func (*Snapshot) ProtoMessage() {}
 
 func (x *Snapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_proto_msgTypes[5]
+	mi := &file_backup_api_v1_control_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -773,7 +967,7 @@ func (x *Snapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Snapshot.ProtoReflect.Descriptor instead.
 func (*Snapshot) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{5}
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Snapshot) GetId() string {
@@ -846,7 +1040,7 @@ type FileNode struct {
 
 func (x *FileNode) Reset() {
 	*x = FileNode{}
-	mi := &file_backup_api_v1_control_proto_msgTypes[6]
+	mi := &file_backup_api_v1_control_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -858,7 +1052,7 @@ func (x *FileNode) String() string {
 func (*FileNode) ProtoMessage() {}
 
 func (x *FileNode) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_proto_msgTypes[6]
+	mi := &file_backup_api_v1_control_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -871,7 +1065,7 @@ func (x *FileNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileNode.ProtoReflect.Descriptor instead.
 func (*FileNode) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{6}
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *FileNode) GetName() string {
@@ -935,7 +1129,7 @@ type RepositoryStats struct {
 
 func (x *RepositoryStats) Reset() {
 	*x = RepositoryStats{}
-	mi := &file_backup_api_v1_control_proto_msgTypes[7]
+	mi := &file_backup_api_v1_control_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -947,7 +1141,7 @@ func (x *RepositoryStats) String() string {
 func (*RepositoryStats) ProtoMessage() {}
 
 func (x *RepositoryStats) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_proto_msgTypes[7]
+	mi := &file_backup_api_v1_control_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -960,7 +1154,7 @@ func (x *RepositoryStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepositoryStats.ProtoReflect.Descriptor instead.
 func (*RepositoryStats) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{7}
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RepositoryStats) GetTotalSize() uint64 {
@@ -1019,7 +1213,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_backup_api_v1_control_proto_msgTypes[8]
+	mi := &file_backup_api_v1_control_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1031,7 +1225,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_proto_msgTypes[8]
+	mi := &file_backup_api_v1_control_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1044,7 +1238,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{8}
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Event) GetType() EventType {
@@ -1089,6 +1283,352 @@ func (x *Event) GetTime() *timestamppb.Timestamp {
 	return nil
 }
 
+// Another worker that sync jobs can use as their second path.
+type Peer struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name, 1-32 characters of lower case letters, digits and _. It is the name the peer has as worker name.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// WebDAV URL of the sync server of the peer, e.g. https://east:9081.
+	Url string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	// User name of the sync server of the peer.
+	Username string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	// File with the password of the sync server of the peer.
+	PasswordFile string `protobuf:"bytes,4,opt,name=password_file,json=passwordFile,proto3" json:"password_file,omitempty"`
+	// Name of the stored secret that holds the password of the sync server of the peer. Replaces password_file.
+	PasswordSecret string `protobuf:"bytes,5,opt,name=password_secret,json=passwordSecret,proto3" json:"password_secret,omitempty"`
+	// CA file that signed the certificate of the sync server of the peer, the system roots when empty.
+	CaFile string `protobuf:"bytes,6,opt,name=ca_file,json=caFile,proto3" json:"ca_file,omitempty"`
+	// URL of the control API of the peer, e.g. https://east:9080. Needed to manage the jobs from both sides, to
+	// lock a pair of directories while it syncs and to start jobs on the peer. Empty uses the data connection only.
+	ApiUrl string `protobuf:"bytes,7,opt,name=api_url,json=apiUrl,proto3" json:"api_url,omitempty"`
+	// File with the password of the control API of the peer.
+	ApiPasswordFile string `protobuf:"bytes,8,opt,name=api_password_file,json=apiPasswordFile,proto3" json:"api_password_file,omitempty"`
+	// Name of the stored secret that holds the password of the control API of the peer. Replaces api_password_file.
+	ApiPasswordSecret string `protobuf:"bytes,9,opt,name=api_password_secret,json=apiPasswordSecret,proto3" json:"api_password_secret,omitempty"`
+	// CA file that signed the certificate of the control API of the peer, the system roots when empty.
+	ApiCaFile     string `protobuf:"bytes,10,opt,name=api_ca_file,json=apiCaFile,proto3" json:"api_ca_file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Peer) Reset() {
+	*x = Peer{}
+	mi := &file_backup_api_v1_control_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Peer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Peer) ProtoMessage() {}
+
+func (x *Peer) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Peer.ProtoReflect.Descriptor instead.
+func (*Peer) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Peer) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Peer) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *Peer) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *Peer) GetPasswordFile() string {
+	if x != nil {
+		return x.PasswordFile
+	}
+	return ""
+}
+
+func (x *Peer) GetPasswordSecret() string {
+	if x != nil {
+		return x.PasswordSecret
+	}
+	return ""
+}
+
+func (x *Peer) GetCaFile() string {
+	if x != nil {
+		return x.CaFile
+	}
+	return ""
+}
+
+func (x *Peer) GetApiUrl() string {
+	if x != nil {
+		return x.ApiUrl
+	}
+	return ""
+}
+
+func (x *Peer) GetApiPasswordFile() string {
+	if x != nil {
+		return x.ApiPasswordFile
+	}
+	return ""
+}
+
+func (x *Peer) GetApiPasswordSecret() string {
+	if x != nil {
+		return x.ApiPasswordSecret
+	}
+	return ""
+}
+
+func (x *Peer) GetApiCaFile() string {
+	if x != nil {
+		return x.ApiCaFile
+	}
+	return ""
+}
+
+// How this worker exports a directory to its peers.
+type SyncServe struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether the directory is served.
+	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// Directory to export.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Address to bind to.
+	Address string `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	// Port to bind to.
+	Port int32 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	// User name the peers have to use.
+	Username string `protobuf:"bytes,5,opt,name=username,proto3" json:"username,omitempty"`
+	// File with the password the peers have to use.
+	PasswordFile string `protobuf:"bytes,6,opt,name=password_file,json=passwordFile,proto3" json:"password_file,omitempty"`
+	// Name of the stored secret that holds the password the peers have to use. Replaces password_file.
+	PasswordSecret string `protobuf:"bytes,7,opt,name=password_secret,json=passwordSecret,proto3" json:"password_secret,omitempty"`
+	// TLS certificate file, plain HTTP when empty.
+	CertificateFile string `protobuf:"bytes,8,opt,name=certificate_file,json=certificateFile,proto3" json:"certificate_file,omitempty"`
+	// TLS key file.
+	KeyFile string `protobuf:"bytes,9,opt,name=key_file,json=keyFile,proto3" json:"key_file,omitempty"`
+	// Whether peers may run unison against the exported directory through the control API.
+	Tunnel        bool `protobuf:"varint,10,opt,name=tunnel,proto3" json:"tunnel,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncServe) Reset() {
+	*x = SyncServe{}
+	mi := &file_backup_api_v1_control_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncServe) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncServe) ProtoMessage() {}
+
+func (x *SyncServe) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncServe.ProtoReflect.Descriptor instead.
+func (*SyncServe) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SyncServe) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *SyncServe) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *SyncServe) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *SyncServe) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *SyncServe) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *SyncServe) GetPasswordFile() string {
+	if x != nil {
+		return x.PasswordFile
+	}
+	return ""
+}
+
+func (x *SyncServe) GetPasswordSecret() string {
+	if x != nil {
+		return x.PasswordSecret
+	}
+	return ""
+}
+
+func (x *SyncServe) GetCertificateFile() string {
+	if x != nil {
+		return x.CertificateFile
+	}
+	return ""
+}
+
+func (x *SyncServe) GetKeyFile() string {
+	if x != nil {
+		return x.KeyFile
+	}
+	return ""
+}
+
+func (x *SyncServe) GetTunnel() bool {
+	if x != nil {
+		return x.Tunnel
+	}
+	return false
+}
+
+// The result of a connection test to a peer.
+type PeerStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the peer.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Whether the sync server answered with the given credentials.
+	DataOk bool `protobuf:"varint,2,opt,name=data_ok,json=dataOk,proto3" json:"data_ok,omitempty"`
+	// Whether the control API answered with the given credentials. False when the peer has no API URL.
+	ApiOk bool `protobuf:"varint,3,opt,name=api_ok,json=apiOk,proto3" json:"api_ok,omitempty"`
+	// Round trip time to the control API in milliseconds, 0 when it was not tested.
+	LatencyMs int64 `protobuf:"varint,4,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
+	// Why a test failed.
+	Error string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	// Worker name the peer reports, to check that it is the worker the peer entry is named after.
+	WorkerName    string `protobuf:"bytes,6,opt,name=worker_name,json=workerName,proto3" json:"worker_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PeerStatus) Reset() {
+	*x = PeerStatus{}
+	mi := &file_backup_api_v1_control_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerStatus) ProtoMessage() {}
+
+func (x *PeerStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerStatus.ProtoReflect.Descriptor instead.
+func (*PeerStatus) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *PeerStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PeerStatus) GetDataOk() bool {
+	if x != nil {
+		return x.DataOk
+	}
+	return false
+}
+
+func (x *PeerStatus) GetApiOk() bool {
+	if x != nil {
+		return x.ApiOk
+	}
+	return false
+}
+
+func (x *PeerStatus) GetLatencyMs() int64 {
+	if x != nil {
+		return x.LatencyMs
+	}
+	return 0
+}
+
+func (x *PeerStatus) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *PeerStatus) GetWorkerName() string {
+	if x != nil {
+		return x.WorkerName
+	}
+	return ""
+}
+
 var File_backup_api_v1_control_proto protoreflect.FileDescriptor
 
 const file_backup_api_v1_control_proto_rawDesc = "" +
@@ -1108,7 +1648,7 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\texit_code\x18\b \x01(\x05R\bexitCode\x12\x14\n" +
 	"\x05error\x18\t \x01(\tR\x05error\x12\x16\n" +
 	"\x06output\x18\n" +
-	" \x03(\tR\x06output\"\xab\x02\n" +
+	" \x03(\tR\x06output\"\xd0\x04\n" +
 	"\rJobDefinition\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x18\n" +
@@ -1122,14 +1662,34 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"repository\x18\t \x01(\tR\n" +
 	"repository\x12#\n" +
 	"\rpassword_file\x18\n" +
-	" \x01(\tR\fpasswordFile\"\x8a\x01\n" +
+	" \x01(\tR\fpasswordFile\x12'\n" +
+	"\x0fpassword_secret\x18\f \x01(\tR\x0epasswordSecret\x12\x14\n" +
+	"\x05path1\x18\r \x01(\tR\x05path1\x12\x14\n" +
+	"\x05path2\x18\x0e \x01(\tR\x05path2\x12\x1a\n" +
+	"\bconflict\x18\x0f \x01(\tR\bconflict\x12%\n" +
+	"\x0econflict_loser\x18\x10 \x01(\tR\rconflictLoser\x12$\n" +
+	"\x0emax_delete_pct\x18\x11 \x01(\x05R\fmaxDeletePct\x12!\n" +
+	"\fcheck_access\x18\x12 \x01(\bR\vcheckAccess\x12\x14\n" +
+	"\x05owner\x18\x13 \x01(\tR\x05owner\x12\x14\n" +
+	"\x05force\x18\x14 \x01(\bR\x05force\x12\x16\n" +
+	"\x06engine\x18\x15 \x01(\tR\x06engine\"\xb3\x01\n" +
 	"\bDefaults\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1e\n" +
 	"\n" +
 	"repository\x18\x02 \x01(\tR\n" +
 	"repository\x12#\n" +
 	"\rpassword_file\x18\x03 \x01(\tR\fpasswordFile\x12!\n" +
-	"\frestore_root\x18\x04 \x01(\tR\vrestoreRoot\"\x95\x03\n" +
+	"\frestore_root\x18\x04 \x01(\tR\vrestoreRoot\x12'\n" +
+	"\x0fpassword_secret\x18\x06 \x01(\tR\x0epasswordSecret\"\xd9\x01\n" +
+	"\n" +
+	"SecretInfo\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12;\n" +
+	"\vcreate_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"createTime\x12;\n" +
+	"\vupdate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"updateTime\x12\x12\n" +
+	"\x04jobs\x18\x04 \x03(\tR\x04jobs\x12)\n" +
+	"\x10default_password\x18\x05 \x01(\bR\x0fdefaultPassword\"\x95\x03\n" +
 	"\x03Job\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\x12\x16\n" +
@@ -1143,13 +1703,15 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\n" +
 	"definition\x18\n" +
 	" \x01(\v2\x1c.backup.api.v1.JobDefinitionR\n" +
-	"definition\"\xbc\x01\n" +
+	"definition\"\xdd\x01\n" +
 	"\rControlStatus\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x18\n" +
 	"\ahealthy\x18\x02 \x01(\bR\ahealthy\x12\x1a\n" +
 	"\bproblems\x18\x03 \x03(\tR\bproblems\x12&\n" +
 	"\x04jobs\x18\x04 \x03(\v2\x12.backup.api.v1.JobR\x04jobs\x123\n" +
-	"\bdefaults\x18\x05 \x01(\v2\x17.backup.api.v1.DefaultsR\bdefaults\"\xc7\x01\n" +
+	"\bdefaults\x18\x05 \x01(\v2\x17.backup.api.v1.DefaultsR\bdefaults\x12\x1f\n" +
+	"\vworker_name\x18\x06 \x01(\tR\n" +
+	"workerName\"\xc7\x01\n" +
 	"\bSnapshot\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bshort_id\x18\x02 \x01(\tR\ashortId\x12.\n" +
@@ -1180,7 +1742,41 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\x03job\x18\x03 \x01(\tR\x03job\x120\n" +
 	"\x06status\x18\x04 \x01(\x0e2\x18.backup.api.v1.RunStatusR\x06status\x12\x12\n" +
 	"\x04line\x18\x05 \x01(\tR\x04line\x12.\n" +
-	"\x04time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x04time*\xb7\x01\n" +
+	"\x04time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xc4\x02\n" +
+	"\x04Peer\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x1a\n" +
+	"\busername\x18\x03 \x01(\tR\busername\x12#\n" +
+	"\rpassword_file\x18\x04 \x01(\tR\fpasswordFile\x12'\n" +
+	"\x0fpassword_secret\x18\x05 \x01(\tR\x0epasswordSecret\x12\x17\n" +
+	"\aca_file\x18\x06 \x01(\tR\x06caFile\x12\x17\n" +
+	"\aapi_url\x18\a \x01(\tR\x06apiUrl\x12*\n" +
+	"\x11api_password_file\x18\b \x01(\tR\x0fapiPasswordFile\x12.\n" +
+	"\x13api_password_secret\x18\t \x01(\tR\x11apiPasswordSecret\x12\x1e\n" +
+	"\vapi_ca_file\x18\n" +
+	" \x01(\tR\tapiCaFile\"\xaf\x02\n" +
+	"\tSyncServe\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
+	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x12\n" +
+	"\x04port\x18\x04 \x01(\x05R\x04port\x12\x1a\n" +
+	"\busername\x18\x05 \x01(\tR\busername\x12#\n" +
+	"\rpassword_file\x18\x06 \x01(\tR\fpasswordFile\x12'\n" +
+	"\x0fpassword_secret\x18\a \x01(\tR\x0epasswordSecret\x12)\n" +
+	"\x10certificate_file\x18\b \x01(\tR\x0fcertificateFile\x12\x19\n" +
+	"\bkey_file\x18\t \x01(\tR\akeyFile\x12\x16\n" +
+	"\x06tunnel\x18\n" +
+	" \x01(\bR\x06tunnel\"\xa6\x01\n" +
+	"\n" +
+	"PeerStatus\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x17\n" +
+	"\adata_ok\x18\x02 \x01(\bR\x06dataOk\x12\x15\n" +
+	"\x06api_ok\x18\x03 \x01(\bR\x05apiOk\x12\x1d\n" +
+	"\n" +
+	"latency_ms\x18\x04 \x01(\x03R\tlatencyMs\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1f\n" +
+	"\vworker_name\x18\x06 \x01(\tR\n" +
+	"workerName*\xb7\x01\n" +
 	"\tRunStatus\x12\x1a\n" +
 	"\x16RUN_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11RUN_STATUS_QUEUED\x10\x01\x12\x16\n" +
@@ -1213,7 +1809,7 @@ func file_backup_api_v1_control_proto_rawDescGZIP() []byte {
 }
 
 var file_backup_api_v1_control_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_backup_api_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_backup_api_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_backup_api_v1_control_proto_goTypes = []any{
 	(RunStatus)(0),                // 0: backup.api.v1.RunStatus
 	(FileType)(0),                 // 1: backup.api.v1.FileType
@@ -1221,37 +1817,43 @@ var file_backup_api_v1_control_proto_goTypes = []any{
 	(*Run)(nil),                   // 3: backup.api.v1.Run
 	(*JobDefinition)(nil),         // 4: backup.api.v1.JobDefinition
 	(*Defaults)(nil),              // 5: backup.api.v1.Defaults
-	(*Job)(nil),                   // 6: backup.api.v1.Job
-	(*ControlStatus)(nil),         // 7: backup.api.v1.ControlStatus
-	(*Snapshot)(nil),              // 8: backup.api.v1.Snapshot
-	(*FileNode)(nil),              // 9: backup.api.v1.FileNode
-	(*RepositoryStats)(nil),       // 10: backup.api.v1.RepositoryStats
-	(*Event)(nil),                 // 11: backup.api.v1.Event
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(*SecretInfo)(nil),            // 6: backup.api.v1.SecretInfo
+	(*Job)(nil),                   // 7: backup.api.v1.Job
+	(*ControlStatus)(nil),         // 8: backup.api.v1.ControlStatus
+	(*Snapshot)(nil),              // 9: backup.api.v1.Snapshot
+	(*FileNode)(nil),              // 10: backup.api.v1.FileNode
+	(*RepositoryStats)(nil),       // 11: backup.api.v1.RepositoryStats
+	(*Event)(nil),                 // 12: backup.api.v1.Event
+	(*Peer)(nil),                  // 13: backup.api.v1.Peer
+	(*SyncServe)(nil),             // 14: backup.api.v1.SyncServe
+	(*PeerStatus)(nil),            // 15: backup.api.v1.PeerStatus
+	(*timestamppb.Timestamp)(nil), // 16: google.protobuf.Timestamp
 }
 var file_backup_api_v1_control_proto_depIdxs = []int32{
 	0,  // 0: backup.api.v1.Run.status:type_name -> backup.api.v1.RunStatus
-	12, // 1: backup.api.v1.Run.queue_time:type_name -> google.protobuf.Timestamp
-	12, // 2: backup.api.v1.Run.start_time:type_name -> google.protobuf.Timestamp
-	12, // 3: backup.api.v1.Run.finish_time:type_name -> google.protobuf.Timestamp
-	12, // 4: backup.api.v1.Job.next_run_time:type_name -> google.protobuf.Timestamp
-	3,  // 5: backup.api.v1.Job.active:type_name -> backup.api.v1.Run
-	3,  // 6: backup.api.v1.Job.last:type_name -> backup.api.v1.Run
-	12, // 7: backup.api.v1.Job.last_success_time:type_name -> google.protobuf.Timestamp
-	4,  // 8: backup.api.v1.Job.definition:type_name -> backup.api.v1.JobDefinition
-	6,  // 9: backup.api.v1.ControlStatus.jobs:type_name -> backup.api.v1.Job
-	5,  // 10: backup.api.v1.ControlStatus.defaults:type_name -> backup.api.v1.Defaults
-	12, // 11: backup.api.v1.Snapshot.time:type_name -> google.protobuf.Timestamp
-	1,  // 12: backup.api.v1.FileNode.type:type_name -> backup.api.v1.FileType
-	12, // 13: backup.api.v1.FileNode.modify_time:type_name -> google.protobuf.Timestamp
-	2,  // 14: backup.api.v1.Event.type:type_name -> backup.api.v1.EventType
-	0,  // 15: backup.api.v1.Event.status:type_name -> backup.api.v1.RunStatus
-	12, // 16: backup.api.v1.Event.time:type_name -> google.protobuf.Timestamp
-	17, // [17:17] is the sub-list for method output_type
-	17, // [17:17] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	16, // 1: backup.api.v1.Run.queue_time:type_name -> google.protobuf.Timestamp
+	16, // 2: backup.api.v1.Run.start_time:type_name -> google.protobuf.Timestamp
+	16, // 3: backup.api.v1.Run.finish_time:type_name -> google.protobuf.Timestamp
+	16, // 4: backup.api.v1.SecretInfo.create_time:type_name -> google.protobuf.Timestamp
+	16, // 5: backup.api.v1.SecretInfo.update_time:type_name -> google.protobuf.Timestamp
+	16, // 6: backup.api.v1.Job.next_run_time:type_name -> google.protobuf.Timestamp
+	3,  // 7: backup.api.v1.Job.active:type_name -> backup.api.v1.Run
+	3,  // 8: backup.api.v1.Job.last:type_name -> backup.api.v1.Run
+	16, // 9: backup.api.v1.Job.last_success_time:type_name -> google.protobuf.Timestamp
+	4,  // 10: backup.api.v1.Job.definition:type_name -> backup.api.v1.JobDefinition
+	7,  // 11: backup.api.v1.ControlStatus.jobs:type_name -> backup.api.v1.Job
+	5,  // 12: backup.api.v1.ControlStatus.defaults:type_name -> backup.api.v1.Defaults
+	16, // 13: backup.api.v1.Snapshot.time:type_name -> google.protobuf.Timestamp
+	1,  // 14: backup.api.v1.FileNode.type:type_name -> backup.api.v1.FileType
+	16, // 15: backup.api.v1.FileNode.modify_time:type_name -> google.protobuf.Timestamp
+	2,  // 16: backup.api.v1.Event.type:type_name -> backup.api.v1.EventType
+	0,  // 17: backup.api.v1.Event.status:type_name -> backup.api.v1.RunStatus
+	16, // 18: backup.api.v1.Event.time:type_name -> google.protobuf.Timestamp
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_backup_api_v1_control_proto_init() }
@@ -1265,7 +1867,7 @@ func file_backup_api_v1_control_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backup_api_v1_control_proto_rawDesc), len(file_backup_api_v1_control_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   9,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
