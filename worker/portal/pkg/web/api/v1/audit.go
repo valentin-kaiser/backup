@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -97,6 +98,9 @@ func (s *AuditLog) ExportAuditLog(ctx context.Context, in *pb.ExportAuditLogRequ
 	s.log.Add(audit.Entry{IP: requestIP(ctx), Action: "audit_export", Result: audit.OK, Detail: in.GetFormat()})
 	var buf bytes.Buffer
 	if err := s.log.Export(&buf, in.GetFormat(), query(in.GetFilter())); err != nil {
+		if errors.Is(err, audit.ErrTooLarge) {
+			return nil, fail(ctx, http.StatusBadRequest, err.Error())
+		}
 		log.Error().Err(err).Msg("exporting the audit log failed")
 		return nil, fail(ctx, http.StatusInternalServerError, "exporting the audit log failed")
 	}

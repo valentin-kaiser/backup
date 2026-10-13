@@ -36,7 +36,9 @@ WHERE
     AND (CAST(@until AS INTEGER) = 0 OR time < @until)
     AND (CAST(@before AS INTEGER) = 0 OR id < @before)
 ORDER BY
-    id;
+    id
+LIMIT
+    @max_rows;
 
 -- name: DeleteAuditEntriesBefore :exec
 DELETE FROM audit

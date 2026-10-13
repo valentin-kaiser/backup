@@ -49,7 +49,12 @@ const (
 	hardMax    = 1000
 	// maxRows is the most the table keeps, whatever the retention says.
 	maxRows = 1_000_000
+	// MaxExport is the most an export holds. It is built in memory and travels in one response, so it is bounded.
+	MaxExport = 20_000
 )
+
+// ErrTooLarge is returned by Export when more than MaxExport entries match.
+var ErrTooLarge = apperror.NewErrorf("more than %d entries match, narrow the filter", MaxExport)
 
 // Entry is one line of the log.
 type Entry struct {
@@ -225,9 +230,14 @@ func (l *Log) Export(w io.Writer, format string, q Query) error {
 	default:
 		return apperror.NewErrorf("unknown format %q", format)
 	}
-	rows, err := l.q.ExportAuditEntries(context.Background(), q.export())
+	p := q.export()
+	p.MaxRows = MaxExport + 1
+	rows, err := l.q.ExportAuditEntries(context.Background(), p)
 	if err != nil {
 		return err
+	}
+	if len(rows) > MaxExport {
+		return ErrTooLarge
 	}
 	if cw != nil {
 		_ = cw.Write([]string{"id", "time", "ip", "action", "target", "result", "detail"})

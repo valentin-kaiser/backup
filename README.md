@@ -327,7 +327,7 @@ The portal records what happens through it, under *Audit* (and in `portal.db`): 
 
 - Because there is one password and no users, an entry says **what, to what, when and from which address**, not by whom. If that matters, put a reverse proxy with its own sign-in in front and keep its log too.
 - Reading (status, history, snapshots, file listings) is not recorded. Secret values, passwords and restic arguments are never recorded, only the names of what they belong to, and credentials in repository addresses are replaced by `***`.
-- Filter by action, result, date and text, page through older entries, and export what matches as CSV or JSON lines (spreadsheet formulas in the data are neutralised). An export is recorded too.
+- Filter by action, result, date and text, page through older entries, and export what matches as CSV or JSON lines (spreadsheet formulas in the data are neutralised). An export holds at most 20,000 entries (narrow the filter otherwise) and is recorded too.
 - Entries older than `audit-retention-days` (default 365) are deleted once a day; at most one million rows are kept.
 - The log lives in the portal database and can be changed by anyone with access to that file: it shows what happened, it does not prove it. Calls made directly on the daemon (CLI, API with the password) are not in this log; the daemon logs them, see `docker logs`.
 

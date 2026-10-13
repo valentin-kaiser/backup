@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -203,5 +205,18 @@ func TestRedactRemovesCredentialsFromAddresses(t *testing.T) {
 		if got := Redact(in); got != want {
 			t.Errorf("Redact(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestExportRefusesMoreThanTheLimit(t *testing.T) {
+	l := newLog(t, 0)
+	for i := 0; i < MaxExport+1; i++ {
+		l.Add(Entry{Action: "start_job"})
+	}
+	if err := l.Export(io.Discard, "json", Query{}); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("want ErrTooLarge, got %v", err)
+	}
+	if err := l.Export(io.Discard, "json", Query{Before: 100}); err != nil {
+		t.Fatalf("a narrowed export must work: %v", err)
 	}
 }

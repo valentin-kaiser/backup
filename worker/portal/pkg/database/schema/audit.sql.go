@@ -112,15 +112,18 @@ WHERE
     AND (CAST(?6 AS INTEGER) = 0 OR id < ?6)
 ORDER BY
     id
+LIMIT
+    ?7
 `
 
 type ExportAuditEntriesParams struct {
-	Action string `json:"action"`
-	Result string `json:"result"`
-	Text   string `json:"text"`
-	Since  int64  `json:"since"`
-	Until  int64  `json:"until"`
-	Before int64  `json:"before"`
+	Action  string `json:"action"`
+	Result  string `json:"result"`
+	Text    string `json:"text"`
+	Since   int64  `json:"since"`
+	Until   int64  `json:"until"`
+	Before  int64  `json:"before"`
+	MaxRows int64  `json:"max_rows"`
 }
 
 // ExportAuditEntries
@@ -138,6 +141,8 @@ type ExportAuditEntriesParams struct {
 //	    AND (CAST(?6 AS INTEGER) = 0 OR id < ?6)
 //	ORDER BY
 //	    id
+//	LIMIT
+//	    ?7
 func (q *Queries) ExportAuditEntries(ctx context.Context, arg ExportAuditEntriesParams) ([]*Audit, error) {
 	rows, err := q.db.QueryContext(ctx, exportAuditEntries,
 		arg.Action,
@@ -146,6 +151,7 @@ func (q *Queries) ExportAuditEntries(ctx context.Context, arg ExportAuditEntries
 		arg.Since,
 		arg.Until,
 		arg.Before,
+		arg.MaxRows,
 	)
 	if err != nil {
 		return nil, err
