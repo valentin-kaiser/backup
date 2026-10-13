@@ -1,0 +1,53 @@
+# Bidirectional sync of two volumes. Start one of the two layouts:
+#   docker compose -f examples/sync/compose.yaml up -d sync-single      one worker, both volumes
+#   docker compose -f examples/sync/compose.yaml up -d sync-west sync-east   two workers, one volume each
+x-worker: &worker
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+  image: backup:latest
+  restart: unless-stopped
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  cap_add: [CHOWN, SETUID, SETGID]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: [/tmp]
+  environment:
+    - CONTROL_MODE=portal
+    - CONTROL_API_PASSWORDFILE=/run/secrets/portal_password
+    - CONTROL_PASSWORD_FILE=/run/secrets/portal_password
+    - PUID=1000
+    - PGID=1000
+
+services:
+  sync-single:
+    <<: *worker
+    container_name: sync-single
+    volumes:
+      - ./volumes/a:/sync/a
+      - ./volumes/b:/sync/b
+      - ./volumes/single:/var/lib/control   # copy single/control.yaml here before the first start
+    secrets: [portal_password]
+
+  sync-west:
+    <<: *worker
+    container_name: sync-west
+    volumes:
+      - ./volumes/west-control:/var/lib/control
+      - ./volumes/west:/sync
+    secrets: [portal_password]
+    # copy west/control.yaml to ./volumes/west-control/control.yaml before the first start
+
+  sync-east:
+    <<: *worker
+    container_name: sync-east
+    volumes:
+      - ./volumes/east-control:/var/lib/control
+      - ./volumes/east:/sync
+    secrets: [portal_password]
+    # copy east/control.yaml to ./volumes/east-control/control.yaml before the first start
+
+secrets:
+  portal_password:
+    file: ../../secrets/portal_password

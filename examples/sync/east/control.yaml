@@ -1,0 +1,12 @@
+# Worker "east" serves its volume and knows west. It has no job of its own: the job of west appears here as a mirror as
+# soon as west can reach the control API of east.
+workername: east
+peers:
+  - name: west
+    url: http://sync-west:9081
+    apiurl: http://sync-west:9080
+    apipasswordfile: /run/secrets/portal_password
+syncserve:
+  tunnel: true
+  path: /sync
+jobs: []

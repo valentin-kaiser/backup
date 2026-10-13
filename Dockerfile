@@ -33,7 +33,10 @@ RUN CGO_ENABLED=0 go build -trimpath \
 
 FROM alpine:3.21.3
 ARG RESTIC_VERSION=~0.17
-RUN apk add --no-cache restic=$RESTIC_VERSION ca-certificates tzdata su-exec \
+# bisync with --conflict-resolve needs rclone 1.66 or newer
+ARG RCLONE_VERSION=~1.68
+ARG UNISON_VERSION=~2.53
+RUN apk add --no-cache restic=$RESTIC_VERSION rclone=$RCLONE_VERSION unison=$UNISON_VERSION ca-certificates tzdata su-exec \
     && mkdir -p /var/lib/control /var/lib/portal /var/cache/restic /restore \
     && chown 1000:1000 /var/lib/portal \
     && touch /.backupignore
@@ -41,6 +44,8 @@ RUN apk add --no-cache restic=$RESTIC_VERSION ca-certificates tzdata su-exec \
 COPY --from=build /out/control /out/control-portal /usr/local/bin/
 COPY scripts/entrypoint.sh /entrypoint.sh
 RUN chmod 0755 /entrypoint.sh /usr/local/bin/control /usr/local/bin/control-portal
+# unison starts this link instead of ssh to reach a peer through its control API
+RUN ln -s control /usr/local/bin/control-tunnel
 
 # One image: the backup in standalone mode (default of the image) or portal mode (CONTROL_MODE=portal, the daemon of the
 # web portal), and the web portal itself (`web`).
@@ -57,7 +62,7 @@ ENV PUID=1000 \
     PORTAL_TLS=true
 
 VOLUME ["/var/lib/control", "/var/lib/portal", "/var/cache/restic", "/backup"]
-EXPOSE 8443 9080
+EXPOSE 8443 9080 9081
 
 HEALTHCHECK --interval=1m --timeout=10s --start-period=30s --retries=3 \
     CMD ["control", "health"]
