@@ -43,9 +43,9 @@ RUN apk add --no-cache restic=$RESTIC_VERSION rclone=$RCLONE_VERSION unison=$UNI
 
 COPY --from=build /out/control /out/control-portal /usr/local/bin/
 COPY scripts/entrypoint.sh /entrypoint.sh
-RUN chmod 0755 /entrypoint.sh /usr/local/bin/control /usr/local/bin/control-portal
-# unison starts this link instead of ssh to reach a peer through its control API
-RUN ln -s control /usr/local/bin/control-tunnel
+# unison starts the control-tunnel link instead of ssh to reach a peer through its control API
+RUN chmod 0755 /entrypoint.sh /usr/local/bin/control /usr/local/bin/control-portal \
+    && ln -s control /usr/local/bin/control-tunnel
 
 # One image: the backup in standalone mode (default of the image) or portal mode (CONTROL_MODE=portal, the daemon of the
 # web portal), and the web portal itself (`web`).
