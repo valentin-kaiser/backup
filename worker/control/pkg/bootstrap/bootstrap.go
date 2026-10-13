@@ -20,7 +20,7 @@ func RunOnce(m *manager.Manager, jobType string) int {
 		return 2
 	}
 	for _, j := range c.Jobs {
-		if j.Type != jobType {
+		if j.Type != jobType && j.Name != jobType {
 			continue
 		}
 		run, err := m.Trigger(j.Name, "once", true)
@@ -37,7 +37,7 @@ func RunOnce(m *manager.Manager, jobType string) int {
 		}
 		return 0
 	}
-	fmt.Fprintf(os.Stderr, "error: no %q job configured, use backup, forget or check\n", jobType)
+	fmt.Fprintf(os.Stderr, "error: no %q job configured, use backup, forget, check, sync or a job name\n", jobType)
 	return 2
 }
 

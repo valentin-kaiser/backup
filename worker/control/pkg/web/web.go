@@ -7,6 +7,7 @@ import (
 	"github.com/Valentin-Kaiser/backup/pkg/auth"
 	"github.com/Valentin-Kaiser/backup/pkg/config"
 	"github.com/Valentin-Kaiser/backup/pkg/secure"
+	"github.com/Valentin-Kaiser/backup/pkg/tunnel"
 	api "github.com/Valentin-Kaiser/backup/worker/control/pkg/web/api/v1"
 	"github.com/valentin-kaiser/go-core/apperror"
 	"github.com/valentin-kaiser/go-core/flag"
@@ -18,10 +19,13 @@ import (
 func Start(h *api.Service, password *auth.Password) error {
 	c := config.Get()
 	rpc := h.Handler()
+	tun := h.Tunnel()
 	if c.API.DisableAuth {
 		log.Warn().Msg("API authentication is disabled, anyone who can reach the API has full control")
 	} else {
-		rpc = auth.Middleware(rpc, password, auth.NewLimiter())
+		limiter := auth.NewLimiter()
+		rpc = auth.Middleware(rpc, password, limiter)
+		tun = auth.Middleware(tun, password, limiter)
 	}
 	s := web.Instance().
 		WithHost(c.API.Address).
@@ -29,7 +33,8 @@ func Start(h *api.Service, password *auth.Password) error {
 		WithLog().
 		WithRateLimit(api.Prefix, 300, time.Minute).
 		WithHandlerFunc(api.Prefix+"health", h.Health).
-		WithHandler(api.Endpoint, rpc)
+		WithHandler(api.Endpoint, rpc).
+		WithHandler(tunnel.Path, tun)
 
 	s, err := listen(s, c)
 	if err != nil {

@@ -23,18 +23,23 @@ import (
 
 // Commands lists the client sub commands.
 var Commands = map[string]bool{
-	"status": true, "runs": true, "run": true, "cancel": true, "pause": true, "resume": true,
+	"status": true, "runs": true, "run": true, "cancel": true, "unlock": true, "pause": true, "resume": true,
 	"snapshots": true, "restore": true, "logs": true, "health": true, "version": true, "secret": true,
+	"peer": true, "resync": true,
 }
 
 const usage = `usage: control <command> [options]
 
   daemon                      run the scheduler; CONTROL_MODE=portal also serves the API for the portal
-  once <backup|forget|check>  standalone: run one job now and exit with the result of restic
+  once <backup|forget|check|NAME>  standalone: run one job now and exit with the result of restic
   status                      show jobs, schedules and last results (portal mode)
   runs [-job NAME] [-n 20]    show the run history
   run <job> [-wait]           start a configured job now
-  cancel|pause|resume <job>   control a job
+  cancel|unlock|pause|resume <job>   control a job (unlock removes all repository locks)
+  resync <job> [-wait]        sync jobs: drop the state and sync from scratch (nothing is deleted)
+  peer list                   the peers sync jobs can use
+  peer add NAME -url URL [-user U] [-password-file F|-password-secret S] [-api-url URL] ...
+  peer test|delete NAME
   snapshots [-job NAME]       list restic snapshots, of the repository of a job
   restore [-job NAME] [-snapshot ID] -target DIR [-include PATH]...
   logs [-f]                   print or follow live output
@@ -156,6 +161,10 @@ func (c *client) dispatch(cmd string, args []string) error {
 	switch cmd {
 	case "secret":
 		return c.secret(args)
+	case "peer":
+		return c.peer(args)
+	case "resync":
+		return c.resync(args)
 	case "health":
 		if err := c.health(); err != nil {
 			return err
@@ -229,7 +238,7 @@ func (c *client) dispatch(cmd string, args []string) error {
 			return c.wait(r.Id)
 		}
 		return nil
-	case "cancel", "pause", "resume":
+	case "cancel", "unlock", "pause", "resume":
 		job, err := parseJob(fs, args)
 		if err != nil {
 			return err
@@ -238,6 +247,8 @@ func (c *client) dispatch(cmd string, args []string) error {
 		switch cmd {
 		case "cancel":
 			_, err = c.control.CancelJob(ctx, req)
+		case "unlock":
+			_, err = c.control.UnlockJob(ctx, req)
 		case "pause":
 			_, err = c.control.PauseJob(ctx, req)
 		default:

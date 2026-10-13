@@ -14,6 +14,8 @@ import (
 	"github.com/Valentin-Kaiser/backup/pkg/secrets"
 	"github.com/Valentin-Kaiser/backup/pkg/secure"
 	"github.com/Valentin-Kaiser/backup/pkg/store"
+	"github.com/Valentin-Kaiser/backup/pkg/syncserve"
+	"github.com/Valentin-Kaiser/backup/pkg/tunnel"
 	"github.com/Valentin-Kaiser/backup/worker/control/pkg/bootstrap"
 	"github.com/Valentin-Kaiser/backup/worker/control/pkg/cli"
 	"github.com/Valentin-Kaiser/backup/worker/control/pkg/web"
@@ -30,6 +32,10 @@ import (
 var once string
 
 func init() {
+	// unison starts this program as its "ssh" (a link to control): relay its protocol to the peer, nothing else.
+	if filepath.Base(os.Args[0]) == tunnel.ClientName || filepath.Base(os.Args[0]) == tunnel.ClientName+".exe" {
+		os.Exit(tunnel.RunClient(os.Args[1:]))
+	}
 	// Client commands never touch the daemon configuration or the go-core flags.
 	if len(os.Args) > 1 && cli.Commands[os.Args[1]] {
 		os.Exit(cli.Run(os.Args[1:]))
@@ -128,6 +134,19 @@ func main() {
 
 	if err := m.Start(); err != nil {
 		log.Fatal().Err(err).Msg("failed to start the scheduler")
+	}
+
+	// Export a directory to the peers of this worker. In portal mode the server follows configuration changes.
+	syncServer := syncserve.Server{Password: m.SyncServePassword}
+	syncServer.Start(m.Context(), c.SyncServe)
+	defer syncServer.Stop()
+	if c.Portal() {
+		config.OnChange(func(o, n *config.Config) error {
+			if o.SyncServe != n.SyncServe {
+				syncServer.Start(m.Context(), n.SyncServe)
+			}
+			return nil
+		})
 	}
 
 	if c.Portal() && c.API.Enabled {

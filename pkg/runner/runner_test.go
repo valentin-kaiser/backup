@@ -2,9 +2,12 @@ package runner
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -201,4 +204,206 @@ func TestOutputUsesThePasswordToo(t *testing.T) {
 	if err != nil || !strings.Contains(string(out), "pw=via output") {
 		t.Fatalf("out = %q, %v", out, err)
 	}
+}
+
+func TestArgsSync(t *testing.T) {
+	c := *config.Default()
+	c.SyncDir = t.TempDir()
+	job := config.Job{Name: "mirror", Type: config.TypeSync, Path1: "/sync/a", Path2: "/sync/b", Args: "--exclude *.tmp"}
+
+	// No state yet: the first run has to build the listings.
+	got, err := Args(c, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"bisync", "/sync/a", "/sync/b", "--workdir", filepath.Join(c.SyncDir, "mirror"),
+		"--conflict-resolve", "newer", "--conflict-loser", "num", "--max-delete", "50",
+		"--resilient", "--recover", "--create-empty-src-dirs", "--resync", "--exclude", "*.tmp",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+
+	// With listings no resync, and the settings of the job replace the defaults.
+	state := filepath.Join(c.SyncDir, "mirror")
+	if err := os.MkdirAll(state, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(state, "a..b.path1.lst"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	job.Force = true
+	job.Path2, job.Conflict, job.ConflictLoser, job.MaxDeletePct, job.CheckAccess = "peer:west/data", config.ConflictNone, config.LoserDelete, 10, true
+	got, _ = Args(c, job)
+	line := strings.Join(got, " ")
+	for _, s := range []string{"peer_west:data", "--conflict-resolve none", "--conflict-loser delete", "--max-delete 10", "--check-access", "--force"} {
+		if !strings.Contains(line, s) {
+			t.Errorf("%q is missing in %q", s, line)
+		}
+	}
+	if strings.Contains(line, "--resync") {
+		t.Errorf("an existing state must not be resynced: %q", line)
+	}
+
+	if err := ResetSync(c, "mirror"); err != nil {
+		t.Fatal(err)
+	}
+	if !NeedsResync(c, "mirror") {
+		t.Error("a reset job must resync")
+	}
+}
+
+func TestSyncRunsRcloneWithPeerRemote(t *testing.T) {
+	dir := t.TempDir()
+	pw := filepath.Join(dir, "pw")
+	if err := os.WriteFile(pw, []byte("secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := *config.Default()
+	c.Nice = 0
+	c.Peers = []config.Peer{{Name: "west", URL: "https://west:9081", Username: "sync", PasswordFile: pw}}
+	t.Setenv("GO_FAKE_RCLONE", "1")
+	r := Runner{SyncBinary: os.Args[0], SyncPrefix: []string{"-test.run=TestRcloneHelper", "--"}}
+	var lines []string
+	res, err := r.Exec(context.Background(), c, func(l string) { lines = append(lines, l) }, SyncCommand, "/a", "peer_west:")
+	if err != nil || res.ExitCode != 0 {
+		t.Fatalf("res = %+v, err = %v", res, err)
+	}
+	out := strings.Join(lines, "\n")
+	for _, s := range []string{"args=bisync /a peer_west:", "type=webdav", "url=https://west:9081", "user=sync", "pass=obscured(secret)"} {
+		if !strings.Contains(out, s) {
+			t.Errorf("%q is missing in %q", s, out)
+		}
+	}
+}
+
+// TestRcloneHelper is re-executed as a fake rclone.
+func TestRcloneHelper(t *testing.T) {
+	if os.Getenv("GO_FAKE_RCLONE") != "1" {
+		return
+	}
+	args := os.Args
+	for i, a := range args {
+		if a == "--" {
+			args = args[i+1:]
+			break
+		}
+	}
+	if len(args) > 0 && args[0] == "obscure" {
+		in, _ := io.ReadAll(os.Stdin)
+		os.Stdout.WriteString("obscured(" + string(in) + ")\n")
+		os.Exit(0)
+	}
+	fmt.Println("args=" + strings.Join(args, " "))
+	fmt.Println("type=" + os.Getenv("RCLONE_CONFIG_PEER_WEST_TYPE"))
+	fmt.Println("url=" + os.Getenv("RCLONE_CONFIG_PEER_WEST_URL"))
+	fmt.Println("user=" + os.Getenv("RCLONE_CONFIG_PEER_WEST_USER"))
+	fmt.Println("pass=" + os.Getenv("RCLONE_CONFIG_PEER_WEST_PASS"))
+	os.Exit(0)
+}
+
+func TestArgsUnison(t *testing.T) {
+	c := *config.Default()
+	c.SyncDir = t.TempDir()
+	job := config.Job{Name: "mirror", Type: config.TypeSync, Engine: config.EngineUnison, Path1: "/sync/a", Path2: "/sync/b", Args: "-ignore 'Name *.tmp'"}
+	got, err := Args(c, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := strings.Join(got, " ")
+	for _, s := range []string{
+		UnisonCommand + " " + filepath.Join(c.SyncDir, "mirror") + " /sync/a /sync/b",
+		"-batch", "-ignorelocks", "-confirmbigdel", "-prefer newer", "-copyonconflict", "-ignore Name *.tmp",
+	} {
+		if !strings.Contains(line, s) {
+			t.Errorf("%q is missing in %q", s, line)
+		}
+	}
+	for _, s := range []string{"-sshcmd", "-mountpoint", "--resync", "--force"} {
+		if strings.Contains(line, s) {
+			t.Errorf("%q must not be in %q", s, line)
+		}
+	}
+
+	job.Path2, job.Conflict, job.ConflictLoser, job.CheckAccess = "peer:east/data", config.ConflictPath2, config.LoserDelete, true
+	got, _ = Args(c, job)
+	line = strings.Join(got, " ")
+	for _, s := range []string{"ssh://east/data", "-prefer ssh://east/data", "-sshcmd control-tunnel", "-mountpoint RCLONE_TEST"} {
+		if !strings.Contains(line, s) {
+			t.Errorf("%q is missing in %q", s, line)
+		}
+	}
+	if strings.Contains(line, "-copyonconflict") {
+		t.Errorf("a deleted loser is not kept: %q", line)
+	}
+	job.Path2 = "peer:east"
+	if got, _ = Args(c, job); !strings.Contains(strings.Join(got, " "), "ssh://east/.") {
+		t.Errorf("the whole export is the directory '.': %q", got)
+	}
+	job.Conflict = config.ConflictNone
+	if got, _ = Args(c, job); strings.Contains(strings.Join(got, " "), "-prefer") {
+		t.Errorf("none resolves nothing: %q", got)
+	}
+}
+
+func TestUnisonRunsWithTheStateAndTheTunnel(t *testing.T) {
+	c := *config.Default()
+	c.Nice = 0
+	c.WorkerName = "west"
+	c.SyncDir = t.TempDir()
+	t.Setenv("GO_FAKE_UNISON", "1")
+	r := Runner{UnisonBinary: os.Args[0], UnisonPrefix: []string{"-test.run=TestUnisonHelper", "--"}}
+	job := config.Job{Name: "mirror", Type: config.TypeSync, Engine: config.EngineUnison, Path1: "/a", Path2: "peer:east"}
+	args, _ := Args(c, job)
+	ctx := WithTunnel(context.Background(), Tunnel{URL: "https://east:9080", Password: "pw", CAFile: "/ca", Job: "mirror", Owner: "west"})
+	var lines []string
+	if _, err := r.Exec(ctx, c, func(l string) { lines = append(lines, l) }, args...); err != nil {
+		t.Fatal(err)
+	}
+	out := strings.Join(lines, "\n")
+	for _, s := range []string{
+		"unison=" + filepath.Join(c.SyncDir, "mirror"), "host=west", "url=https://east:9080", "pass=pw", "ca=/ca", "job=mirror", "owner=west", "args=/a ssh://east/.",
+	} {
+		if !strings.Contains(out, s) {
+			t.Errorf("%q is missing in %q", s, out)
+		}
+	}
+	if st, err := os.Stat(filepath.Join(c.SyncDir, "mirror")); err != nil || !st.IsDir() {
+		t.Errorf("the state directory must exist: %v", err)
+	}
+
+	// Exit codes of unison are explained.
+	t.Setenv("GO_FAKE_UNISON_EXIT", "1")
+	_, err := r.Exec(context.Background(), c, nil, args...)
+	if err == nil || !strings.Contains(err.Error(), "skipped") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// TestUnisonHelper is re-executed as a fake unison.
+func TestUnisonHelper(t *testing.T) {
+	if os.Getenv("GO_FAKE_UNISON") != "1" {
+		return
+	}
+	args := os.Args
+	for i, a := range args {
+		if a == "--" {
+			args = args[i+1:]
+			break
+		}
+	}
+	fmt.Println("unison=" + os.Getenv("UNISON"))
+	fmt.Println("host=" + os.Getenv("UNISONLOCALHOSTNAME"))
+	fmt.Println("url=" + os.Getenv("CONTROL_TUNNEL_URL"))
+	fmt.Println("pass=" + os.Getenv("CONTROL_TUNNEL_PASSWORD"))
+	fmt.Println("ca=" + os.Getenv("CONTROL_TUNNEL_CA"))
+	fmt.Println("job=" + os.Getenv("CONTROL_TUNNEL_JOB"))
+	fmt.Println("owner=" + os.Getenv("CONTROL_TUNNEL_OWNER"))
+	fmt.Println("args=" + strings.Join(args[:2], " "))
+	if code := os.Getenv("GO_FAKE_UNISON_EXIT"); code != "" {
+		n, _ := strconv.Atoi(code)
+		os.Exit(n)
+	}
+	os.Exit(0)
 }

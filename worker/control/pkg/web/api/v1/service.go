@@ -93,7 +93,7 @@ func (s *Service) GetStatus(context.Context, *pb.GetStatusRequest) (*pb.ControlS
 	}
 	c := s.m.Config()
 	defaults := &pb.Defaults{Source: c.Source, Repository: c.Repository, PasswordFile: c.PasswordFile, RestoreRoot: c.RestoreRoot, PasswordSecret: c.PasswordSecret}
-	return &pb.ControlStatus{Version: version.String(), Healthy: ok, Problems: problems, Jobs: jobs, Defaults: defaults}, nil
+	return &pb.ControlStatus{Version: version.String(), Healthy: ok, Problems: problems, Jobs: jobs, Defaults: defaults, WorkerName: c.Worker()}, nil
 }
 
 // ListRuns lists the run history.
@@ -163,6 +163,14 @@ func (s *Service) StartJob(_ context.Context, in *pb.JobRequest) (*pb.Run, error
 // CancelJob cancels the active run of a job.
 func (s *Service) CancelJob(_ context.Context, in *pb.JobRequest) (*emptypb.Empty, error) {
 	if err := s.m.Cancel(in.GetJob()); err != nil {
+		return nil, fail(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// UnlockJob removes all locks from the repository of a job.
+func (s *Service) UnlockJob(_ context.Context, in *pb.JobRequest) (*emptypb.Empty, error) {
+	if err := s.m.Unlock(in.GetJob()); err != nil {
 		return nil, fail(err)
 	}
 	return &emptypb.Empty{}, nil

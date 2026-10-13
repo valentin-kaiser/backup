@@ -190,3 +190,106 @@ func TestSnapshotsOfUnknownJobFail(t *testing.T) {
 		t.Error("expected an error for an unknown job")
 	}
 }
+
+// syncManager returns a manager with a sync job over two directories, rclone is the fake helper process.
+func syncManager(t *testing.T, mode string) (*Manager, config.Job) {
+	t.Helper()
+	m := newManager(t, mode)
+	m.local = runner.Runner{
+		Binary: os.Args[0], Prefix: []string{"-test.run=TestHelperProcess", "--"},
+		SyncBinary: os.Args[0], SyncPrefix: []string{"-test.run=TestHelperProcess", "--"},
+	}
+	c := m.cfg()
+	c.SyncDir = t.TempDir()
+	// A password secret of the global settings must not matter for a sync job.
+	c.PasswordSecret = "main"
+	j := config.Job{Name: "mirror", Type: config.TypeSync, Enabled: true, Schedule: "*/5 * * * *", Path1: t.TempDir(), Path2: t.TempDir()}
+	c.Jobs = append(slices.Clone(c.Jobs), j)
+	m.cfg = func() config.Config { return c }
+	return m, j
+}
+
+func TestSyncJobRuns(t *testing.T) {
+	m, _ := syncManager(t, "ok")
+	run, err := m.Trigger("mirror", "manual", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != store.StatusSuccess {
+		t.Fatalf("run = %+v", run)
+	}
+}
+
+func TestSyncJobFailureIsReported(t *testing.T) {
+	m, _ := syncManager(t, "fail")
+	run, _ := m.Trigger("mirror", "manual", true)
+	if run.Status != store.StatusFailed || run.ExitCode != 1 {
+		t.Fatalf("run = %+v", run)
+	}
+}
+
+func TestSyncJobSkippedWhileAVolumeIsMissing(t *testing.T) {
+	m, j := syncManager(t, "ok")
+	c := m.cfg()
+	c.Jobs[len(c.Jobs)-1].Path2 = filepath.Join(j.Path2, "unmounted")
+	m.cfg = func() config.Config { return c }
+	run, err := m.Trigger("mirror", "manual", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != store.StatusSkipped {
+		t.Fatalf("status = %s, a missing volume must not be synced", run.Status)
+	}
+}
+
+func TestSyncJobsOfTheSamePairNeverRunTogether(t *testing.T) {
+	m, j := syncManager(t, "ok")
+	c := m.cfg()
+	other := j
+	other.Name = "mirror2"
+	other.Path1, other.Path2 = j.Path2, j.Path1 // same pair, other order
+	c.Jobs = append(slices.Clone(c.Jobs), other)
+	m.cfg = func() config.Config { return c }
+	if m.cfg().RepositoryKey(j) != m.cfg().RepositoryKey(other) {
+		t.Fatal("the pair must give the same lock")
+	}
+}
+
+func TestResyncJobDropsTheState(t *testing.T) {
+	m, _ := syncManager(t, "ok")
+	c := m.cfg()
+	state := runner.SyncStateDir(c, "mirror")
+	if err := os.MkdirAll(state, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(state, "x.path1.lst"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	run, err := m.ResyncJob("mirror")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Trigger != "resync" {
+		t.Errorf("trigger = %q", run.Trigger)
+	}
+	m.wg.Wait() // the run writes into the temporary directories
+	if _, err := m.ResyncJob("backup"); err == nil {
+		t.Error("only sync jobs can be resynced")
+	}
+}
+
+func TestSyncJobsDoNotInitialiseARepository(t *testing.T) {
+	m, _ := syncManager(t, "fail")
+	m.cfg = func() config.Config {
+		c := *config.Default()
+		c.Nice, c.SyncDir = 0, t.TempDir()
+		c.Jobs = []config.Job{{Name: "mirror", Type: config.TypeSync, Path1: t.TempDir(), Path2: t.TempDir()}}
+		return c
+	}
+	// With the fake in "fail" mode a repository check would fail and be logged, an init would be attempted. Nothing
+	// may be started for a configuration that only has sync jobs.
+	m.initRepositories()
+	if len(m.Runs("", 10)) != 0 {
+		t.Error("no run expected")
+	}
+}

@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 )
 
@@ -46,6 +47,36 @@ func TestEveryChangeHasAnActionAndNoValueFields(t *testing.T) {
 	for name := range reads {
 		if _, ok := changes[name]; ok {
 			t.Errorf("%s is both a read and a change", name)
+		}
+	}
+}
+
+func TestPeerCallsAreAuditedWithoutPasswordFiles(t *testing.T) {
+	for _, name := range []string{"ResyncJob", "SetPeer", "DeletePeer", "SetSyncServe"} {
+		if _, ok := changes[name]; !ok {
+			t.Errorf("%s is not audited", name)
+		}
+		if _, ok := known("Control." + name); !ok {
+			t.Errorf("%s is not allowed through the portal", name)
+		}
+	}
+	// Peer: password file 4, api password file 8. SyncServe: password file 6.
+	for name, secret := range map[string][]string{"SetPeer": {"4", "8"}, "SetSyncServe": {"6"}} {
+		for _, f := range changes[name].fields {
+			if slices.Contains(secret, f.num) {
+				t.Errorf("%s records field %s, a password file", name, f.num)
+			}
+		}
+	}
+	for _, name := range []string{"ListPeers", "GetSyncServe", "TestPeer"} {
+		if _, ok := known("Control." + name); !ok {
+			t.Errorf("%s is not allowed through the portal", name)
+		}
+	}
+	// Calls between workers do not go through the portal.
+	for _, name := range []string{"AcquireSyncLock", "ReleaseSyncLock", "PushJob", "DropJob"} {
+		if _, ok := known("Control." + name); ok {
+			t.Errorf("%s must not be reachable through the portal", name)
 		}
 	}
 }

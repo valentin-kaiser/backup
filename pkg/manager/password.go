@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -56,9 +57,17 @@ func (m *Manager) withSecret(ex runner.Executor, c config.Config) runner.Executo
 func (m *Manager) SecretUsers(name string) (jobs []string, global bool) {
 	c := m.cfg()
 	for _, j := range c.Jobs {
-		if c.ForJob(j).PasswordSecret == name {
+		if j.Type != config.TypeSync && c.ForJob(j).PasswordSecret == name {
 			jobs = append(jobs, j.Name)
 		}
+	}
+	for _, p := range c.Peers {
+		if p.PasswordSecret == name || p.APIPasswordSecret == name {
+			jobs = append(jobs, "peer:"+p.Name)
+		}
+	}
+	if c.SyncServe.PasswordSecret == name {
+		jobs = append(jobs, "syncserve")
 	}
 	return jobs, c.PasswordSecret == name
 }
@@ -213,4 +222,13 @@ func (m *Manager) rollbackKeys(ctx context.Context, targets []*pwTarget, oldPass
 			log.Warn().Err(err).Msgf("the new key of %s could not be removed again", t.c.Repository)
 		}
 	}
+}
+
+// readPassword reads a password file.
+func readPassword(file string) (string, error) {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return "", apperror.NewErrorf("password file %s is not readable", file).AddError(err)
+	}
+	return strings.TrimSpace(string(b)), nil
 }

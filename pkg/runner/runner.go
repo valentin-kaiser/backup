@@ -111,6 +111,14 @@ type Runner struct {
 	Binary string
 	// Prefix is inserted before the restic arguments (used by tests).
 	Prefix []string
+	// SyncBinary is the rclone executable of sync jobs, "rclone" when empty.
+	SyncBinary string
+	// SyncPrefix is inserted before the rclone arguments (used by tests).
+	SyncPrefix []string
+	// UnisonBinary is the unison executable, "unison" when empty.
+	UnisonBinary string
+	// UnisonPrefix is inserted before the unison arguments (used by tests).
+	UnisonPrefix []string
 }
 
 // Result is the outcome of a restic invocation.
@@ -130,6 +138,11 @@ func (r Runner) binary() string {
 func Args(c config.Config, job config.Job) ([]string, error) {
 	switch job.Type {
 	case config.TypeBackup, config.TypeForget, config.TypeCheck:
+	case config.TypeSync:
+		if job.Unison() {
+			return unisonArgs(c, job)
+		}
+		return syncArgs(c, job)
 	default:
 		return nil, apperror.NewErrorf("unknown job type %q", job.Type)
 	}
@@ -189,6 +202,14 @@ func NewPasswordFrom(ctx context.Context) string {
 // prepare builds the command like Command and, when the context carries passwords, writes them to files only the
 // current user can read. The returned function removes them, call it after the process ended.
 func (r Runner) prepare(ctx context.Context, c config.Config, args []string) (*exec.Cmd, func(), error) {
+	switch firstOr(args, "") {
+	case SyncCommand:
+		cmd, err := r.syncCommand(ctx, c, args)
+		return cmd, func() {}, err
+	case UnisonCommand:
+		cmd, err := r.unisonCommand(ctx, c, args)
+		return cmd, func() {}, err
+	}
 	pw, newPw := PasswordFrom(ctx), NewPasswordFrom(ctx)
 	if pw == "" && newPw == "" {
 		return r.Command(ctx, c, args...), func() {}, nil
@@ -248,7 +269,13 @@ func (r Runner) Command(ctx context.Context, c config.Config, args ...string) *e
 		"RESTIC_COMPRESSION="+c.Compression,
 		"RESTIC_CACHE_DIR="+c.CacheDir,
 	)
-	// restic removes its repository lock on SIGTERM, a kill would leave it behind.
+	r.finishCommand(cmd)
+	return cmd
+}
+
+// finishCommand makes the process stop with SIGTERM when its context ends.
+func (r Runner) finishCommand(cmd *exec.Cmd) {
+	// restic removes its repository lock on SIGTERM, a kill would leave it behind. rclone saves its state.
 	cmd.Cancel = func() error {
 		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			return cmd.Process.Kill()
@@ -256,7 +283,6 @@ func (r Runner) Command(ctx context.Context, c config.Config, args ...string) *e
 		return nil
 	}
 	cmd.WaitDelay = 15 * time.Second
-	return cmd
 }
 
 // Exec runs restic with args and calls onLine for every line of stdout and stderr.
@@ -300,7 +326,12 @@ func (r Runner) Exec(ctx context.Context, c config.Config, onLine func(string), 
 		if ctx.Err() != nil {
 			return res, apperror.Wrap(ctx.Err())
 		}
-		return res, apperror.NewErrorf("restic %s failed", firstOr(args, "")).AddError(err)
+		if firstOr(args, "") == UnisonCommand {
+			if hint := unisonExitHint(res.ExitCode); hint != "" {
+				return res, apperror.NewErrorf("unison: %s", hint).AddError(err)
+			}
+		}
+		return res, apperror.NewErrorf("%s failed", r.name(args)).AddError(err)
 	}
 	return res, nil
 }
@@ -316,9 +347,20 @@ func (r Runner) Output(ctx context.Context, c config.Config, args ...string) ([]
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return out, apperror.NewErrorf("restic %s failed: %s", firstOr(args, ""), strings.TrimSpace(stderr.String())).AddError(err)
+		return out, apperror.NewErrorf("%s failed: %s", r.name(args), strings.TrimSpace(stderr.String())).AddError(err)
 	}
 	return out, nil
+}
+
+// name is the program and command of a call, for messages.
+func (r Runner) name(args []string) string {
+	switch firstOr(args, "") {
+	case SyncCommand:
+		return "rclone " + SyncCommand
+	case UnisonCommand:
+		return "unison"
+	}
+	return "restic " + firstOr(args, "")
 }
 
 func firstOr(s []string, d string) string {

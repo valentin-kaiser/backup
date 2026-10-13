@@ -11,6 +11,7 @@ import (
 
 	"github.com/Valentin-Kaiser/backup/pkg/config"
 	"github.com/Valentin-Kaiser/backup/pkg/manager"
+	"github.com/Valentin-Kaiser/backup/pkg/peer"
 	pb "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1"
 	"github.com/Valentin-Kaiser/backup/pkg/store"
 	"github.com/valentin-kaiser/go-core/apperror"
@@ -24,38 +25,9 @@ func timeToProto(t *time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(*t)
 }
 
-func statusToProto(s store.Status) pb.RunStatus {
-	switch s {
-	case store.StatusQueued:
-		return pb.RunStatus_RUN_STATUS_QUEUED
-	case store.StatusRunning:
-		return pb.RunStatus_RUN_STATUS_RUNNING
-	case store.StatusSuccess:
-		return pb.RunStatus_RUN_STATUS_SUCCESS
-	case store.StatusFailed:
-		return pb.RunStatus_RUN_STATUS_FAILED
-	case store.StatusCancelled:
-		return pb.RunStatus_RUN_STATUS_CANCELLED
-	case store.StatusSkipped:
-		return pb.RunStatus_RUN_STATUS_SKIPPED
-	}
-	return pb.RunStatus_RUN_STATUS_UNSPECIFIED
-}
+func statusToProto(s store.Status) pb.RunStatus { return peer.StatusToProto(s) }
 
-func runToProto(r store.Run) *pb.Run {
-	return &pb.Run{
-		Id:         r.ID,
-		Job:        r.Job,
-		Trigger:    r.Trigger,
-		Status:     statusToProto(r.Status),
-		QueueTime:  timeToProto(&r.Queued),
-		StartTime:  timeToProto(r.Started),
-		FinishTime: timeToProto(r.Finished),
-		ExitCode:   int32(r.ExitCode), //nolint:gosec // exit codes are small
-		Error:      r.Error,
-		Output:     r.Output,
-	}
-}
+func runToProto(r store.Run) *pb.Run { return peer.RunToProto(r) }
 
 func optionalRun(r *store.Run) *pb.Run {
 	if r == nil {
@@ -79,40 +51,9 @@ func jobToProto(j manager.JobStatus) *pb.Job {
 	}
 }
 
-func definitionToProto(j config.Job) *pb.JobDefinition {
-	if j.Name == config.RestoreJob {
-		return nil
-	}
-	return &pb.JobDefinition{
-		Name:           j.Name,
-		Type:           j.Type,
-		Enabled:        j.Enabled,
-		Schedule:       j.Schedule,
-		Args:           j.Args,
-		TimeoutMinutes: int32(j.TimeoutMinutes), //nolint:gosec // validated to be small
-		MaxAgeHours:    int32(j.MaxAgeHours),    //nolint:gosec // validated to be small
-		Source:         j.Source,
-		Repository:     j.Repository,
-		PasswordFile:   j.PasswordFile,
-		PasswordSecret: j.PasswordSecret,
-	}
-}
+func definitionToProto(j config.Job) *pb.JobDefinition { return peer.DefinitionToProto(j) }
 
-func definitionFromProto(d *pb.JobDefinition) config.Job {
-	return config.Job{
-		Name:           d.GetName(),
-		Type:           d.GetType(),
-		Enabled:        d.GetEnabled(),
-		Schedule:       d.GetSchedule(),
-		Args:           d.GetArgs(),
-		TimeoutMinutes: int(d.GetTimeoutMinutes()),
-		MaxAgeHours:    int(d.GetMaxAgeHours()),
-		Source:         d.GetSource(),
-		Repository:     d.GetRepository(),
-		PasswordFile:   d.GetPasswordFile(),
-		PasswordSecret: d.GetPasswordSecret(),
-	}
-}
+func definitionFromProto(d *pb.JobDefinition) config.Job { return peer.DefinitionFromProto(d) }
 
 func eventToProto(e manager.Event) *pb.Event {
 	t := pb.EventType_EVENT_TYPE_STATUS

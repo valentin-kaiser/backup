@@ -60,6 +60,7 @@ func newService(t *testing.T) (*Service, *httptest.Server) {
 	c.API.PasswordFile = "/run/secrets/portal_password"
 	c.Nice = 0
 	c.Source = "/src"
+	c.SyncServe.Path, _ = filepath.Abs("/sync")
 	c.Jobs = []config.Job{
 		{Name: "backup", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *"},
 		{Name: "photos", Type: config.TypeBackup, Enabled: true, Schedule: "0 1 * * *", Repository: "/repo/photos"},
@@ -196,7 +197,7 @@ func TestJobManagementRejectsInvalidJobs(t *testing.T) {
 		{"duplicate", &pb.JobDefinition{Name: "backup", Type: "backup", Schedule: "0 0 * * *"}, "already exists"},
 		{"reserved", &pb.JobDefinition{Name: "restore", Type: "backup", Schedule: "0 0 * * *"}, "name"},
 		{"bad name", &pb.JobDefinition{Name: "My Job", Type: "backup", Schedule: "0 0 * * *"}, "name"},
-		{"bad type", &pb.JobDefinition{Name: "x", Type: "sync", Schedule: "0 0 * * *"}, "type"},
+		{"bad type", &pb.JobDefinition{Name: "x", Type: "mirror", Schedule: "0 0 * * *"}, "type"},
 		{"bad schedule", &pb.JobDefinition{Name: "x", Type: "backup", Enabled: true, Schedule: "every day"}, "schedule"},
 		{"bad args", &pb.JobDefinition{Name: "x", Type: "backup", Schedule: "0 0 * * *", Args: `--exclude "open`}, "quote"},
 		{"source on check", &pb.JobDefinition{Name: "x", Type: "check", Schedule: "0 0 * * *", Source: "/x"}, "source"},
@@ -461,3 +462,96 @@ func TestFilesAreCapped(t *testing.T) {
 type fixedSecrets struct{}
 
 func (fixedSecrets) Get(string) (string, error) { return "pw", nil }
+
+func TestSyncJobsPeersAndMirrors(t *testing.T) {
+	_, srv := newService(t)
+	c := newClient(t, srv)
+	ctx := context.Background()
+	abs := func(p string) string { a, _ := filepath.Abs(p); return a }
+
+	// Peers.
+	if _, err := c.SetPeer(ctx, &pb.Peer{Name: "east", Url: "https://east:9081", Username: "sync", ApiUrl: "https://east:9080"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SetPeer(ctx, &pb.Peer{Name: "bad name", Url: "https://east:9081"}); err == nil {
+		t.Error("an invalid peer must be refused")
+	}
+	if _, err := c.SetPeer(ctx, &pb.Peer{Name: "west", Url: "https://west:9081", PasswordSecret: "missing"}); err == nil {
+		t.Error("a peer must refer to an existing secret")
+	}
+	peers, err := c.ListPeers(ctx, &pb.ListPeersRequest{})
+	if err != nil || len(peers.Peers) != 1 || peers.Peers[0].Name != "east" || peers.WorkerName == "" {
+		t.Fatalf("peers = %v, err = %v", peers, err)
+	}
+	st, _ := c.GetStatus(ctx, &pb.GetStatusRequest{})
+	if st.WorkerName != peers.WorkerName {
+		t.Errorf("worker name = %q, want %q", st.WorkerName, peers.WorkerName)
+	}
+
+	// A sync job over two local paths and one with the peer.
+	local := &pb.JobDefinition{Name: "mirror", Type: "sync", Schedule: "*/5 * * * *", Enabled: true, Path1: abs("/sync/a"), Path2: abs("/sync/b"),
+		Conflict: "path1", ConflictLoser: "delete", MaxDeletePct: 20, CheckAccess: true}
+	created, err := c.CreateJob(ctx, local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := created.Definition
+	if d.Path1 != local.Path1 || d.Conflict != "path1" || d.ConflictLoser != "delete" || d.MaxDeletePct != 20 || !d.CheckAccess {
+		t.Errorf("the sync settings must survive the round trip: %v", d)
+	}
+	remote := &pb.JobDefinition{Name: "shared", Type: "sync", Schedule: "*/5 * * * *", Enabled: true, Path1: abs("/sync/a"), Path2: "peer:east/data"}
+	if _, err := c.CreateJob(ctx, remote); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.CreateJob(ctx, &pb.JobDefinition{Name: "unknown", Type: "sync", Path1: abs("/a"), Path2: "peer:nobody"}); err == nil {
+		t.Error("a sync job must use a known peer")
+	}
+	if _, err := c.DeletePeer(ctx, &pb.PeerRequest{Name: "east"}); err == nil {
+		t.Error("a peer in use must not be removed")
+	}
+
+	// Calls of a peer: reservations and mirrors.
+	lock, err := c.AcquireSyncLock(ctx, &pb.SyncLockRequest{Job: "shared", Owner: "east"})
+	if err != nil || !lock.Granted {
+		t.Fatalf("lock = %v, err = %v", lock, err)
+	}
+	if lock, _ = c.AcquireSyncLock(ctx, &pb.SyncLockRequest{Job: "shared", Owner: "other"}); lock.Granted || lock.Holder != "east" {
+		t.Errorf("lock = %v", lock)
+	}
+	if _, err := c.ReleaseSyncLock(ctx, &pb.SyncLockRequest{Job: "shared", Owner: "east"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.PushJob(ctx, &pb.PushJobRequest{Owner: "east", Definition: &pb.JobDefinition{Name: "theirs", Type: "sync", Path1: "/x", Path2: "peer:me/sub"}}); err != nil {
+		t.Fatal(err)
+	}
+	st, _ = c.GetStatus(ctx, &pb.GetStatusRequest{})
+	var mirror *pb.JobDefinition
+	for _, j := range st.Jobs {
+		if j.Name == "theirs" {
+			mirror = j.Definition
+		}
+	}
+	if mirror == nil || mirror.Owner != "east" || mirror.Path2 != "peer:east" || mirror.Enabled {
+		t.Fatalf("mirror = %v", mirror)
+	}
+	if _, err := c.PushJob(ctx, &pb.PushJobRequest{Owner: "stranger", Definition: &pb.JobDefinition{Name: "evil", Type: "sync", Path1: "/x", Path2: "peer:me"}}); err == nil {
+		t.Error("only peers may push jobs")
+	}
+	if _, err := c.DropJob(ctx, &pb.PushJobRequest{Owner: "east", Definition: &pb.JobDefinition{Name: "theirs"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Sync export.
+	if _, err := c.SetSyncServe(ctx, &pb.SyncServe{Enabled: true, Path: abs("/sync"), Port: 9081}); err == nil {
+		t.Error("the export needs credentials")
+	}
+	got, err := c.GetSyncServe(ctx, &pb.GetSyncServeRequest{})
+	if err != nil || got.Enabled {
+		t.Errorf("sync serve = %v, err = %v", got, err)
+	}
+
+	// Resync of something that is not a sync job.
+	if _, err := c.ResyncJob(ctx, &pb.JobRequest{Job: "backup"}); err == nil {
+		t.Error("only sync jobs can be resynced")
+	}
+}

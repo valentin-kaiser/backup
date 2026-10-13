@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -17,6 +18,8 @@ import (
 	"time"
 
 	"github.com/Valentin-Kaiser/backup/pkg/config"
+	"github.com/Valentin-Kaiser/backup/pkg/peer"
+	pb "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1"
 	"github.com/Valentin-Kaiser/backup/pkg/runner"
 	"github.com/Valentin-Kaiser/backup/pkg/store"
 	"github.com/valentin-kaiser/go-core/apperror"
@@ -80,6 +83,7 @@ type Manager struct {
 
 	mu         sync.Mutex
 	sems       map[string]chan struct{} // per repository, serialises everything that touches it
+	touched    map[string]config.Config // repositories this process ran restic on, unlocked on shutdown
 	active     map[string]*active
 	paused     map[string]bool
 	registered map[string]bool // jobs known to the scheduler
@@ -87,6 +91,7 @@ type Manager struct {
 	subs       map[chan Event]struct{}
 	wg         sync.WaitGroup
 	client     *http.Client
+	peers      *peerState
 }
 
 // Updater changes the persistent configuration. The change has to be applied, validated and saved before it
@@ -124,11 +129,13 @@ func New(cfg func() config.Config, r runner.Executor, st *store.Store) *Manager 
 		cancel:     cancel,
 		sched:      queue.NewTaskScheduler(),
 		sems:       map[string]chan struct{}{},
+		touched:    map[string]config.Config{},
 		active:     map[string]*active{},
 		paused:     map[string]bool{},
 		registered: map[string]bool{},
 		subs:       map[chan Event]struct{}{},
 		client:     &http.Client{Timeout: 10 * time.Second},
+		peers:      newPeerState(),
 	}
 }
 
@@ -151,6 +158,8 @@ func (m *Manager) Start() error {
 		defer m.wg.Done()
 		m.initRepositories()
 	}()
+	m.wg.Add(1)
+	go m.peerLoop()
 	// From now on a changed configuration prepares the repositories of new jobs as well.
 	m.ready.Store(true)
 	return nil
@@ -189,7 +198,7 @@ func (m *Manager) reload() error {
 	}
 	for _, j := range c.Jobs {
 		name := j.Name
-		if !j.Enabled {
+		if !j.Enabled || j.Mirror() { // a mirrored job is scheduled by its owner
 			_ = m.sched.RemoveTask(name)
 			delete(m.registered, name)
 			continue
@@ -227,6 +236,9 @@ func (m *Manager) initRepositories() {
 	}
 	done := map[string]bool{}
 	for _, j := range c.Jobs {
+		if j.Type == config.TypeSync {
+			continue // no repository
+		}
 		jc := c.ForJob(j)
 		if done[jc.Repository] {
 			continue
@@ -268,13 +280,69 @@ func (m *Manager) Trigger(name, trigger string, wait bool) (store.Run, error) {
 	if !ok {
 		return store.Run{}, apperror.NewErrorf("unknown job %q", name)
 	}
+	if j.Mirror() {
+		return m.forwardRun(j, func(ctx context.Context, cl peer.Client) (*pb.Run, error) {
+			return cl.StartJob(ctx, &pb.JobRequest{Job: name})
+		})
+	}
+	if holder, locked := m.lockedByPeer(name); locked {
+		return store.Run{}, apperror.NewErrorf("peer %s is syncing this job", holder).AddError(ErrBusy)
+	}
 	jc := c.ForJob(j)
+	if j.Type == config.TypeSync {
+		// A sync job has no repository, the pair of directories takes its place as the lock that serialises runs.
+		jc.Repository, jc.PasswordFile, jc.PasswordSecret = config.SyncKey(j), "", ""
+	}
 	args, err := runner.Args(jc, j)
 	if err != nil {
 		return store.Run{}, err
 	}
 	timeout := time.Duration(j.TimeoutMinutes) * time.Minute
 	return m.start(name, trigger, jc, args, timeout, wait)
+}
+
+// ResyncJob drops the state of a sync job and runs it again. The next run builds the listings of both sides from
+// scratch, files that differ are copied and nothing is deleted.
+func (m *Manager) ResyncJob(name string) (store.Run, error) {
+	c := m.cfg()
+	j, ok := c.Job(name)
+	if !ok || j.Type != config.TypeSync {
+		return store.Run{}, apperror.NewErrorf("%q is not a sync job", name)
+	}
+	if j.Mirror() {
+		return m.forwardRun(j, func(ctx context.Context, cl peer.Client) (*pb.Run, error) {
+			return cl.ResyncJob(ctx, &pb.JobRequest{Job: name})
+		})
+	}
+	m.mu.Lock()
+	_, busy := m.active[name]
+	m.mu.Unlock()
+	if busy {
+		return store.Run{}, ErrBusy
+	}
+	if err := runner.ResetSync(c, name); err != nil {
+		return store.Run{}, err
+	}
+	return m.Trigger(name, "resync", false)
+}
+
+// syncPreflight refuses to sync while one of the local directories is missing, which is what an unmounted volume
+// looks like. Syncing against an empty mount point would delete everything on the other side.
+func (m *Manager) syncPreflight(j config.Job) error {
+	paths := []string{j.Path1}
+	if _, _, peer := j.PeerPath(); !peer {
+		paths = append(paths, j.Path2)
+	}
+	for _, p := range paths {
+		st, err := os.Stat(p)
+		if err != nil {
+			return apperror.NewErrorf("sync path %s is not available", p).AddError(err)
+		}
+		if !st.IsDir() {
+			return apperror.NewErrorf("sync path %s is not a directory", p)
+		}
+	}
+	return nil
 }
 
 // Restore starts a restore run from the repository of job, or from the global repository when job is empty.
@@ -430,11 +498,24 @@ func (m *Manager) execute(ctx context.Context, a *active, c config.Config, args 
 		return
 	}
 
+	if sj, ok := m.cfg().Job(job); !ok || sj.Type != config.TypeSync {
+		m.mu.Lock()
+		m.touched[c.Repository] = c
+		m.mu.Unlock()
+	}
+
 	now := time.Now()
 	m.setStatus(a, store.StatusRunning, func(r *store.Run) { r.Started = &now })
 	m.ping(c, "/start")
 
-	if err := m.ex(c).Preflight(ctx, c); errors.Is(err, runner.ErrUnavailable) {
+	var err error
+	sj, isSync := m.cfg().Job(job)
+	if isSync = isSync && sj.Type == config.TypeSync; isSync {
+		err = m.syncPreflight(sj)
+	} else {
+		err = m.ex(c).Preflight(ctx, c)
+	}
+	if errors.Is(err, runner.ErrUnavailable) {
 		// Restic cannot be used, that is a failure and not a repository that is not mounted.
 		log.Error().Err(err).Msgf("%s failed", job)
 		m.line(a, "failed: "+err.Error())
@@ -447,6 +528,35 @@ func (m *Manager) execute(ctx context.Context, a *active, c config.Config, args 
 		m.finish(a, store.StatusSkipped, 0, err.Error())
 		m.ping(c, "/fail")
 		return
+	}
+
+	if isSync {
+		// The peer must not run the same job while this worker syncs with it.
+		release, err := m.lockPeerRetrying(ctx, a, m.cfg(), sj, timeout)
+		switch {
+		case errors.Is(err, errPeerBusy):
+			log.Warn().Err(err).Msgf("%s skipped", job)
+			m.line(a, "skipped: "+err.Error())
+			m.finish(a, store.StatusSkipped, 0, err.Error())
+			return
+		case err != nil:
+			log.Error().Err(err).Msgf("%s failed", job)
+			m.line(a, "failed: "+err.Error())
+			m.finish(a, store.StatusFailed, -1, err.Error())
+			m.ping(c, "/fail")
+			return
+		}
+		defer release()
+		ctx = m.withPeerPasswords(ctx, m.cfg())
+		if sj.Unison() {
+			var terr error
+			if ctx, terr = m.withTunnel(ctx, m.cfg(), sj); terr != nil {
+				m.line(a, "failed: "+terr.Error())
+				m.finish(a, store.StatusFailed, -1, terr.Error())
+				m.ping(c, "/fail")
+				return
+			}
+		}
 	}
 
 	runCtx := ctx
@@ -464,19 +574,64 @@ func (m *Manager) execute(ctx context.Context, a *active, c config.Config, args 
 		m.ping(c, "")
 		log.Info().Msgf("%s finished", job)
 	case ctx.Err() != nil:
-		m.unlock(c)
+		if !isSync {
+			m.unlock(c)
+		}
 		m.finish(a, store.StatusCancelled, res.ExitCode, "cancelled")
 		log.Warn().Msgf("%s cancelled", job)
 	case runCtx.Err() != nil:
-		m.unlock(c)
+		if !isSync {
+			m.unlock(c)
+		}
 		m.finish(a, store.StatusFailed, res.ExitCode, "timeout exceeded")
 		m.ping(c, "/fail")
 		log.Error().Msgf("%s timed out", job)
 	default:
+		if !isSync {
+			m.unlock(c)
+		}
 		m.finish(a, store.StatusFailed, res.ExitCode, err.Error())
 		m.ping(c, "/fail")
 		log.Error().Err(err).Msgf("%s failed", job)
 	}
+}
+
+// Unlock removes all locks from the repository of a job, also those of processes that are still alive. It refuses
+// while a job works on the repository of this worker, a lock of a running job must not be removed.
+func (m *Manager) Unlock(name string) error {
+	if j, ok := m.mirror(name); ok {
+		return m.forward(j, func(ctx context.Context, cl peer.Client) error {
+			_, err := cl.UnlockJob(ctx, &pb.JobRequest{Job: name})
+			return err
+		})
+	}
+	j, ok := m.cfg().Job(name)
+	if !ok {
+		return apperror.NewErrorf("unknown job %q", name)
+	}
+	if j.Type == config.TypeSync {
+		return apperror.NewErrorf("job %q is a sync job and has no repository", name)
+	}
+	c, err := m.repository(name)
+	if err != nil {
+		return err
+	}
+	select {
+	case m.sem(c.Repository) <- struct{}{}:
+		defer func() { <-m.sem(c.Repository) }()
+	default:
+		return apperror.NewErrorf("a job is working on the repository of %q", name).AddError(ErrBusy)
+	}
+	ctx, cancel := context.WithTimeout(m.ctx, time.Minute)
+	defer cancel()
+	if err := m.ex(c).Preflight(ctx, c); err != nil {
+		return err
+	}
+	if _, err := m.ex(c).Exec(ctx, c, nil, "unlock", "--remove-all"); err != nil {
+		return err
+	}
+	log.Warn().Msgf("removed all locks of the repository of %s", name)
+	return nil
 }
 
 // unlock removes stale locks left behind by an aborted restic process.
@@ -539,6 +694,12 @@ func (m *Manager) ping(c config.Config, suffix string) {
 
 // Cancel aborts a queued or running job.
 func (m *Manager) Cancel(name string) error {
+	if j, ok := m.mirror(name); ok {
+		return m.forward(j, func(ctx context.Context, cl peer.Client) error {
+			_, err := cl.CancelJob(ctx, &pb.JobRequest{Job: name})
+			return err
+		})
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	a, ok := m.active[name]
@@ -559,6 +720,17 @@ func (m *Manager) setPaused(name string, p bool) error {
 	j, ok := m.cfg().Job(name)
 	if !ok {
 		return apperror.NewErrorf("unknown job %q", name)
+	}
+	if j.Mirror() {
+		return m.forward(j, func(ctx context.Context, cl peer.Client) error {
+			var err error
+			if p {
+				_, err = cl.PauseJob(ctx, &pb.JobRequest{Job: name})
+			} else {
+				_, err = cl.ResumeJob(ctx, &pb.JobRequest{Job: name})
+			}
+			return err
+		})
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -600,6 +772,9 @@ func (m *Manager) Status() []JobStatus {
 		if r, ok := m.store.LastSuccess(j.Name); ok && r.Finished != nil {
 			st.LastSuccess = r.Finished
 		}
+		if j.Mirror() {
+			m.overlayMirror(&st)
+		}
 		out = append(out, st)
 	}
 	return out
@@ -614,6 +789,9 @@ var ErrReadOnly = apperror.NewError("the configuration is read-only")
 // CreateJob adds a job to the configuration and schedules it.
 func (m *Manager) CreateJob(j config.Job) (JobStatus, error) {
 	j = normalize(j)
+	if j.Mirror() {
+		return JobStatus{}, apperror.NewError("a mirrored job is created by its owner")
+	}
 	if err := m.check(j); err != nil {
 		return JobStatus{}, err
 	}
@@ -627,6 +805,7 @@ func (m *Manager) CreateJob(j config.Job) (JobStatus, error) {
 	if err != nil {
 		return JobStatus{}, err
 	}
+	m.afterJobChange(nil, j)
 	return m.jobStatus(j.Name), nil
 }
 
@@ -636,6 +815,14 @@ func (m *Manager) UpdateJob(j config.Job) (JobStatus, error) {
 	if err := m.check(j); err != nil {
 		return JobStatus{}, err
 	}
+	var old *config.Job
+	if cur, ok := m.cfg().Job(j.Name); ok {
+		if cur.Mirror() {
+			return m.updateMirror(j, cur)
+		}
+		old = &cur
+	}
+	j.Owner = ""
 	err := m.change(func(c *config.Config) error {
 		for i := range c.Jobs {
 			if c.Jobs[i].Name == j.Name {
@@ -648,6 +835,7 @@ func (m *Manager) UpdateJob(j config.Job) (JobStatus, error) {
 	if err != nil {
 		return JobStatus{}, err
 	}
+	m.afterJobChange(old, j)
 	return m.jobStatus(j.Name), nil
 }
 
@@ -659,7 +847,19 @@ func (m *Manager) DeleteJob(name string) error {
 	if running {
 		return apperror.NewErrorf("job %q is running, cancel it first", name)
 	}
-	return m.change(func(c *config.Config) error {
+	old, found := m.cfg().Job(name)
+	if found && old.Mirror() {
+		// The owner removes the job and tells this worker to drop the mirror. If that does not arrive the mirror
+		// is removed here.
+		if err := m.forward(old, func(ctx context.Context, cl peer.Client) error {
+			_, err := cl.DeleteJob(ctx, &pb.JobRequest{Job: name})
+			return err
+		}); err != nil {
+			return err
+		}
+		return m.DropMirror(name, old.Owner)
+	}
+	err := m.change(func(c *config.Config) error {
 		for i := range c.Jobs {
 			if c.Jobs[i].Name == name {
 				c.Jobs = slices.Delete(c.Jobs, i, i+1)
@@ -668,6 +868,14 @@ func (m *Manager) DeleteJob(name string) error {
 		}
 		return apperror.NewErrorf("unknown job %q", name)
 	})
+	if err == nil && found {
+		m.wg.Add(1)
+		go func() {
+			defer m.wg.Done()
+			m.dropAtPeer(old)
+		}()
+	}
+	return err
 }
 
 func (m *Manager) change(f func(*config.Config) error) error {
@@ -681,6 +889,8 @@ func normalize(j config.Job) config.Job {
 	j.Name = strings.TrimSpace(j.Name)
 	j.Schedule = strings.TrimSpace(j.Schedule)
 	j.Source = strings.TrimSpace(j.Source)
+	j.Path1 = strings.TrimSpace(j.Path1)
+	j.Path2 = strings.TrimSpace(j.Path2)
 	j.Repository = strings.TrimSpace(j.Repository)
 	j.PasswordFile = strings.TrimSpace(j.PasswordFile)
 	j.PasswordSecret = strings.TrimSpace(j.PasswordSecret)
@@ -719,11 +929,17 @@ func (m *Manager) Run(id string) (store.Run, bool) {
 	if r, ok := m.ActiveRun(id); ok {
 		return r, true
 	}
-	return m.store.Get(id)
+	if r, ok := m.store.Get(id); ok {
+		return r, true
+	}
+	return m.remoteRun(id)
 }
 
 // Runs lists the history newest first, active runs first.
 func (m *Manager) Runs(job string, n int) []store.Run {
+	if j, ok := m.mirror(job); ok {
+		return m.remoteRuns(j, n)
+	}
 	var out []store.Run
 	m.mu.Lock()
 	for _, a := range m.active {
@@ -750,7 +966,7 @@ func (m *Manager) Health() (bool, []string) {
 	var problems []string
 	for _, j := range c.Jobs {
 		name := j.Name
-		if !j.Enabled {
+		if !j.Enabled || j.Mirror() {
 			continue
 		}
 		if last, ok := m.store.Last(name); ok && last.Status == store.StatusFailed {
@@ -875,6 +1091,27 @@ func (m *Manager) Shutdown(grace time.Duration) {
 		}
 	}
 	m.cancel()
+	m.unlockAll()
+}
+
+// unlockAll removes the stale locks of every repository this process worked on. A job that was killed after its
+// grace period cannot release its lock itself and the next start would wait for it until restic treats it as stale.
+func (m *Manager) unlockAll() {
+	m.mu.Lock()
+	repos := make([]config.Config, 0, len(m.touched))
+	for _, c := range m.touched {
+		repos = append(repos, c)
+	}
+	m.mu.Unlock()
+	var wg sync.WaitGroup
+	for _, c := range repos {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			m.unlock(c)
+		}()
+	}
+	wg.Wait()
 }
 
 // Context returns the context that is cancelled on shutdown.
