@@ -16,6 +16,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/database"
+	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/database/schema"
 	"github.com/valentin-kaiser/go-core/apperror"
 	"github.com/valentin-kaiser/go-core/logging/log"
 )
@@ -62,29 +64,17 @@ type Entry struct {
 
 // Log is the audit log in the portal database.
 type Log struct {
-	db        *sql.DB
+	q         *schema.Queries
 	retention time.Duration
 	now       func() time.Time
 }
 
 // New creates the log and its table in db. Entries older than retention are pruned, zero keeps them.
 func New(db *sql.DB, retention time.Duration) (*Log, error) {
-	_, err := db.Exec(`
-CREATE TABLE IF NOT EXISTS audit (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	time INTEGER NOT NULL,
-	ip TEXT NOT NULL DEFAULT '',
-	action TEXT NOT NULL,
-	target TEXT NOT NULL DEFAULT '',
-	result TEXT NOT NULL,
-	detail TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS audit_time ON audit(time);
-CREATE INDEX IF NOT EXISTS audit_action ON audit(action);`)
-	if err != nil {
+	if err := database.Migrate(db); err != nil {
 		return nil, err
 	}
-	return &Log{db: db, retention: retention, now: time.Now}, nil
+	return &Log{q: schema.New(db), retention: retention, now: time.Now}, nil
 }
 
 // clean removes control characters, they could forge lines in a text export, and shortens s.
@@ -113,9 +103,14 @@ func (l *Log) Add(e Entry) {
 	if e.Result == "" {
 		e.Result = OK
 	}
-	_, err := l.db.Exec(`INSERT INTO audit(time, ip, action, target, result, detail) VALUES(?,?,?,?,?,?)`,
-		e.Time.UnixMilli(), clean(e.IP, 64), clean(e.Action, 64), clean(e.Target, maxTarget),
-		clean(e.Result, 16), clean(e.Detail, maxDetail))
+	err := l.q.CreateAuditEntry(context.Background(), schema.CreateAuditEntryParams{
+		Time:   e.Time.UnixMilli(),
+		Ip:     clean(e.IP, 64),
+		Action: clean(e.Action, 64),
+		Target: clean(e.Target, maxTarget),
+		Result: clean(e.Result, 16),
+		Detail: clean(e.Detail, maxDetail),
+	})
 	if err != nil {
 		log.Error().Err(err).Field("action", e.Action).Msg("the audit entry could not be written")
 	}
@@ -134,37 +129,28 @@ type Query struct {
 	Limit  int
 }
 
-func (q Query) where() (string, []any) {
-	var conds []string
-	var args []any
-	add := func(cond string, v any) {
-		conds = append(conds, cond)
-		args = append(args, v)
+// millis is the filter value of t, zero when t is not set.
+func millis(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
 	}
-	if q.Action != "" {
-		add("action = ?", q.Action)
+	return t.UnixMilli()
+}
+
+func (q Query) export() schema.ExportAuditEntriesParams {
+	return schema.ExportAuditEntriesParams{
+		Action: q.Action,
+		Result: q.Result,
+		Text:   q.Text,
+		Since:  millis(q.Since),
+		Until:  millis(q.Until),
+		Before: max(q.Before, 0),
 	}
-	if q.Result != "" {
-		add("result = ?", q.Result)
-	}
-	if q.Text != "" {
-		like := "%" + strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q.Text) + "%"
-		conds = append(conds, `(target LIKE ? ESCAPE '\' OR detail LIKE ? ESCAPE '\')`)
-		args = append(args, like, like)
-	}
-	if !q.Since.IsZero() {
-		add("time >= ?", q.Since.UnixMilli())
-	}
-	if !q.Until.IsZero() {
-		add("time < ?", q.Until.UnixMilli())
-	}
-	if q.Before > 0 {
-		add("id < ?", q.Before)
-	}
-	if len(conds) == 0 {
-		return "", nil
-	}
-	return " WHERE " + strings.Join(conds, " AND "), args
+}
+
+func entry(r *schema.Audit) Entry {
+	return Entry{ID: r.ID, Time: time.UnixMilli(r.Time).UTC(), IP: r.Ip, Action: r.Action, Target: r.Target,
+		Result: r.Result, Detail: r.Detail}
 }
 
 // Query returns the newest entries first.
@@ -173,36 +159,30 @@ func (l *Log) Query(q Query) ([]Entry, error) {
 		q.Limit = defaultMax
 	}
 	q.Limit = min(q.Limit, hardMax)
-	where, args := q.where()
-	rows, err := l.db.Query(`SELECT id, time, ip, action, target, result, detail FROM audit`+where+
-		` ORDER BY id DESC LIMIT ?`, append(args, q.Limit)...)
+	p := q.export()
+	rows, err := l.q.ListAuditEntries(context.Background(), schema.ListAuditEntriesParams{
+		Action: p.Action, Result: p.Result, Text: p.Text, Since: p.Since, Until: p.Until, Before: p.Before,
+		MaxRows: int64(q.Limit),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := []Entry{}
-	for rows.Next() {
-		var e Entry
-		var ms int64
-		if err := rows.Scan(&e.ID, &ms, &e.IP, &e.Action, &e.Target, &e.Result, &e.Detail); err != nil {
-			return nil, err
-		}
-		e.Time = time.UnixMilli(ms).UTC()
-		out = append(out, e)
+	out := make([]Entry, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, entry(r))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // Prune deletes entries older than the retention and, beyond maxRows, the oldest ones.
 func (l *Log) Prune() error {
+	ctx := context.Background()
 	if l.retention > 0 {
-		cutoff := l.now().Add(-l.retention).UnixMilli()
-		if _, err := l.db.Exec(`DELETE FROM audit WHERE time < ?`, cutoff); err != nil {
+		if err := l.q.DeleteAuditEntriesBefore(ctx, l.now().Add(-l.retention).UnixMilli()); err != nil {
 			return err
 		}
 	}
-	_, err := l.db.Exec(`DELETE FROM audit WHERE id <= (SELECT id FROM audit ORDER BY id DESC LIMIT 1 OFFSET ?)`, maxRows)
-	return err
+	return l.q.DeleteAuditEntriesBeyond(ctx, maxRows)
 }
 
 // Run prunes now and then once a day until ctx ends.
@@ -235,31 +215,25 @@ func csvSafe(s string) string {
 
 // Export writes the entries that match q, oldest first, as "csv" or "json" (one object per line).
 func (l *Log) Export(w io.Writer, format string, q Query) error {
-	q.Limit = 0
-	where, args := q.where()
-	rows, err := l.db.Query(`SELECT id, time, ip, action, target, result, detail FROM audit`+where+` ORDER BY id`, args...)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
 	var cw *csv.Writer
 	var enc *json.Encoder
 	switch format {
 	case "csv":
 		cw = csv.NewWriter(w)
-		_ = cw.Write([]string{"id", "time", "ip", "action", "target", "result", "detail"})
 	case "json":
 		enc = json.NewEncoder(w)
 	default:
 		return apperror.NewErrorf("unknown format %q", format)
 	}
-	for rows.Next() {
-		var e Entry
-		var ms int64
-		if err := rows.Scan(&e.ID, &ms, &e.IP, &e.Action, &e.Target, &e.Result, &e.Detail); err != nil {
-			return err
-		}
-		e.Time = time.UnixMilli(ms).UTC()
+	rows, err := l.q.ExportAuditEntries(context.Background(), q.export())
+	if err != nil {
+		return err
+	}
+	if cw != nil {
+		_ = cw.Write([]string{"id", "time", "ip", "action", "target", "result", "detail"})
+	}
+	for _, r := range rows {
+		e := entry(r)
 		if cw != nil {
 			if err := cw.Write([]string{fmt.Sprint(e.ID), e.Time.Format(time.RFC3339), csvSafe(e.IP), csvSafe(e.Action),
 				csvSafe(e.Target), csvSafe(e.Result), csvSafe(e.Detail)}); err != nil {
@@ -273,7 +247,7 @@ func (l *Log) Export(w io.Writer, format string, q Query) error {
 		cw.Flush()
 		return cw.Error()
 	}
-	return rows.Err()
+	return nil
 }
 
 var credentials = regexp.MustCompile(`(?i)(://)[^/@\s]+@`)

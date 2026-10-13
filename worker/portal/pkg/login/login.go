@@ -4,16 +4,17 @@
 package login
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
-	"path/filepath"
 	"time"
 
 	"github.com/Valentin-Kaiser/backup/pkg/auth"
 	"github.com/Valentin-Kaiser/backup/pkg/secure"
-	_ "modernc.org/sqlite" // sqlite driver without cgo
+	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/database"
+	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/database/schema"
 
 	"github.com/valentin-kaiser/go-core/apperror"
 )
@@ -37,33 +38,19 @@ var (
 // Store checks the password and keeps the sessions in SQLite.
 type Store struct {
 	db       *sql.DB
+	q        *schema.Queries
 	now      func() time.Time
 	password *auth.Password
 	limiter  *auth.Limiter
 }
 
-// Open opens the database in dir, creates its tables and checks passwords against the given one.
+// Open opens the database in dir, migrates its tables and checks passwords against the given one.
 func Open(dir string, password *auth.Password) (*Store, error) {
-	dsn := "file:" + filepath.ToSlash(filepath.Join(dir, "portal.db")) +
-		"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
-	db, err := sql.Open("sqlite", dsn)
+	db, err := database.Open(dir)
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1)
-	s := &Store{db: db, now: time.Now, password: password, limiter: auth.NewLimiter()}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS portal_sessions (
-	hash TEXT PRIMARY KEY,
-	binding TEXT NOT NULL,
-	created INTEGER NOT NULL,
-	expires INTEGER NOT NULL,
-	last_seen INTEGER NOT NULL,
-	ip TEXT NOT NULL DEFAULT ''
-)`); err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	return s, nil
+	return &Store{db: db, q: schema.New(db), now: time.Now, password: password, limiter: auth.NewLimiter()}, nil
 }
 
 // Close closes the database.
@@ -104,8 +91,14 @@ func (s *Store) Login(password, ip string) (string, error) {
 		return "", err
 	}
 	now := s.now()
-	if _, err := s.db.Exec(`INSERT INTO portal_sessions(hash, binding, created, expires, last_seen, ip) VALUES(?,?,?,?,?,?)`,
-		tokenHash, binding, now.Unix(), now.Add(SessionLifetime).Unix(), now.Unix(), ip); err != nil {
+	if err := s.q.CreateSession(context.Background(), schema.CreateSessionParams{
+		Hash:     tokenHash,
+		Binding:  binding,
+		Created:  now.Unix(),
+		Expires:  now.Add(SessionLifetime).Unix(),
+		LastSeen: now.Unix(),
+		Ip:       ip,
+	}); err != nil {
 		return "", err
 	}
 	s.purge()
@@ -119,23 +112,23 @@ func (s *Store) Valid(token string) bool {
 		return false
 	}
 	hash := secure.HashToken(token)
-	var binding string
-	var expires, lastSeen int64
-	if err := s.db.QueryRow(`SELECT binding, expires, last_seen FROM portal_sessions WHERE hash = ?`, hash).Scan(&binding, &expires, &lastSeen); err != nil {
+	ctx := context.Background()
+	session, err := s.q.GetSession(ctx, hash)
+	if err != nil {
 		return false
 	}
-	if want, err := s.bind(hash); err != nil || !hmac.Equal([]byte(binding), []byte(want)) {
+	if want, err := s.bind(hash); err != nil || !hmac.Equal([]byte(session.Binding), []byte(want)) {
 		// The password was replaced since the sign-in.
-		_, _ = s.db.Exec(`DELETE FROM portal_sessions WHERE hash = ?`, hash)
+		_ = s.q.DeleteSession(ctx, hash)
 		return false
 	}
 	now := s.now()
-	if expires <= now.Unix() || lastSeen+int64(SessionIdle.Seconds()) <= now.Unix() {
-		_, _ = s.db.Exec(`DELETE FROM portal_sessions WHERE hash = ?`, hash)
+	if session.Expires <= now.Unix() || session.LastSeen+int64(SessionIdle.Seconds()) <= now.Unix() {
+		_ = s.q.DeleteSession(ctx, hash)
 		return false
 	}
-	if now.Unix()-lastSeen >= int64(touchInterval.Seconds()) {
-		_, _ = s.db.Exec(`UPDATE portal_sessions SET last_seen = ? WHERE hash = ?`, now.Unix(), hash)
+	if now.Unix()-session.LastSeen >= int64(touchInterval.Seconds()) {
+		_ = s.q.TouchSession(ctx, schema.TouchSessionParams{LastSeen: now.Unix(), Hash: hash})
 	}
 	return true
 }
@@ -154,16 +147,19 @@ func (s *Store) bind(sessionHash string) (string, error) {
 
 // Logout ends a session.
 func (s *Store) Logout(token string) {
-	_, _ = s.db.Exec(`DELETE FROM portal_sessions WHERE hash = ?`, secure.HashToken(token))
+	_ = s.q.DeleteSession(context.Background(), secure.HashToken(token))
 }
 
 // EndAll ends every session.
 func (s *Store) EndAll() {
-	_, _ = s.db.Exec(`DELETE FROM portal_sessions`)
+	_ = s.q.DeleteAllSessions(context.Background())
 }
 
 // purge deletes sessions that can no longer be used.
 func (s *Store) purge() {
 	now := s.now().Unix()
-	_, _ = s.db.Exec(`DELETE FROM portal_sessions WHERE expires <= ? OR last_seen <= ?`, now, now-int64(SessionIdle.Seconds()))
+	_ = s.q.PurgeSessions(context.Background(), schema.PurgeSessionsParams{
+		Now:        now,
+		IdleBefore: now - int64(SessionIdle.Seconds()),
+	})
 }

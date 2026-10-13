@@ -1,7 +1,7 @@
 # Top level helpers, each process has its own Makefile: worker/control/cmd (daemon) and worker/portal/cmd (web portal).
 NPM ?= npm
 
-.PHONY: all build frontend frontend-test proto test lint image clean
+.PHONY: all build frontend frontend-test proto sqlc test lint image clean
 
 all: build
 
@@ -20,6 +20,10 @@ frontend-test:
 # Regenerates the Go and TypeScript code of the protobuf services in a container.
 proto:
 	$(MAKE) -C proto generate
+
+# Regenerates the Go code of the portal queries (worker/portal/pkg/database/queries) with sqlc.
+sqlc:
+	$(MAKE) -C worker/portal/pkg/database schema
 
 test: frontend-test
 	go test ./...

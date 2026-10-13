@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	github.com/gorilla/websocket v1.5.3
+	github.com/rubenv/sql-migrate v1.8.1
 	github.com/valentin-kaiser/go-core v1.12.3
 	golang.org/x/term v0.47.0
 	google.golang.org/protobuf v1.36.12
@@ -18,8 +19,8 @@ require (
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
+	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
