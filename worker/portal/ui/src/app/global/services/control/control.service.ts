@@ -97,13 +97,23 @@ export class ControlService {
   /** The configured jobs. */
   readonly definedJobs = computed(() => this.jobs().filter((job) => job.definition));
   readonly defaults = computed(() => this.status()?.defaults);
+  /** False until the first load finished, successful or not, so the overview does not flash before the setup. */
+  readonly loaded = signal(false);
+  /**
+   * The daemon has no password for its repository yet: the secret that jobs use by default does not exist. This is
+   * the state of a fresh installation, every repository query fails until it is stored.
+   */
+  readonly needsSetup = computed(() => {
+    const name = this.defaults()?.passwordSecret;
+    return !!name && this.secretsLoaded() && !this.secrets().some((s) => s.name === name);
+  });
   readonly running = computed(() => this.jobs().filter((job) => job.active));
   readonly repositories = computed<Repository[]>(() => {
     const fallback = this.defaults()?.repository ?? '';
     const found = new Map<string, Repository & { backup: boolean }>();
     for (const job of this.definedJobs()) {
-      // Sync jobs and groups have no repository.
-      if (job.type === 'sync' || job.type === 'group') {
+      // Sync jobs have no repository.
+      if (job.type === 'sync') {
         continue;
       }
       const key = job.definition?.repository || fallback;
@@ -124,6 +134,7 @@ export class ControlService {
   readonly workerName = computed(() => this.status()?.workerName ?? '');
   /** The stored secrets (names only), loaded on demand. */
   readonly secrets = signal<SecretInfo[]>([]);
+  private readonly secretsLoaded = signal(false);
   /** Job and output lines of the run that printed last. */
   readonly liveJob = signal('');
   readonly liveLines = signal<string[]>([]);
@@ -171,6 +182,9 @@ export class ControlService {
   reset(): void {
     this.status.set(null);
     this.runs.set([]);
+    this.secrets.set([]);
+    this.secretsLoaded.set(false);
+    this.loaded.set(false);
     this.error.set('');
     this.liveJob.set('');
     this.liveLines.set([]);
@@ -200,6 +214,9 @@ export class ControlService {
     } catch (error) {
       this.error.set(message(error));
     }
+    // The setup screen depends on the secrets. A daemon without a secret store never asks for it.
+    await this.loadSecrets();
+    this.loaded.set(true);
   }
 
   // ── Queries for the views ──────────────────────────────────────────────
@@ -325,6 +342,7 @@ export class ControlService {
   async loadSecrets(): Promise<void> {
     try {
       this.secrets.set((await this.rpc.call(SERVICE, 'ListSecrets', ListSecretsRequest.create(), ListSecretsResponse)).secrets);
+      this.secretsLoaded.set(true);
     } catch (error) {
       this.error.set(message(error));
     }

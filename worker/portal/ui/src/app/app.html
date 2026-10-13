@@ -2,6 +2,10 @@
   <!-- looking for a session -->
 } @else if (!auth.signedIn()) {
   <app-login />
+} @else if (!control.loaded()) {
+  <main class="login"><p class="muted" role="status">{{ control.error() || 'Loading…' }}</p></main>
+} @else if (setupOpen()) {
+  <app-setup (done)="setupOpen.set(false)" />
 } @else {
   <div class="shell" [class.drawer-open]="drawerOpen()" [class.drawer-wide]="drawerWide()">
     <header class="topbar">

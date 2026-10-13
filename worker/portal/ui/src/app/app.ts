@@ -17,6 +17,7 @@ import { SnapshotsPage } from './pages/snapshots/snapshots.page';
 import { DashboardPage } from './pages/dashboard/dashboard.page';
 import { ToastsComponent } from './components/toasts/toasts.component';
 import { LoginPage } from './pages/login/login.page';
+import { SetupPage } from './pages/setup/setup.page';
 import { AuthService } from './global/services/auth/auth.service';
 import { ControlService } from './global/services/control/control.service';
 
@@ -41,6 +42,7 @@ function readTheme(): 'light' | 'dark' | null {
     HistoryPage,
     SnapshotsPage,
     LoginPage,
+    SetupPage,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,6 +50,8 @@ function readTheme(): 'light' | 'dark' | null {
 export class App {
   protected readonly control = inject(ControlService);
   protected readonly auth = inject(AuthService);
+  /** Latched, the setup stays open after storing the password until the admin finishes it. */
+  protected readonly setupOpen = signal(false);
   private readonly router = inject(Router);
 
   private readonly url = toSignal(
@@ -68,6 +72,11 @@ export class App {
   protected readonly dark = computed(() => (this.theme() ?? (this.systemDark.matches ? 'dark' : 'light')) === 'dark');
 
   constructor() {
+    effect(() => {
+      if (this.control.needsSetup()) {
+        this.setupOpen.set(true);
+      }
+    });
     effect(() => {
       const theme = this.theme();
       if (theme) {
