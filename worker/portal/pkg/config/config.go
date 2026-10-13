@@ -3,6 +3,7 @@ package config
 
 import (
 	"context"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -33,6 +34,7 @@ type Config struct {
 	CertificateFile    string `usage:"path to the TLS certificate file, relative to the data directory, generated (self-signed) when it does not exist"`
 	KeyFile            string `usage:"path to the TLS key file, relative to the data directory"`
 	ClientCAFile       string `usage:"CA file for mutual TLS, browsers must then present a certificate signed by it"`
+	TrustedProxies     string `usage:"comma separated addresses or networks of reverse proxies whose X-Forwarded-For header is trusted for the client address, e.g. 10.0.0.0/8,192.168.1.2"`
 	PasswordFile       string `usage:"file with the password of the portal and the daemon (a Docker secret), read again when it changes"`
 	AuditRetentionDays int    `usage:"days the audit log is kept, 0 keeps it forever"`
 	Daemon             Daemon `usage:"the control daemon the portal manages"`
@@ -60,6 +62,9 @@ func (c *Config) Validate() error {
 	if c.TLS && (strings.TrimSpace(c.CertificateFile) == "" || strings.TrimSpace(c.KeyFile) == "") {
 		return apperror.NewError("certificate-file and key-file must not be empty when tls is set")
 	}
+	if _, err := ParseProxies(c.TrustedProxies); err != nil {
+		return err
+	}
 	u, err := url.Parse(c.Daemon.URL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || (u.Path != "" && u.Path != "/") || u.User != nil {
 		return apperror.NewErrorf("daemon.url %q must be the base address of the daemon, an http or https URL without path or credentials", c.Daemon.URL)
@@ -73,6 +78,28 @@ func (c *Config) Validate() error {
 		return apperror.NewError("daemon.client-certificate-file and daemon.client-key-file must be set together")
 	}
 	return nil
+}
+
+// ParseProxies parses a comma separated list of addresses and networks.
+func ParseProxies(list string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for _, item := range strings.Split(list, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if p, err := netip.ParsePrefix(item); err == nil {
+			out = append(out, p.Masked())
+			continue
+		}
+		a, err := netip.ParseAddr(item)
+		if err != nil {
+			return nil, apperror.NewErrorf("trusted-proxies: %q is neither an address nor a network", item)
+		}
+		a = a.Unmap()
+		out = append(out, netip.PrefixFrom(a, a.BitLen()))
+	}
+	return out, nil
 }
 
 // Addr returns host:port of the web server.

@@ -78,6 +78,8 @@ func listen(s *web.Server, c config.Config) (*web.Server, error) {
 		KeyFile:         c.KeyFile,
 		CommonName:      c.Address,
 		ClientCAFile:    c.ClientCAFile,
+		// A client CA means mutual TLS: a browser without a certificate is turned away.
+		RequireClientCert: c.ClientCAFile != "",
 	}.Config()
 	if err != nil {
 		return nil, err

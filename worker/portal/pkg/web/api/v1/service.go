@@ -8,8 +8,12 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"strings"
+	"sync/atomic"
 
+	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/config"
 	"github.com/valentin-kaiser/go-core/web/xrpc"
 )
 
@@ -47,11 +51,61 @@ func sameOrigin(r *http.Request) bool {
 	return err == nil && u.Host == r.Host
 }
 
-// ClientIP is the address of the peer. Forwarded headers are not trusted, they are spoofable.
+// proxies caches the parsed trusted-proxies setting.
+var proxies atomic.Pointer[parsedProxies]
+
+// proxySetting returns the configured trusted proxies, replaced in tests.
+var proxySetting = func() string { return config.Get().TrustedProxies }
+
+type parsedProxies struct {
+	spec     string
+	prefixes []netip.Prefix
+}
+
+func trustedProxies() []netip.Prefix {
+	spec := proxySetting()
+	if p := proxies.Load(); p != nil && p.spec == spec {
+		return p.prefixes
+	}
+	prefixes, _ := config.ParseProxies(spec)
+	proxies.Store(&parsedProxies{spec: spec, prefixes: prefixes})
+	return prefixes
+}
+
+func trusted(a netip.Addr, prefixes []netip.Prefix) bool {
+	for _, p := range prefixes {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// ClientIP is the address of the caller. The forwarded header of a reverse proxy is only believed when the connection
+// comes from a configured trusted proxy, and then the first address from the right that is not a trusted proxy itself
+// counts: whatever a client put at the front of the header is spoofable.
 func ClientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
+	}
+	peer, err := netip.ParseAddr(host)
+	if err != nil {
+		return host
+	}
+	prefixes := trustedProxies()
+	if !trusted(peer.Unmap(), prefixes) {
+		return host
+	}
+	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	for i := len(hops) - 1; i >= 0; i-- {
+		a, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
+		if err != nil {
+			return host
+		}
+		if a = a.Unmap(); !trusted(a, prefixes) {
+			return a.String()
+		}
 	}
 	return host
 }

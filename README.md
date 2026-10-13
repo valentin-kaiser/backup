@@ -305,7 +305,8 @@ A portal manages **one control daemon**, run one portal per daemon. It authentic
 | `daemon.skip-certificate-verification` | `false`, only for development |
 | `daemon.client-certificate-file`, `daemon.client-key-file` | Client certificate for mutual TLS, the daemon needs `api.client-ca-file` |
 | `address`, `port`, `tls` | `127.0.0.1`, `8443`, `true` (`0.0.0.0` in the image) |
-| `certificate-file`, `key-file`, `client-ca-file` | Self-signed when empty; a client CA turns on mutual TLS for browsers |
+| `certificate-file`, `key-file`, `client-ca-file` | Self-signed when empty; a client CA turns on mutual TLS, browsers without a certificate signed by it are refused |
+| `trusted-proxies` | Comma separated addresses or networks of reverse proxies (`PORTAL_TRUSTEDPROXIES`). Only connections from them may set the client address with `X-Forwarded-For`; without it every client behind a proxy shares the address of the proxy, in the login lockout and the audit log |
 | `password-file` (`PORTAL_PASSWORDFILE`) | The password: you sign in with it and the portal presents it to the daemon. Read again when the file changes, which ends every session |
 | `audit-retention-days` | `365`, how long the [audit log](#audit-log) is kept, `0` keeps it forever |
 | `PORTAL_PATH` | Where `portal.db` lives, `/var/lib/portal` in the image, keep it on a volume |
@@ -315,7 +316,7 @@ A portal manages **one control daemon**, run one portal per daemon. It authentic
 - **One password, no users, no roles.** Whoever knows it can do everything. The password file is the single place to change it (at least 12 characters): replace the file, both processes pick it up and every portal session ends. A lost password is replaced by writing a new file.
 - **The daemon API requires the password** as bearer credential. Without a usable `api.password-file` it refuses every call (`api.disable-auth` turns that off, do not). Five wrong passwords lock an address for five minutes. The CLI presents `CONTROL_PASSWORD` or the file in `CONTROL_PASSWORD_FILE` (set in the compose file).
 - Sessions are an opaque HttpOnly, SameSite=Strict cookie, stored as a hash bound to the password, valid for 12 hours and 2 hours idle. The portal only forwards calls of the control API; anything else is refused and logged.
-- Publish the portal port on `127.0.0.1` only, or put a reverse proxy with a proper certificate in front. Do not publish the daemon API port at all, only the portal needs it.
+- Publish the portal port on `127.0.0.1` only, or put a reverse proxy with a proper certificate in front. Set `trusted-proxies` to its address so lockouts and audit entries use the real client address. Do not publish the daemon API port at all, only the portal needs it.
 - Websockets are only accepted from the origin of the page that opened them, so other web pages in your browser cannot talk to the daemon or the portal.
 - Restores are limited to `/restore`.
 - Saving a job also writes settings that were overridden by flags or environment variables into `control.yaml`. They still win over the file.
