@@ -151,7 +151,7 @@ jobs:
 | Field | Meaning |
 |---|---|
 | `name` | Unique, 1-32 characters of `a-z 0-9 - _`. `restore` is reserved |
-| `type` | `backup`, `forget`, `check` (restic commands) or `sync` (see [Sync](#sync)) |
+| `type` | `backup`, `forget`, `check` (restic commands), `sync` (see [Sync](#sync)) or `group` (see [Groups](#groups)) |
 | `schedule`, `enabled` | Cron expression and whether the job is scheduled. Disabled jobs can still be run by hand |
 | `args` | Additional restic arguments |
 | `source` (backup jobs), `repository` | Portal mode only: directory to back up and restic repository, default to the global settings |
@@ -160,6 +160,27 @@ jobs:
 
 In standalone mode the defaults are `backup` (daily 00:00), `forget` (Sundays 03:00) and `check` (Wednesdays 05:00).
 Only one job touches a repository at a time and a running job is not started again; jobs on different repositories run in parallel. Repositories are created on first use and a new repository gets its first backup right away.
+
+### Groups
+
+A `group` job runs other jobs one after the other on a single schedule, for example the backup, then forget, then check of a repository:
+
+```yaml
+jobs:
+  - {name: backup, type: backup}
+  - {name: forget, type: forget, args: --prune --keep-last 7}
+  - {name: check, type: check}
+  - name: nightly
+    type: group
+    enabled: true
+    schedule: 0 1 * * *
+    members: [backup, forget, check]   # run in this order
+    continueonerror: false             # true: run the rest when one fails
+    timeoutminutes: 480                # for the whole group
+    maxagehours: 26
+```
+
+Each member is a run of its own, with its own history, repository, password and arguments; the run of the group lists their outcomes. By default the group stops at the first member that does not succeed (so no prune after a failed backup) and ends failed; with `continueonerror` the remaining members still run. A member cannot be a group or a mirrored sync job. While a group is enabled its members must not be scheduled themselves: the portal and API switch their schedule off when the group is saved, in `control.yaml` set `enabled: false` on them. Members can still be started by hand, and a member cannot be deleted before it is removed from its groups.
 
 ### Performance tuning
 

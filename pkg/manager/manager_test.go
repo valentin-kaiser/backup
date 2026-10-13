@@ -23,6 +23,11 @@ func TestHelperProcess(t *testing.T) {
 	case "fail":
 		os.Stderr.WriteString("boom\n")
 		os.Exit(1)
+	case "fail-forget":
+		if slices.Contains(os.Args, "forget") {
+			os.Stderr.WriteString("boom\n")
+			os.Exit(1)
+		}
 	case "sleep":
 		if !slices.Contains(os.Args, "backup") {
 			break

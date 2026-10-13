@@ -2,8 +2,53 @@ package config
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 )
+
+func TestValidateGroups(t *testing.T) {
+	portal := func(jobs ...Job) *Config {
+		c := Default()
+		c.Mode, c.PasswordFile, c.PasswordSecret, c.API.Enabled = ModePortal, "", "backup", false
+		c.Jobs = jobs
+		return c
+	}
+	member := func(name, typ string) Job { return Job{Name: name, Type: typ, PasswordSecret: "backup"} }
+	group := func(members ...string) Job {
+		return Job{Name: "nightly", Type: TypeGroup, Enabled: true, Schedule: "0 1 * * *", Members: members}
+	}
+	tests := map[string]struct {
+		jobs []Job
+		ok   bool
+	}{
+		"valid":              {[]Job{member("b", TypeBackup), member("f", TypeForget), group("b", "f")}, true},
+		"no members":         {[]Job{member("b", TypeBackup), group()}, false},
+		"unknown member":     {[]Job{member("b", TypeBackup), group("b", "nope")}, false},
+		"duplicate member":   {[]Job{member("b", TypeBackup), group("b", "b")}, false},
+		"nested":             {[]Job{member("b", TypeBackup), {Name: "inner", Type: TypeGroup, Members: []string{"b"}}, group("inner")}, false},
+		"member scheduled":   {[]Job{{Name: "b", Type: TypeBackup, Enabled: true, Schedule: "0 0 * * *", PasswordSecret: "backup"}, group("b")}, false},
+		"disabled group":     {[]Job{{Name: "b", Type: TypeBackup, Enabled: true, Schedule: "0 0 * * *", PasswordSecret: "backup"}, {Name: "g", Type: TypeGroup, Members: []string{"b"}}}, true},
+		"group arguments":    {[]Job{member("b", TypeBackup), {Name: "g", Type: TypeGroup, Members: []string{"b"}, Args: "--x"}}, false},
+		"group repository":   {[]Job{member("b", TypeBackup), {Name: "g", Type: TypeGroup, Members: []string{"b"}, Repository: "/r"}}, false},
+		"members on backup":  {[]Job{{Name: "b", Type: TypeBackup, PasswordSecret: "backup", Members: []string{"b"}}}, false},
+		"continue on backup": {[]Job{{Name: "b", Type: TypeBackup, PasswordSecret: "backup", ContinueOnError: true}}, false},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			c := portal(tt.jobs...)
+			if err := c.Validate(); (err == nil) != tt.ok {
+				t.Errorf("valid = %v, want %v: %v", err == nil, tt.ok, err)
+			}
+		})
+	}
+	c := portal(member("b", TypeBackup), member("f", TypeForget), group("b", "f"))
+	if got := c.Groups("b"); len(got) != 1 || got[0] != "nightly" {
+		t.Errorf("groups of b = %v", got)
+	}
+	if got := c.Groups("nightly"); len(got) != 0 {
+		t.Errorf("a group is in no group: %v", got)
+	}
+}
 
 func TestDefaultIsValid(t *testing.T) {
 	if err := Default().Validate(); err != nil {
@@ -132,7 +177,7 @@ func TestPortalDefaultHasTheDefaultJobsAndASecret(t *testing.T) {
 		t.Fatalf("portal mode is seeded with the default jobs: %+v", c.Jobs)
 	}
 	for i, j := range c.Jobs {
-		if j != standalone.Jobs[i] {
+		if !reflect.DeepEqual(j, standalone.Jobs[i]) {
 			t.Errorf("job %s differs from the standalone job: %+v", j.Name, j)
 		}
 	}

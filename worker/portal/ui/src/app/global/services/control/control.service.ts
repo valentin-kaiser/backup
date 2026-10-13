@@ -102,8 +102,8 @@ export class ControlService {
     const fallback = this.defaults()?.repository ?? '';
     const found = new Map<string, Repository & { backup: boolean }>();
     for (const job of this.definedJobs()) {
-      // Sync jobs have no repository.
-      if (job.type === 'sync') {
+      // Sync jobs and groups have no repository.
+      if (job.type === 'sync' || job.type === 'group') {
         continue;
       }
       const key = job.definition?.repository || fallback;

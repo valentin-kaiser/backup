@@ -107,52 +107,56 @@ func DefinitionToProto(j config.Job) *pb.JobDefinition {
 		return nil
 	}
 	return &pb.JobDefinition{
-		Name:           j.Name,
-		Type:           j.Type,
-		Enabled:        j.Enabled,
-		Schedule:       j.Schedule,
-		Args:           j.Args,
-		TimeoutMinutes: int32(j.TimeoutMinutes), //nolint:gosec // validated to be small
-		MaxAgeHours:    int32(j.MaxAgeHours),    //nolint:gosec // validated to be small
-		Source:         j.Source,
-		Repository:     j.Repository,
-		PasswordFile:   j.PasswordFile,
-		PasswordSecret: j.PasswordSecret,
-		Path1:          j.Path1,
-		Path2:          j.Path2,
-		Conflict:       j.Conflict,
-		ConflictLoser:  j.ConflictLoser,
-		MaxDeletePct:   int32(j.MaxDeletePct), //nolint:gosec // validated to be 0-100
-		CheckAccess:    j.CheckAccess,
-		Force:          j.Force,
-		Engine:         j.Engine,
-		Owner:          j.Owner,
+		Name:            j.Name,
+		Type:            j.Type,
+		Enabled:         j.Enabled,
+		Schedule:        j.Schedule,
+		Args:            j.Args,
+		TimeoutMinutes:  int32(j.TimeoutMinutes), //nolint:gosec // validated to be small
+		MaxAgeHours:     int32(j.MaxAgeHours),    //nolint:gosec // validated to be small
+		Source:          j.Source,
+		Repository:      j.Repository,
+		PasswordFile:    j.PasswordFile,
+		PasswordSecret:  j.PasswordSecret,
+		Path1:           j.Path1,
+		Path2:           j.Path2,
+		Conflict:        j.Conflict,
+		ConflictLoser:   j.ConflictLoser,
+		MaxDeletePct:    int32(j.MaxDeletePct), //nolint:gosec // validated to be 0-100
+		CheckAccess:     j.CheckAccess,
+		Force:           j.Force,
+		Engine:          j.Engine,
+		Owner:           j.Owner,
+		Members:         j.Members,
+		ContinueOnError: j.ContinueOnError,
 	}
 }
 
 // DefinitionFromProto converts the configuration of a job.
 func DefinitionFromProto(d *pb.JobDefinition) config.Job {
 	return config.Job{
-		Name:           d.GetName(),
-		Type:           d.GetType(),
-		Enabled:        d.GetEnabled(),
-		Schedule:       d.GetSchedule(),
-		Args:           d.GetArgs(),
-		TimeoutMinutes: int(d.GetTimeoutMinutes()),
-		MaxAgeHours:    int(d.GetMaxAgeHours()),
-		Source:         d.GetSource(),
-		Repository:     d.GetRepository(),
-		PasswordFile:   d.GetPasswordFile(),
-		PasswordSecret: d.GetPasswordSecret(),
-		Path1:          d.GetPath1(),
-		Path2:          d.GetPath2(),
-		Conflict:       d.GetConflict(),
-		ConflictLoser:  d.GetConflictLoser(),
-		MaxDeletePct:   int(d.GetMaxDeletePct()),
-		CheckAccess:    d.GetCheckAccess(),
-		Force:          d.GetForce(),
-		Engine:         d.GetEngine(),
-		Owner:          d.GetOwner(),
+		Name:            d.GetName(),
+		Type:            d.GetType(),
+		Enabled:         d.GetEnabled(),
+		Schedule:        d.GetSchedule(),
+		Args:            d.GetArgs(),
+		TimeoutMinutes:  int(d.GetTimeoutMinutes()),
+		MaxAgeHours:     int(d.GetMaxAgeHours()),
+		Source:          d.GetSource(),
+		Repository:      d.GetRepository(),
+		PasswordFile:    d.GetPasswordFile(),
+		PasswordSecret:  d.GetPasswordSecret(),
+		Path1:           d.GetPath1(),
+		Path2:           d.GetPath2(),
+		Conflict:        d.GetConflict(),
+		ConflictLoser:   d.GetConflictLoser(),
+		MaxDeletePct:    int(d.GetMaxDeletePct()),
+		CheckAccess:     d.GetCheckAccess(),
+		Force:           d.GetForce(),
+		Engine:          d.GetEngine(),
+		Owner:           d.GetOwner(),
+		Members:         d.GetMembers(),
+		ContinueOnError: d.GetContinueOnError(),
 	}
 }
 

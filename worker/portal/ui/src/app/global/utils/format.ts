@@ -83,6 +83,7 @@ export const JOB_TYPES = [
   { value: 'forget', label: 'Forget & prune', hint: 'Removes old snapshots by a retention policy and frees the space.' },
   { value: 'check', label: 'Check', hint: 'Verifies the integrity of a repository.' },
   { value: 'sync', label: 'Sync', hint: 'Keeps two directories identical in both directions, on this worker or with a peer.' },
+  { value: 'group', label: 'Group', hint: 'Runs other jobs one after the other on a single schedule, for example backup, forget and check.' },
 ] as const;
 
 export function jobTypeLabel(type: string): string {
