@@ -12,14 +12,14 @@
     (input)="value.set(input.value)"
   />
   <button type="button" class="secondary" [attr.aria-expanded]="open()" (click)="toggle()">
-    <app-icon name="clock" /> {{ open() ? 'Hide builder' : 'Builder' }}
+    <app-icon name="schedule" /> {{ open() ? 'Hide builder' : 'Builder' }}
   </button>
 </div>
 
 @if (problem()) {
   <span class="field-error">{{ problem() }}</span>
 } @else if (description()) {
-  <span class="summary"><app-icon name="clock" /> {{ description() }}</span>
+  <span class="summary"><app-icon name="schedule" /> {{ description() }}</span>
 }
 
 @if (open()) {

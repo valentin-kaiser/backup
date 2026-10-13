@@ -12,7 +12,7 @@
     }
   </div>
   <button type="button" class="secondary" (click)="restore()">
-    <app-icon name="restore" /> {{ directory() === '/' ? 'Restore everything' : 'Restore this folder' }}
+    <app-icon name="settings_backup_restore" /> {{ directory() === '/' ? 'Restore everything' : 'Restore this folder' }}
   </button>
 </header>
 
@@ -31,7 +31,7 @@
 
 @if (error()) {
   <div class="banner error" role="alert">
-    <app-icon name="alert" />
+    <app-icon name="warning" />
     <div>
       <strong>The folder could not be read</strong>
       <div>{{ error() }}</div>
@@ -54,7 +54,7 @@
 
   @if (truncated()) {
     <div class="banner warn">
-      <app-icon name="alert" />
+      <app-icon name="warning" />
       This folder is too large to show completely. Open a subfolder, or restore with a path.
     </div>
   }
@@ -74,7 +74,7 @@
         @if (parent(); as up) {
           <tr class="up">
             <td colspan="5">
-              <button type="button" class="link" (click)="open(up)"><app-icon name="back" /> Parent folder</button>
+              <button type="button" class="link" (click)="open(up)"><app-icon name="arrow_back" /> Parent folder</button>
             </td>
           </tr>
         }
@@ -91,7 +91,7 @@
                   <app-icon name="link" /> <span>{{ file.name }}</span>
                 }
                 @default {
-                  <app-icon name="file" /> <span>{{ file.name }}</span>
+                  <app-icon name="description" /> <span>{{ file.name }}</span>
                 }
               }
               </div>
@@ -100,7 +100,7 @@
             <td [title]="formatTime(file.modifyTime)">{{ formatRelative(file.modifyTime) }}</td>
             <td class="mono muted">{{ file.permissions }}</td>
             <td class="right">
-              <button type="button" class="secondary small" (click)="restore(file)"><app-icon name="restore" /> Restore</button>
+              <button type="button" class="secondary small" (click)="restore(file)"><app-icon name="settings_backup_restore" /> Restore</button>
             </td>
           </tr>
         } @empty {

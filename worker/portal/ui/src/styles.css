@@ -39,6 +39,9 @@
   --warn-soft: #fff0d1;
   --shadow: 0 1px 2px rgb(100 55 0 / 6%), 0 6px 18px rgb(100 55 0 / 8%);
   --shadow-lg: 0 2px 4px rgb(100 55 0 / 8%), 0 14px 32px rgb(100 55 0 / 15%);
+  --output-bg: #fffaf4;
+  --output-fg: #3a2a1b;
+  --output-line: #f0dccb;
   --radius: 14px;
   --sidebar: 244px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -71,6 +74,9 @@
   --warn-soft: #2b2415;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 25%);
   --shadow-lg: 0 2px 4px rgb(0 0 0 / 40%), 0 18px 40px rgb(0 0 0 / 40%);
+  --output-bg: #0d1117;
+  --output-fg: #d6dde6;
+  --output-line: #1f2733;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -97,6 +103,9 @@
     --warn-soft: #2b2415;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 25%);
     --shadow-lg: 0 2px 4px rgb(0 0 0 / 40%), 0 18px 40px rgb(0 0 0 / 40%);
+    --output-bg: #0d1117;
+    --output-fg: #d6dde6;
+    --output-line: #1f2733;
   }
 }
 
@@ -969,8 +978,8 @@ pre.output {
   margin: 0;
   padding: 0.9rem 1.1rem;
   overflow: auto;
-  background: #0d1117;
-  color: #d6dde6;
+  background: var(--output-bg);
+  color: var(--output-fg);
   border-radius: var(--radius);
   font: 0.82rem/1.55 var(--mono);
   white-space: pre-wrap;
@@ -1376,9 +1385,9 @@ details.card[open] summary h2::after {
 
 /* Output terminal */
 pre.output {
-  border: 1px solid #1f2733;
+  border: 1px solid var(--output-line);
   box-shadow: var(--shadow);
-  background: linear-gradient(#0b0f15, #0d1117);
+  background: var(--output-bg);
 }
 
 /* Dialogs and toasts */
@@ -1794,8 +1803,10 @@ h3,
   margin: 0;
 }
 .card.job footer {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
 }
 .card.job footer .push {
   margin-left: auto;
@@ -1810,7 +1821,15 @@ h3,
 }
 .card.job footer button,
 .card.job footer a.button {
-  padding-inline: 0.6rem;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.85rem;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.card.job footer button app-icon,
+.card.job footer a.button app-icon {
+  flex: none;
 }
 
 /* ── Top bar status ───────────────────────────────────────────────────── */
@@ -1883,4 +1902,108 @@ h3,
   gap: 0.4rem;
   font-size: 0.85rem;
   cursor: pointer;
+}
+
+/* ── Row actions and the detail drawer ────────────────────────────────── */
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+.row-actions button,
+.row-actions a.button {
+  min-height: 2.1rem;
+  padding: 0.35rem 0.85rem;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.row-actions app-icon {
+  flex: none;
+}
+dialog.detail-drawer {
+  height: 100dvh;
+  max-height: 100dvh;
+  width: min(30rem, 100vw);
+  margin: 0 0 0 auto;
+  border-radius: 14px 0 0 14px;
+  overflow-y: auto;
+}
+dialog.detail-drawer .detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+dialog.detail-drawer .detail-head h3 {
+  margin: 0;
+}
+dialog.detail-drawer dl.details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.5rem 1.25rem;
+  margin: 0 0 1rem;
+}
+dialog.detail-drawer dl.details dt {
+  color: var(--muted);
+}
+dialog.detail-drawer dl.details dd {
+  margin: 0;
+  min-width: 0;
+  word-break: break-word;
+}
+dialog.detail-drawer h4 {
+  margin: 0 0 0.4rem;
+}
+.detail-error {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--bad) 35%, var(--line));
+  border-radius: 10px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Job card actions: icon buttons that name themselves on hover ─────── */
+.card.job footer [data-label] {
+  overflow: visible;
+}
+.card.job footer [data-label]::after {
+  content: attr(data-label);
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 50%;
+  z-index: 5;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.card.job footer [data-label]:hover::after,
+.card.job footer [data-label]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.card.job footer .push[data-label]::after {
+  left: auto;
+  right: 0;
+  transform: translate(0, 4px);
+}
+.card.job footer .push[data-label]:hover::after,
+.card.job footer .push[data-label]:focus-visible::after {
+  transform: none;
 }

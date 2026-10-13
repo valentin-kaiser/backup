@@ -46,10 +46,10 @@ const SEARCH_DELAY_MS = 300;
     </header>
 
     @if (error()) {
-      <div class="banner error" role="alert"><app-icon name="alert" /> {{ error() }}</div>
+      <div class="banner error" role="alert"><app-icon name="warning" /> {{ error() }}</div>
     }
 
-    <section class="card">
+    <section>
       <div class="toolbar">
         <div class="field inline">
           <label for="a-action">Action</label>
@@ -124,12 +124,49 @@ const SEARCH_DELAY_MS = 300;
         @if (next()) {
           <button type="button" class="secondary" [disabled]="loading()" (click)="more()">Load older entries</button>
         }
-        <button type="button" class="ghost" (click)="download('csv')"><app-icon name="file" /> Export CSV</button>
+        <button type="button" class="ghost" (click)="download('csv')"><app-icon name="description" /> Export CSV</button>
         <button type="button" class="ghost" (click)="download('json')">Export JSON</button>
       </div>
     </section>
   `,
   styles: `
+    .table-wrap {
+      border: 0;
+      border-radius: 0;
+      background: none;
+      box-shadow: none;
+    }
+    .toolbar {
+      align-items: flex-end;
+      gap: 0.75rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .toolbar .field.inline {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.3rem;
+    }
+    .toolbar .field.inline label {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .toolbar .field.inline select,
+    .toolbar .field.inline input {
+      width: auto;
+      min-width: 9rem;
+      height: 2.4rem;
+    }
+    .toolbar .field.grow {
+      flex: 1 1 16rem;
+    }
+    .toolbar .field.grow input {
+      width: 100%;
+      min-width: 0;
+    }
+    .form-actions {
+      margin-top: 1rem;
+    }
     .detail {
       font-size: 0.85em;
       word-break: break-word;

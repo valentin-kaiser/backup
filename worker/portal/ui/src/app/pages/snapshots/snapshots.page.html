@@ -14,13 +14,14 @@
   <div class="skeleton cards-skeleton"></div>
 } @else if (!selected()) {
   <div class="empty-state">
-    <app-icon name="snapshots" />
+    <app-icon name="inventory_2" />
     <h3>No repositories yet</h3>
     <p>Snapshots appear here once you have a job that backs up to a repository.</p>
-    <a class="button primary" routerLink="/jobs/new"><app-icon name="plus" /> Create a job</a>
+    <a class="button primary" routerLink="/jobs/new"><app-icon name="add" /> Create a job</a>
   </div>
 } @else {
-  @if (control.repositories().length > 1) {
+
+<!--  @if (control.repositories().length > 1) {
     <div class="repositories" role="tablist" aria-label="Repositories">
       @for (repository of control.repositories(); track repository.key) {
         <button
@@ -48,14 +49,14 @@
 
   @if (error()) {
     <div class="banner error" role="alert">
-      <app-icon name="alert" />
+      <app-icon name="warning" />
       <div>
         <strong>The repository could not be read</strong>
         <div>{{ error() }}</div>
       </div>
       <button type="button" class="secondary small push" (click)="reload()">Try again</button>
     </div>
-  }
+  } -->
 
   @if (stats(); as stats) {
     <section class="tiles" aria-label="Repository">
@@ -76,6 +77,8 @@
         <span class="value small">{{ stats.compressionRatio ? stats.compressionRatio.toFixed(2) + '×' : '–' }}</span>
       </div>
     </section>
+  } @else if (!error()) {
+    <div class="skeleton tiles-skeleton"></div>
   }
 
   @if (snapshots()) {
@@ -121,12 +124,14 @@
                 }
               </td>
               <td class="right">
+                <div class="row-actions">
                 <a class="button ghost small" [routerLink]="['/snapshots', snapshot.id]" [queryParams]="{ job: selected()?.job }">
                   <app-icon name="folder" /> Browse
                 </a>
                 <button type="button" class="secondary small" (click)="restore(snapshot)">
-                  <app-icon name="restore" /> Restore
+                  <app-icon name="settings_backup_restore" /> Restore
                 </button>
+                </div>
               </td>
             </tr>
           } @empty {

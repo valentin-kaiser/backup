@@ -14,7 +14,7 @@
   </header>
 
   @if (run.error) {
-    <div class="banner error" role="alert"><app-icon name="alert" /> {{ run.error }}</div>
+    <div class="banner error" role="alert"><app-icon name="warning" /> {{ run.error }}</div>
   }
 
   <section class="tiles" aria-label="Details">
@@ -51,7 +51,7 @@
   </section>
 } @else if (error()) {
   <div class="empty-state">
-    <app-icon name="alert" />
+    <app-icon name="warning" />
     <h3>This run is not available</h3>
     <p>{{ error() }}</p>
     <a class="button secondary" routerLink="/">Back to the overview</a>

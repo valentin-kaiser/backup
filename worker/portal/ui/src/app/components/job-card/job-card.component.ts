@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { RouterLink } from '@angular/router';
 
 import { Job } from '../../global/model/backup/api/v1/control';
+import { ConfirmService } from '../../global/services/confirm/confirm.service';
 import { ControlService } from '../../global/services/control/control.service';
 import { describeCron } from '../../global/utils/cron';
 import { formatRelative, formatTime, jobTypeLabel } from '../../global/utils/format';
@@ -17,6 +18,7 @@ import { StatusChipComponent } from '../status-chip/status-chip.component';
 })
 export class JobCardComponent {
   protected readonly control = inject(ControlService);
+  private readonly confirm = inject(ConfirmService);
   protected readonly formatTime = formatTime;
   protected readonly formatRelative = formatRelative;
   protected readonly jobTypeLabel = jobTypeLabel;
@@ -32,6 +34,34 @@ export class JobCardComponent {
     const last = this.job().last;
     return last ? (last.finishTime ?? last.queueTime) : undefined;
   });
+
+  protected async resync(): Promise<void> {
+    const job = this.job();
+    const confirmed = await this.confirm.ask({
+      title: `Resync ${job.name}?`,
+      message:
+        'The state of both sides is rebuilt from scratch. Files that differ are copied, nothing is deleted, and a file changed on both sides keeps the version selected for conflicts.',
+      action: 'Resync',
+      danger: false,
+    });
+    if (confirmed) {
+      await this.control.resyncJob(job.name);
+    }
+  }
+
+  protected async unlock(): Promise<void> {
+    const job = this.job();
+    const confirmed = await this.confirm.ask({
+      title: `Unlock the repository of ${job.name}?`,
+      message:
+        'All locks of the repository are removed, also those of processes that are still running. Only do this when a lock is left over from a stopped container or process, otherwise a running backup can fail.',
+      action: 'Unlock',
+      danger: true,
+    });
+    if (confirmed) {
+      await this.control.unlockJob(job.name);
+    }
+  }
 
   protected togglePause(): void {
     const job = this.job();

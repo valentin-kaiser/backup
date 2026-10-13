@@ -40,15 +40,15 @@ interface Generated {
     </header>
 
     @if (control.error()) {
-      <div class="banner error" role="alert"><app-icon name="alert" /> {{ control.error() }}</div>
+      <div class="banner error" role="alert"><app-icon name="warning" /> {{ control.error() }}</div>
     }
     @if (error()) {
-      <div class="banner error" role="alert"><app-icon name="alert" /> {{ error() }}</div>
+      <div class="banner error" role="alert"><app-icon name="warning" /> {{ error() }}</div>
     }
 
     @if (generated(); as g) {
       <div class="banner warn" role="status">
-        <app-icon name="alert" />
+        <app-icon name="warning" />
         <div>
           The {{ g.what }} of <strong>{{ g.name }}</strong> was generated. This is the only time it is shown, store it in your password
           manager now. Without it the repository cannot be restored.
@@ -60,7 +60,7 @@ interface Generated {
     }
     @if (warnings().length) {
       <div class="banner warn" role="status">
-        <app-icon name="alert" />
+        <app-icon name="warning" />
         <ul>
           @for (w of warnings(); track w) {
             <li>{{ w }}</li>
@@ -69,7 +69,7 @@ interface Generated {
       </div>
     }
 
-    <section class="card">
+    <section>
       <div class="table-wrap">
         <table>
           <thead>
@@ -90,7 +90,7 @@ interface Generated {
                   <button type="button" class="ghost small" (click)="start(s, 'set')">Set value</button>
                   <button type="button" class="ghost small" [disabled]="!inUse(s)" (click)="start(s, 'change')">Change password</button>
                   <button type="button" class="icon danger-text" [attr.aria-label]="'Delete ' + s.name" [disabled]="inUse(s)" (click)="remove(s)">
-                    <app-icon name="trash" />
+                    <app-icon name="delete" />
                   </button>
                 </td>
               </tr>
@@ -174,13 +174,19 @@ interface Generated {
         }
         <div class="form-actions">
           <button type="submit" class="primary" [disabled]="busy() || !validName() || (!newGenerate() && !newValue())">
-            <app-icon name="plus" /> Add secret
+            <app-icon name="add" /> Add secret
           </button>
         </div>
       </section>
     </form>
   `,
   styles: `
+    .table-wrap {
+      border: 0;
+      border-radius: 0;
+      background: none;
+      box-shadow: none;
+    }
     .secret-value {
       display: block;
       padding: 0.5rem 0.75rem;

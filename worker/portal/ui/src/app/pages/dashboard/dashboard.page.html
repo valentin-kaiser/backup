@@ -1,11 +1,11 @@
 @if (control.error()) {
-  <div class="banner error" role="alert"><app-icon name="alert" /> {{ control.error() }}</div>
+  <div class="banner error" role="alert"><app-icon name="warning" /> {{ control.error() }}</div>
 }
 
 @if (control.status(); as status) {
   @if (!status.healthy) {
     <div class="banner warn" role="alert">
-      <app-icon name="alert" />
+      <app-icon name="warning" />
       <div>
         <strong>The daemon reports problems</strong>
         <ul>
@@ -16,25 +16,6 @@
       </div>
     </div>
   }
-
-  <section class="tiles" aria-label="Summary">
-    <div class="tile">
-      <span class="label">Scheduled jobs</span>
-      <span class="value">{{ enabled() }}<small> / {{ control.definedJobs().length }}</small></span>
-    </div>
-    <div class="tile">
-      <span class="label">Running now</span>
-      <span class="value" [class.accent]="control.running().length">{{ control.running().length }}</span>
-    </div>
-    <div class="tile">
-      <span class="label">Last successful backup</span>
-      <span class="value small" [title]="formatTime(lastBackup())">{{ formatRelative(lastBackup()) }}</span>
-    </div>
-    <div class="tile">
-      <span class="label">Failed recent runs</span>
-      <span class="value" [class.bad]="failures()">{{ failures() }}</span>
-    </div>
-  </section>
 
   <section>
     <div class="section-header">
@@ -48,17 +29,17 @@
       </div>
     } @else {
       <div class="empty-state">
-        <app-icon name="jobs" />
+        <app-icon name="checklist" />
         <h3>No jobs yet</h3>
         <p>Create a backup job to start protecting a directory.</p>
-        <a class="button primary" routerLink="/jobs/new"><app-icon name="plus" /> Create a job</a>
+        <a class="button primary" routerLink="/jobs/new"><app-icon name="add" /> Create a job</a>
       </div>
     }
   </section>
 
   <section>
     <div class="section-header">
-      <h2>Live output @if (control.liveJob()) {<span class="muted">{{ control.liveJob() }}</span>}</h2>
+      <h2>Live output</h2>
       <label class="muted append-toggle" title="Keep earlier output and append new runs below it">
         <input type="checkbox" [checked]="control.appendOutput()" (change)="control.setAppendOutput($any($event.target).checked)" /> Append
       </label>
@@ -67,6 +48,5 @@
   </section>
 
 } @else {
-  <div class="skeleton tiles-skeleton"></div>
   <div class="skeleton cards-skeleton"></div>
 }

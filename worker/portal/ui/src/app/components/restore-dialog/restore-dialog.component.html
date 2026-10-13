@@ -25,13 +25,13 @@
       </div>
 
       @if (error()) {
-        <div class="banner error" role="alert"><app-icon name="alert" /> {{ error() }}</div>
+        <div class="banner error" role="alert"><app-icon name="warning" /> {{ error() }}</div>
       }
 
       <div class="actions">
         <button type="button" class="secondary" (click)="close()">Cancel</button>
         <button type="submit" class="primary" [disabled]="busy() || !target().trim()">
-          <app-icon name="restore" /> {{ busy() ? 'Starting…' : 'Restore' }}
+          <app-icon name="settings_backup_restore" /> {{ busy() ? 'Starting…' : 'Restore' }}
         </button>
       </div>
     </form>

@@ -25,6 +25,7 @@
             "tsConfig": "tsconfig.app.json",
             "assets": [],
             "styles": [
+              "node_modules/material-icons/iconfont/outlined.css",
               "src/styles.css"
             ]
           },
@@ -33,7 +34,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "400kB",
+                  "maximumWarning": "450kB",
                   "maximumError": "700kB"
                 },
                 {

@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 
 import { IconComponent } from '../../components/icon/icon.component';
 import { RunTableComponent } from '../../components/run-table/run-table.component';
-import { Run } from '../../global/model/backup/api/v1/control';
+import { Run, RunStatus } from '../../global/model/backup/api/v1/control';
 import { ControlService, message } from '../../global/services/control/control.service';
-import { statusName } from '../../global/utils/format';
+import { formatRelative, formatTime, statusName } from '../../global/utils/format';
 
 const PAGE = 50;
 const MAX = 500;
@@ -19,6 +19,22 @@ const STATUSES = ['success', 'failed', 'running', 'queued', 'cancelled', 'skippe
 })
 export class HistoryPage {
   protected readonly control = inject(ControlService);
+  protected readonly formatRelative = formatRelative;
+  protected readonly formatTime = formatTime;
+
+  protected readonly enabled = computed(() => this.control.definedJobs().filter((job) => job.enabled && !job.paused).length);
+  protected readonly failures = computed(
+    () => this.control.runs().filter((run) => run.status === RunStatus.RUN_STATUS_FAILED).length,
+  );
+
+  /** The newest successful backup of any backup job. */
+  protected readonly lastBackup = computed(() => {
+    const times = this.control
+      .definedJobs()
+      .filter((job) => job.type === 'backup' && job.lastSuccessTime)
+      .map((job) => job.lastSuccessTime as Date);
+    return times.length ? new Date(Math.max(...times.map((t) => t.getTime()))) : undefined;
+  });
 
   /** Job filter from the query string. */
   readonly job = input<string | undefined>(undefined);

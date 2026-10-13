@@ -24,6 +24,22 @@ interface Draft {
   repository: string;
   passwordFile: string;
   passwordSecret: string;
+  /** Sync jobs: the first directory, local. */
+  path1: string;
+  /** Sync jobs: the second directory when it is local. */
+  path2: string;
+  /** Sync jobs: the peer that holds the second directory, empty when it is local. */
+  peer: string;
+  /** Sync jobs: the directory below the export of the peer. */
+  peerDir: string;
+  conflict: string;
+  conflictLoser: string;
+  maxDeletePct: number;
+  checkAccess: boolean;
+  force: boolean;
+  engine: string;
+  /** Sync jobs: the peer that owns this job, then it is only mirrored here. */
+  owner: string;
 }
 
 /** Arguments that make sense for a type, offered instead of an empty field. */
@@ -31,9 +47,19 @@ const SUGGESTED_ARGS: Record<string, string> = {
   backup: '--exclude-caches --exclude-if-present=.nobackup',
   forget: '--prune --keep-last 7 --keep-daily 14 --keep-weekly 4 --keep-monthly 6 --keep-yearly 1',
   check: '--read-data-subset=5%',
+  sync: '',
 };
 
 const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+
+/** Splits peer:<name>/<dir> into the peer and the directory, both empty for a local path. */
+function splitPeer(path: string): [string, string] {
+  if (!path.startsWith('peer:')) {
+    return ['', ''];
+  }
+  const [peer, ...dir] = path.slice(5).split('/');
+  return [peer, dir.join('/')];
+}
 
 function blank(type = 'backup'): Draft {
   return {
@@ -48,10 +74,22 @@ function blank(type = 'backup'): Draft {
     repository: '',
     passwordFile: '',
     passwordSecret: '',
+    path1: '',
+    path2: '',
+    peer: '',
+    peerDir: '',
+    conflict: 'newer',
+    conflictLoser: 'num',
+    maxDeletePct: 50,
+    checkAccess: false,
+    force: false,
+    engine: 'unison',
+    owner: '',
   };
 }
 
 function fromDefinition(d: JobDefinition): Draft {
+  const [peer, peerDir] = splitPeer(d.path2);
   return {
     name: d.name,
     type: d.type,
@@ -64,6 +102,17 @@ function fromDefinition(d: JobDefinition): Draft {
     repository: d.repository,
     passwordFile: d.passwordFile,
     passwordSecret: d.passwordSecret,
+    path1: d.path1,
+    path2: peer ? '' : d.path2,
+    peer,
+    peerDir,
+    conflict: d.conflict || 'newer',
+    conflictLoser: d.conflictLoser || 'num',
+    maxDeletePct: d.maxDeletePct || 50,
+    checkAccess: d.checkAccess,
+    force: d.force,
+    engine: d.engine || 'rclone',
+    owner: d.owner,
   };
 }
 
@@ -101,7 +150,24 @@ export class JobEditPage {
 
   protected readonly errors = computed(() => {
     const d = this.draft();
-    const errors: Partial<Record<'name' | 'schedule' | 'timeout' | 'maxAge', string>> = {};
+    const errors: Partial<Record<'name' | 'schedule' | 'timeout' | 'maxAge' | 'path1' | 'path2' | 'maxDelete', string>> = {};
+    if (d.type === 'sync' && !d.owner) {
+      if (!d.path1.trim().startsWith('/')) {
+        errors.path1 = 'Enter an absolute path of this worker';
+      }
+      if (d.peer) {
+        if (!this.control.peers().some((p) => p.name === d.peer)) {
+          errors.path2 = 'Pick one of the peers';
+        }
+      } else if (!d.path2.trim().startsWith('/')) {
+        errors.path2 = 'Enter an absolute path of this worker';
+      } else if (d.path2.trim() === d.path1.trim()) {
+        errors.path2 = 'Both paths are the same';
+      }
+      if (d.engine !== 'unison' && (!Number.isInteger(d.maxDeletePct) || d.maxDeletePct < 1 || d.maxDeletePct > 100)) {
+        errors.maxDelete = 'Enter a percentage from 1 to 100';
+      }
+    }
     if (this.isNew()) {
       if (!NAME.test(d.name)) {
         errors.name = 'Use 1-32 lower case letters, digits, - or _, starting with a letter or digit';
@@ -133,8 +199,15 @@ export class JobEditPage {
     return !!(d.repository || d.passwordFile || d.passwordSecret || d.timeoutMinutes);
   });
 
+  /** A mirrored job is changed at its owner: only its settings, not its paths. */
+  protected readonly mirrored = computed(() => !!this.draft().owner);
+  protected readonly isSync = computed(() => this.draft().type === 'sync');
+  protected readonly isUnison = computed(() => this.draft().type === 'sync' && this.draft().engine === 'unison');
+  protected readonly peerKnown = computed(() => this.control.peers().some((p) => p.name === this.draft().peer));
+
   constructor() {
     void this.control.loadSecrets();
+    void this.control.loadPeers();
     // Fill the form once per job, later refreshes of the status must not overwrite what is being typed.
     effect(() => {
       const name = this.name() ?? '';
@@ -158,7 +231,17 @@ export class JobEditPage {
     this.draft.update((draft) => ({ ...draft, [key]: value }));
   }
 
-  protected setNumber(key: 'timeoutMinutes' | 'maxAgeHours', value: string): void {
+  /** Unison has fewer conflict policies than rclone, a policy it cannot do is replaced. */
+  protected setEngine(engine: string): void {
+    this.draft.update((draft) => ({
+      ...draft,
+      engine,
+      conflict: engine === 'unison' && (draft.conflict === 'larger' || draft.conflict === 'smaller') ? 'newer' : draft.conflict,
+      force: engine === 'unison' ? false : draft.force,
+    }));
+  }
+
+  protected setNumber(key: 'timeoutMinutes' | 'maxAgeHours' | 'maxDeletePct', value: string): void {
     this.set(key, value.trim() === '' ? 0 : Number(value));
   }
 
@@ -196,6 +279,7 @@ export class JobEditPage {
       // A secret replaces the password file.
       passwordFile: d.passwordSecret ? '' : d.passwordFile.trim(),
       passwordSecret: d.passwordSecret,
+      ...(d.type === 'sync' ? this.syncFields(d) : {}),
     });
     try {
       await (this.isNew() ? this.control.createJob(definition) : this.control.updateJob(definition));
@@ -205,6 +289,26 @@ export class JobEditPage {
     } finally {
       this.saving.set(false);
     }
+  }
+
+  /** The fields of a sync job. Sync jobs have no repository and no password. */
+  private syncFields(d: Draft): Partial<JobDefinition> {
+    const dir = d.peerDir.trim().replace(/^\/+|\/+$/g, '');
+    return {
+      source: '',
+      repository: '',
+      passwordFile: '',
+      passwordSecret: '',
+      path1: d.path1.trim(),
+      path2: d.peer ? `peer:${d.peer}${dir ? '/' + dir : ''}` : d.path2.trim(),
+      conflict: d.conflict,
+      conflictLoser: d.conflictLoser,
+      maxDeletePct: d.engine === 'unison' ? 0 : d.maxDeletePct,
+      checkAccess: d.checkAccess,
+      force: d.engine === 'unison' ? false : d.force,
+      engine: d.engine,
+      owner: d.owner,
+    };
   }
 
   protected async remove(): Promise<void> {

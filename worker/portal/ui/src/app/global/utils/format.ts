@@ -82,6 +82,7 @@ export const JOB_TYPES = [
   { value: 'backup', label: 'Backup', hint: 'Copies a directory into a restic repository.' },
   { value: 'forget', label: 'Forget & prune', hint: 'Removes old snapshots by a retention policy and frees the space.' },
   { value: 'check', label: 'Check', hint: 'Verifies the integrity of a repository.' },
+  { value: 'sync', label: 'Sync', hint: 'Keeps two directories identical in both directions, on this worker or with a peer.' },
 ] as const;
 
 export function jobTypeLabel(type: string): string {

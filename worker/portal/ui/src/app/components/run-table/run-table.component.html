@@ -9,7 +9,7 @@
         <th>Trigger</th>
         <th>Status</th>
         <th>Duration</th>
-        <th><span class="sr-only">Output</span></th>
+        <th><span class="sr-only">Actions</span></th>
       </tr>
     </thead>
     <tbody>
@@ -26,12 +26,16 @@
           </td>
           <td>
             <app-status-chip [status]="run.status" />
-            @if (run.error) {
-              <span class="error-text" [title]="run.error">{{ run.error }}</span>
-            }
           </td>
           <td>{{ formatDuration(run) }}</td>
-          <td class="right"><a [routerLink]="['/runs', run.id]" class="button ghost small">Output</a></td>
+          <td class="right">
+            <div class="row-actions">
+              <button type="button" class="ghost small" (click)="selected.set(run)">
+                <app-icon name="info" /> Details
+              </button>
+              <a [routerLink]="['/runs', run.id]" class="button ghost small"><app-icon name="description" /> Output</a>
+            </div>
+          </td>
         </tr>
       } @empty {
         <tr>
@@ -41,3 +45,37 @@
     </tbody>
   </table>
 </div>
+
+<dialog #drawer class="detail-drawer" (close)="selected.set(null)">
+  @if (current(); as run) {
+    <header class="detail-head">
+      <h3>Run details</h3>
+      <button type="button" class="icon" aria-label="Close" (click)="selected.set(null)"><app-icon name="close" /></button>
+    </header>
+    <dl class="details">
+      <dt>Job</dt>
+      <dd><a [routerLink]="['/jobs', run.job]" (click)="selected.set(null)">{{ run.job }}</a></dd>
+      <dt>Status</dt>
+      <dd><app-status-chip [status]="run.status" /></dd>
+      <dt>Trigger</dt>
+      <dd>{{ run.trigger }}</dd>
+      <dt>Queued</dt>
+      <dd>{{ formatTime(run.queueTime) }}</dd>
+      <dt>Started</dt>
+      <dd>{{ formatTime(run.startTime) }}</dd>
+      <dt>Finished</dt>
+      <dd>{{ formatTime(run.finishTime) }}</dd>
+      <dt>Duration</dt>
+      <dd>{{ formatDuration(run) }}</dd>
+      <dt>Exit code</dt>
+      <dd>{{ run.exitCode }}</dd>
+    </dl>
+    @if (run.error) {
+      <h4>Error</h4>
+      <pre class="detail-error">{{ run.error }}</pre>
+    }
+    <div class="actions">
+      <a [routerLink]="['/runs', run.id]" class="button primary" (click)="selected.set(null)"><app-icon name="description" /> Open output</a>
+    </div>
+  }
+</dialog>

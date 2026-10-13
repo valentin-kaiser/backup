@@ -26,6 +26,8 @@ describe('JobEditPage', () => {
     updateJob: any;
     deleteJob: any;
     loadSecrets: any;
+    loadPeers: any;
+    peers: any;
     secrets: any;
     status: any;
     definedJobs: any;
@@ -48,6 +50,8 @@ describe('JobEditPage', () => {
       updateJob: vi.fn(async () => undefined),
       deleteJob: vi.fn(async () => undefined),
       loadSecrets: vi.fn(async () => undefined),
+      loadPeers: vi.fn(async () => undefined),
+      peers: signal([]),
       secrets: signal([]),
       status: signal({}),
       definedJobs: signal([existing]),
@@ -89,6 +93,89 @@ describe('JobEditPage', () => {
     expect(page.errors().timeout).toBeTruthy();
     page.setNumber('timeoutMinutes', '30');
     expect(page.valid()).toBe(true);
+  });
+
+  it('validates the paths of a sync job and saves its settings', async () => {
+    control.peers.set([{ name: 'east' }]);
+    const { page } = create();
+    page.setType('sync');
+    page.setEngine('rclone');
+    page.set('name', 'mirror');
+    expect(page.errors().path1).toBeTruthy();
+    expect(page.errors().path2).toBeTruthy();
+
+    page.set('path1', '/sync/a');
+    page.set('path2', '/sync/a');
+    expect(page.errors().path2).toContain('same');
+    page.set('path2', '/sync/b');
+    page.set('conflict', 'path1');
+    page.set('conflictLoser', 'delete');
+    page.set('checkAccess', true);
+    page.set('force', true);
+    page.setNumber('maxDeletePct', '0');
+    expect(page.errors().maxDelete).toBeTruthy();
+    page.setNumber('maxDeletePct', '20');
+    expect(page.valid()).toBe(true);
+
+    await page.save();
+    const saved = control.createJob.mock.calls[0][0];
+    expect(saved).toMatchObject({
+      name: 'mirror',
+      type: 'sync',
+      path1: '/sync/a',
+      path2: '/sync/b',
+      conflict: 'path1',
+      conflictLoser: 'delete',
+      maxDeletePct: 20,
+      checkAccess: true,
+      force: true,
+      repository: '',
+      passwordSecret: '',
+    });
+  });
+
+  it('syncs with unison by default and drops the settings only rclone has', async () => {
+    const { page } = create();
+    page.setType('sync');
+    expect(page.draft().engine).toBe('unison');
+    page.set('name', 'mirror');
+    page.set('path1', '/sync/a');
+    page.set('path2', '/sync/b');
+    page.set('conflict', 'larger');
+    page.set('force', true);
+    page.setNumber('maxDeletePct', '0');
+    expect(page.errors().maxDelete).toBeUndefined();
+    page.setEngine('rclone');
+    page.setEngine('unison');
+    expect(page.draft().conflict).toBe('newer'); // unison cannot do larger
+    await page.save();
+    expect(control.createJob).toHaveBeenCalled();
+    const saved = control.createJob.mock.calls[0][0];
+    expect(saved).toMatchObject({ engine: 'unison', force: false, maxDeletePct: 0 });
+  });
+
+  it('replaces a conflict policy unison cannot do when the engine changes', () => {
+    const { page } = create();
+    page.setType('sync');
+    page.setEngine('rclone');
+    page.set('conflict', 'smaller');
+    page.setEngine('unison');
+    expect(page.draft().conflict).toBe('newer');
+  });
+
+  it('syncs with a peer and keeps the directory below its export', async () => {
+    control.peers.set([{ name: 'east' }]);
+    const { page } = create();
+    page.setType('sync');
+    page.set('name', 'shared');
+    page.set('path1', '/sync');
+    page.set('peer', 'west');
+    expect(page.errors().path2).toBeTruthy();
+    page.set('peer', 'east');
+    page.set('peerDir', '/projects/');
+    expect(page.valid()).toBe(true);
+    await page.save();
+    expect(control.createJob.mock.calls[0][0].path2).toBe('peer:east/projects');
   });
 
   it('does not require a schedule for jobs that only run by hand', () => {
@@ -167,6 +254,8 @@ describe('JobEditPage stored password', () => {
       createJob: vi.fn(async () => undefined),
       updateJob: vi.fn(async () => undefined),
       loadSecrets: vi.fn(async () => undefined),
+      loadPeers: vi.fn(async () => undefined),
+      peers: signal([]),
       secrets: signal([{ name: 'photos' }, { name: 'docs' }]),
       status: signal({}),
       definedJobs: signal([]),

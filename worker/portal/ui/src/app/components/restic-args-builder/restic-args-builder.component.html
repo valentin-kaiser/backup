@@ -82,7 +82,7 @@
                   [placeholder]="spec.placeholder ?? ''"
                   (keydown.enter)="$event.preventDefault(); add(spec, listInput)"
                 />
-                <button type="button" class="secondary" (click)="add(spec, listInput)"><app-icon name="plus" /> Add</button>
+                <button type="button" class="secondary" (click)="add(spec, listInput)"><app-icon name="add" /> Add</button>
               </div>
               @if (list(spec).length) {
                 <div class="items">

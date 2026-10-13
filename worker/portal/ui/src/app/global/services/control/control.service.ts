@@ -7,15 +7,22 @@ import {
   EventType,
   Job,
   JobDefinition,
+  Peer,
+  PeerStatus,
   RepositoryStats,
   Run,
   SecretInfo,
   RunStatus,
   Snapshot,
+  SyncServe,
 } from '../../model/backup/api/v1/control';
 import {
   GetRunRequest,
   GetStatsRequest,
+  GetSyncServeRequest,
+  ListPeersRequest,
+  ListPeersResponse,
+  PeerRequest,
   ListFilesRequest,
   ListFilesResponse,
   JobRequest,
@@ -95,6 +102,10 @@ export class ControlService {
     const fallback = this.defaults()?.repository ?? '';
     const found = new Map<string, Repository & { backup: boolean }>();
     for (const job of this.definedJobs()) {
+      // Sync jobs have no repository.
+      if (job.type === 'sync') {
+        continue;
+      }
       const key = job.definition?.repository || fallback;
       const entry = found.get(key) ?? { key, job: job.name, jobs: [], backup: false };
       entry.jobs.push(job.name);
@@ -107,6 +118,10 @@ export class ControlService {
     }
     return [...found.values()].map(({ key, job, jobs }) => ({ key, job, jobs }));
   });
+  /** The peers sync jobs can use, loaded on demand. */
+  readonly peers = signal<Peer[]>([]);
+  /** Name of this worker, the name its peers know it by. */
+  readonly workerName = computed(() => this.status()?.workerName ?? '');
   /** The stored secrets (names only), loaded on demand. */
   readonly secrets = signal<SecretInfo[]>([]);
   /** Job and output lines of the run that printed last. */
@@ -223,6 +238,10 @@ export class ControlService {
     return this.act(`Cancelling ${job}`, () => this.rpc.call(SERVICE, 'CancelJob', JobRequest.create({ job }), Empty));
   }
 
+  unlockJob(job: string): Promise<boolean> {
+    return this.act(`Unlocked the repository of ${job}`, () => this.rpc.call(SERVICE, 'UnlockJob', JobRequest.create({ job }), Empty));
+  }
+
   pauseJob(job: string): Promise<boolean> {
     return this.act(`Paused ${job}`, () => this.rpc.call(SERVICE, 'PauseJob', JobRequest.create({ job }), Empty));
   }
@@ -260,6 +279,45 @@ export class ControlService {
     await this.rpc.call(SERVICE, 'DeleteJob', JobRequest.create({ job }), Empty);
     this.toast.success(`Deleted ${job}`);
     await this.refresh(true);
+  }
+
+  // ── Sync ─────────────────────────────────────────────────────────────────
+
+  resyncJob(job: string): Promise<boolean> {
+    return this.act(`Resyncing ${job}`, () => this.rpc.call(SERVICE, 'ResyncJob', JobRequest.create({ job }), Run));
+  }
+
+  async loadPeers(): Promise<void> {
+    try {
+      this.peers.set((await this.rpc.call(SERVICE, 'ListPeers', ListPeersRequest.create(), ListPeersResponse)).peers);
+    } catch (error) {
+      this.error.set(message(error));
+    }
+  }
+
+  async setPeer(peer: Peer): Promise<void> {
+    await this.rpc.call(SERVICE, 'SetPeer', Peer.create(peer), Peer);
+    this.toast.success(`Saved ${peer.name}`);
+    await this.loadPeers();
+  }
+
+  async deletePeer(name: string): Promise<void> {
+    await this.rpc.call(SERVICE, 'DeletePeer', PeerRequest.create({ name }), Empty);
+    this.toast.success(`Removed ${name}`);
+    await this.loadPeers();
+  }
+
+  testPeer(name: string): Promise<PeerStatus> {
+    return this.rpc.call(SERVICE, 'TestPeer', PeerRequest.create({ name }), PeerStatus);
+  }
+
+  loadSyncServe(): Promise<SyncServe> {
+    return this.rpc.call(SERVICE, 'GetSyncServe', GetSyncServeRequest.create(), SyncServe);
+  }
+
+  async saveSyncServe(serve: SyncServe): Promise<void> {
+    await this.rpc.call(SERVICE, 'SetSyncServe', SyncServe.create(serve), SyncServe);
+    this.toast.success('Saved the sync server');
   }
 
   // ── Secrets ──────────────────────────────────────────────────────────────

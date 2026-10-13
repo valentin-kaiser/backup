@@ -12,7 +12,7 @@ import { message } from '../../global/services/control/control.service';
     <main class="login">
       <form class="card login-card" (submit)="$event.preventDefault(); submit()" novalidate>
         @if (error()) {
-          <div class="banner error" role="alert"><app-icon name="alert" /> {{ error() }}</div>
+          <div class="banner error" role="alert"><app-icon name="warning" /> {{ error() }}</div>
         }
 
         <!-- Lets password managers store the password for this site. -->

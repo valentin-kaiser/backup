@@ -5,6 +5,29 @@
   </div>
 </header>
 
+@if (control.status()) {
+<section class="tiles" aria-label="Summary">
+  <div class="tile">
+    <span class="label">Scheduled jobs</span>
+    <span class="value">{{ enabled() }}<small> / {{ control.definedJobs().length }}</small></span>
+  </div>
+  <div class="tile">
+    <span class="label">Running now</span>
+    <span class="value" [class.accent]="control.running().length">{{ control.running().length }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">Last successful backup</span>
+    <span class="value small" [title]="formatTime(lastBackup())">{{ formatRelative(lastBackup()) }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">Failed recent runs</span>
+    <span class="value" [class.bad]="failures()">{{ failures() }}</span>
+  </div>
+</section>
+} @else {
+  <div class="skeleton tiles-skeleton"></div>
+}
+
 <div class="toolbar">
   <div class="field inline">
     <label for="job">Job</label>
@@ -30,7 +53,7 @@
 </div>
 
 @if (error()) {
-  <div class="banner error" role="alert"><app-icon name="alert" /> {{ error() }}</div>
+  <div class="banner error" role="alert"><app-icon name="warning" /> {{ error() }}</div>
 }
 
 @if (runs()) {
