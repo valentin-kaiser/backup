@@ -146,4 +146,3 @@ func (r Runner) unisonCommand(ctx context.Context, c config.Config, args []strin
 	r.finishCommand(cmd)
 	return cmd, nil
 }
-
