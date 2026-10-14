@@ -64,7 +64,7 @@ func Open(path string, limit int) (*Store, error) {
 		}
 		return nil, apperror.Wrap(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64*1024), 8*1024*1024)
 	for sc.Scan() {
@@ -93,7 +93,7 @@ func (s *Store) Add(r Run) error {
 	if err != nil {
 		return apperror.Wrap(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	b, err := json.Marshal(r)
 	if err != nil {
 		return apperror.Wrap(err)

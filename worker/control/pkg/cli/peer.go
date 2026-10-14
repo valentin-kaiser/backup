@@ -46,9 +46,9 @@ func (c *client) peer(args []string) error {
 		}
 		fmt.Println("this worker:", res.WorkerName)
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tSYNC SERVER\tUSER\tCONTROL API")
+		_, _ = fmt.Fprintln(w, "NAME\tSYNC SERVER\tUSER\tCONTROL API")
 		for _, p := range res.Peers {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.Name, p.Url, p.Username, p.ApiUrl)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.Name, p.Url, p.Username, p.ApiUrl)
 		}
 		return w.Flush()
 	case "add":

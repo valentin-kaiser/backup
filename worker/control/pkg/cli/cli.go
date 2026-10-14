@@ -97,7 +97,7 @@ func (c *client) health() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var h struct {
 		Healthy bool `json:"healthy"`
 	}
@@ -177,7 +177,7 @@ func (c *client) dispatch(cmd string, args []string) error {
 			return err
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "JOB\tTYPE\tSCHEDULE\tNEXT RUN\tSTATE\tLAST RUN\tLAST SUCCESS")
+		_, _ = fmt.Fprintln(w, "JOB\tTYPE\tSCHEDULE\tNEXT RUN\tSTATE\tLAST RUN\tLAST SUCCESS")
 		for _, j := range st.Jobs {
 			s, last := "idle", "-"
 			if j.Active != nil {
@@ -196,7 +196,7 @@ func (c *client) dispatch(cmd string, args []string) error {
 			} else if j.Paused {
 				sched += " (paused)"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", j.Name, j.Type, sched, ts(j.NextRunTime), s, last, ts(j.LastSuccessTime))
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", j.Name, j.Type, sched, ts(j.NextRunTime), s, last, ts(j.LastSuccessTime))
 		}
 		_ = w.Flush()
 		if !st.Healthy {
@@ -214,13 +214,13 @@ func (c *client) dispatch(cmd string, args []string) error {
 			return err
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tJOB\tTRIGGER\tSTATUS\tSTARTED\tFINISHED\tERROR")
+		_, _ = fmt.Fprintln(w, "ID\tJOB\tTRIGGER\tSTATUS\tSTARTED\tFINISHED\tERROR")
 		for _, r := range res.Runs {
 			started := r.StartTime
 			if started == nil {
 				started = r.QueueTime
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", r.Id, r.Job, r.Trigger, state(r.Status), ts(started), ts(r.FinishTime), r.Error)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", r.Id, r.Job, r.Trigger, state(r.Status), ts(started), ts(r.FinishTime), r.Error)
 		}
 		return w.Flush()
 	case "run":
@@ -265,9 +265,9 @@ func (c *client) dispatch(cmd string, args []string) error {
 			return err
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tTIME\tHOST\tPATHS")
+		_, _ = fmt.Fprintln(w, "ID\tTIME\tHOST\tPATHS")
 		for _, s := range res.Snapshots {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.ShortId, ts(s.Time), s.Hostname, strings.Join(s.Paths, ","))
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.ShortId, ts(s.Time), s.Hostname, strings.Join(s.Paths, ","))
 		}
 		return w.Flush()
 	case "restore":

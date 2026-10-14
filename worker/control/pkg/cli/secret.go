@@ -98,7 +98,7 @@ func (c *client) secret(args []string) error {
 			return err
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tUPDATED\tUSED BY")
+		_, _ = fmt.Fprintln(w, "NAME\tUPDATED\tUSED BY")
 		for _, s := range res.Secrets {
 			users := strings.Join(s.Jobs, ", ")
 			if s.DefaultPassword {
@@ -107,7 +107,7 @@ func (c *client) secret(args []string) error {
 			if users == "" {
 				users = "-"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\n", s.Name, s.UpdateTime.AsTime().Local().Format(time.DateTime), users)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", s.Name, s.UpdateTime.AsTime().Local().Format(time.DateTime), users)
 		}
 		return w.Flush()
 	case "set", "passwd":

@@ -380,12 +380,12 @@ func relay(ctx context.Context, w http.ResponseWriter, r *http.Request, up *webs
 		http.Error(w, "the control daemon is not reachable", http.StatusBadGateway)
 		return
 	}
-	defer upstream.Close()
+	defer func() { _ = upstream.Close() }()
 	browser, err := up.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
-	defer browser.Close()
+	defer func() { _ = browser.Close() }()
 	browser.SetReadLimit(maxFrame)
 	upstream.SetReadLimit(maxFrame * 8)
 	ip := api.ClientIP(r)
