@@ -1,6 +1,7 @@
 # Bidirectional sync of two volumes. Start one of the two layouts:
 #   docker compose -f examples/sync/compose.yaml up -d sync-single      one worker, both volumes
 #   docker compose -f examples/sync/compose.yaml up -d sync-west sync-east   two workers, one volume each
+# Add sync-portal to either command to get the web portal on https://127.0.0.1:8443.
 x-worker: &worker
   build:
     context: ../..
@@ -25,8 +26,8 @@ services:
     <<: *worker
     container_name: sync-single
     volumes:
-      - ./volumes/a:/sync/a
-      - ./volumes/b:/sync/b
+      - ./volumes/single/a:/sync/a
+      - ./volumes/single/b:/sync/b
       - ./volumes/single:/var/lib/control   # copy single/control.yaml here before the first start
     secrets: [portal_password]
 
@@ -34,19 +35,72 @@ services:
     <<: *worker
     container_name: sync-west
     volumes:
-      - ./volumes/west-control:/var/lib/control
-      - ./volumes/west:/sync
+      - ./volumes/control/west:/var/lib/control
+      - ./volumes/sync/west:/sync
     secrets: [portal_password]
-    # copy west/control.yaml to ./volumes/west-control/control.yaml before the first start
+    ports:
+      - "9080:9080"
+    # copy west/control.yaml to ./volumes/control/west/control.yaml before the first start
 
   sync-east:
     <<: *worker
     container_name: sync-east
     volumes:
-      - ./volumes/east-control:/var/lib/control
-      - ./volumes/east:/sync
+      - ./volumes/control/east:/var/lib/control
+      - ./volumes/sync/east:/sync
     secrets: [portal_password]
-    # copy east/control.yaml to ./volumes/east-control/control.yaml before the first start
+    ports:
+      - "9081:9080"
+    # copy east/control.yaml to ./volumes/control/east/control.yaml before the first start
+
+  # The web portal, started on its own: docker compose -f examples/sync/compose.yaml up -d sync-west-portal
+  # It talks to one daemon, sync-west by default. Point it at another one with
+  # SYNC_PORTAL_DAEMON=http://sync-single:9080 (or http://sync-east:9080).
+  sync-west-portal:
+    <<: *worker
+    container_name: sync-west-portal
+    command: ["web"]
+    mem_limit: 128m
+    volumes:
+      - ./volumes/portal/west:/var/lib/portal
+    secrets: [portal_password]
+    ports:
+      # loopback only, put a reverse proxy with a certificate in front to reach it from the network
+      - "127.0.0.1:8443:8443"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PORTAL_DAEMON_URL=${SYNC_PORTAL_DAEMON:-http://sync-west:9080}
+      - PORTAL_PASSWORDFILE=/run/secrets/portal_password
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1:8443/"]
+      interval: 1m
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+  sync-east-portal:
+    <<: *worker
+    container_name: sync-east-portal
+    command: ["web"]
+    mem_limit: 128m
+    volumes:
+      - ./volumes/portal/east:/var/lib/portal
+    secrets: [portal_password]
+    ports:
+      # loopback only, put a reverse proxy with a certificate in front to reach it from the network
+      - "127.0.0.1:8444:8443"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PORTAL_DAEMON_URL=${SYNC_PORTAL_DAEMON:-http://sync-east:9080}
+      - PORTAL_PASSWORDFILE=/run/secrets/portal_password
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1:8444/"]
+      interval: 1m
+      timeout: 10s
+      start_period: 15s
+      retries: 3
 
 secrets:
   portal_password:
