@@ -6,6 +6,8 @@ import {
   Event,
   EventType,
   Job,
+  Notifications,
+  TestNotificationsResponse,
   JobDefinition,
   Peer,
   PeerStatus,
@@ -19,7 +21,9 @@ import {
 import {
   GetRunRequest,
   GetStatsRequest,
+  GetNotificationsRequest,
   GetSyncServeRequest,
+  TestNotificationsRequest,
   ListPeersRequest,
   ListPeersResponse,
   PeerRequest,
@@ -335,6 +339,23 @@ export class ControlService {
   async saveSyncServe(serve: SyncServe): Promise<void> {
     await this.rpc.call(SERVICE, 'SetSyncServe', SyncServe.create(serve), SyncServe);
     this.toast.success('Saved the sync server');
+  }
+
+  // ── Notifications ────────────────────────────────────────────────────────
+
+  loadNotifications(): Promise<Notifications> {
+    return this.rpc.call(SERVICE, 'GetNotifications', GetNotificationsRequest.create(), Notifications);
+  }
+
+  async saveNotifications(settings: Notifications): Promise<Notifications> {
+    const saved = await this.rpc.call(SERVICE, 'SetNotifications', Notifications.create(settings), Notifications);
+    this.toast.success('Saved the notifications');
+    return saved;
+  }
+
+  async testNotifications(): Promise<string[]> {
+    const r = await this.rpc.call(SERVICE, 'TestNotifications', TestNotificationsRequest.create(), TestNotificationsResponse);
+    return r.recipients;
   }
 
   // ── Secrets ──────────────────────────────────────────────────────────────

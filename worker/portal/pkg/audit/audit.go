@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/Valentin-Kaiser/backup/pkg/notify"
 	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/database"
 	"github.com/Valentin-Kaiser/backup/worker/portal/pkg/database/schema"
 	"github.com/valentin-kaiser/go-core/apperror"
@@ -119,6 +120,33 @@ func (l *Log) Add(e Entry) {
 	if err != nil {
 		log.Error().Err(err).Field("action", e.Action).Msg("the audit entry could not be written")
 	}
+	alert(e)
+}
+
+// alert mails failed sign-ins, locked addresses and refused calls. Sign-ins that worked and calls that failed on the
+// daemon are not security events.
+func alert(e Entry) {
+	if e.Action != LoginFailed && e.Result != Denied {
+		return
+	}
+	sev := notify.SeverityWarning
+	title := "Sign-in to the portal failed"
+	locked := strings.Contains(strings.ToLower(e.Detail), "locked")
+	if locked {
+		sev, title = notify.SeverityFailure, "Portal address locked after wrong passwords"
+	}
+	if e.Action != LoginFailed {
+		title = "Portal refused a call: " + e.Action
+	}
+	f := []notify.Field{{Label: "Address", Value: clean(e.IP, 64)}, {Label: "Action", Value: clean(e.Action, 64)}}
+	if e.Target != "" {
+		f = append(f, notify.Field{Label: "Target", Value: clean(e.Target, maxTarget)})
+	}
+	notify.Send(notify.Event{
+		Kind: notify.KindSecurity, Severity: sev, Title: title,
+		Key:    e.Action + "|" + e.IP + "|" + fmt.Sprint(locked),
+		Fields: f, Detail: clean(e.Detail, maxDetail),
+	})
 }
 
 // Query selects entries. Zero values do not filter.

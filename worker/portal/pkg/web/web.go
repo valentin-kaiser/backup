@@ -3,6 +3,7 @@ package web
 
 import (
 	"embed"
+	"github.com/Valentin-Kaiser/backup/pkg/notify"
 	"io/fs"
 	"time"
 
@@ -31,6 +32,8 @@ func Start(store *login.Store, password *auth.Password, aud *audit.Log) error {
 	authn := api.NewAuth(store, c.TLS, aud)
 	rpc := api.Handler(authn, api.NewAuditLog(authn, aud))
 	daemon := NewDaemon(func() config.Daemon { return config.Get().Daemon }, password, authn.Access, aud)
+	// The portal has no mail settings, the daemon mails its security events.
+	notify.SetRelay(daemon.Alert)
 
 	s := web.Instance().
 		WithHost(c.Address).

@@ -36,6 +36,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/peers/peers.page').then((m) => m.PeersPage),
   },
   {
+    path: 'notifications',
+    title: 'Notifications',
+    loadComponent: () => import('./pages/notifications/notifications.page').then((m) => m.NotificationsPage),
+  },
+  {
     path: 'secrets',
     title: 'Secrets',
     loadComponent: () => import('./pages/secrets/secrets.page').then((m) => m.SecretsPage),

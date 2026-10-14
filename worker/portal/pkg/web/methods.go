@@ -15,7 +15,7 @@ var prefixes = []string{"Control.", "Control/", "backup.api.v1.Control.", "backu
 // reads are the methods of the control API that only look at things. They are not recorded in the audit log.
 var reads = map[string]bool{
 	"GetStatus": true, "ListRuns": true, "GetRun": true, "ListSnapshots": true, "ListFiles": true, "GetStats": true,
-	"Watch": true, "ListSecrets": true, "ListPeers": true, "GetSyncServe": true, "TestPeer": true,
+	"Watch": true, "ListSecrets": true, "ListPeers": true, "GetSyncServe": true, "TestPeer": true, "GetNotifications": true,
 }
 
 // field names a parameter of a call by its protobuf field number, which is how the parameters travel.
@@ -50,6 +50,12 @@ var changes = map[string]spec{
 	"SetPeer": {"set_peer", []field{{"1", "peer"}, {"2", "url"}, {"3", "username"}, {"5", "password secret"}, {"7", "api url"}, {"9", "api password secret"}}},
 	// SyncServe: enabled 1, path 2, address 3, port 4, username 5, password secret 7.
 	"SetSyncServe": {"set_sync_serve", []field{{"1", "enabled"}, {"2", "path"}, {"3", "address"}, {"4", "port"}, {"5", "username"}, {"7", "password secret"}, {"10", "tunnel"}}},
+	// Notifications: enabled 1, subject prefix 3, cooldown minutes 4, switches 5-10, smtp host 15, port 16, from 17,
+	// encryption 18, auth 19, username 21, skip verify 22, clear password 25. The recipients (2) and the password (24)
+	// are left out.
+	"SetNotifications": {"set_notifications", []field{{"1", "enabled"}, {"3", "prefix"}, {"4", "cooldown minutes"}, {"5", "on failure"}, {"6", "on success"}, {"7", "on skipped"}, {"8", "on stale"}, {"9", "on security"}, {"10", "on lifecycle"},
+		{"15", "smtp host"}, {"16", "smtp port"}, {"17", "smtp from"}, {"18", "smtp encryption"}, {"19", "smtp auth"}, {"21", "smtp username"}, {"22", "smtp skip verify"}, {"25", "clear smtp password"}}},
+	"TestNotifications": {"test_notifications", nil},
 }
 
 // jobFields are the fields of a JobDefinition worth recording: name 1, type 2, enabled 3, schedule 4, source 8,
