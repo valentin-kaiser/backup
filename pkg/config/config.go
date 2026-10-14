@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Valentin-Kaiser/backup/pkg/notify"
 	"github.com/valentin-kaiser/go-core/apperror"
 	"github.com/valentin-kaiser/go-core/config"
 	"github.com/valentin-kaiser/go-core/flag"
@@ -153,31 +154,32 @@ const (
 
 // Config is the complete control configuration.
 type Config struct {
-	LogLevel        int        `usage:"(-1 = trace, 0 = debug, 1 = info, 2 = warn, 3 = error)"`
-	WorkerName      string     `usage:"name of this worker, the name its peers use for it (lower case letters, digits and _), defaults to the host name"`
-	Mode            string     `usage:"standalone (one source, one repository, one job per type, password file, no API) or ui (management API for the portal, many jobs, stored secrets)"`
-	Repository      string     `usage:"restic repository"`
-	PasswordFile    string     `usage:"file containing the repository password"`
-	PasswordSecret  string     `usage:"name of the stored secret that holds the repository password, replaces the password file"`
-	MasterKeyFile   string     `usage:"file with the key that encrypts the stored secrets (base64, 32 bytes), created in the data directory when empty"`
-	Source          string     `usage:"directory to back up"`
-	Compression     string     `usage:"restic compression mode (auto, off, max)"`
-	CacheDir        string     `usage:"restic cache directory"`
-	Nice            int        `usage:"niceness of restic processes (0-19)"`
-	ReadConcurrency int        `usage:"number of files restic reads in parallel, 0 uses the restic default"`
-	PackSize        int        `usage:"target restic pack size in MiB, 0 uses the restic default"`
-	OneFileSystem   bool       `usage:"do not cross filesystem boundaries while backing up"`
-	LockRetry       string     `usage:"how long restic waits for a repository lock"`
-	StopGraceSecs   int        `usage:"seconds a running job may finish after a shutdown signal"`
-	HistoryLimit    int        `usage:"number of runs kept in the history"`
-	RestoreRoot     string     `usage:"restores are only allowed below this directory"`
-	WebhookURL      string     `usage:"URL pinged with /start, /fail or no suffix on success (healthchecks.io compatible)"`
-	Jobs            []Job      `usage:"jobs, a list of name, type, schedule, ..."`
-	MountCheck      MountCheck `usage:"repository mount guard"`
-	SyncDir         string     `usage:"directory for the state of sync jobs (rclone bisync listings), keep it on a volume"`
-	Peers           []Peer     `usage:"other workers that sync jobs can use as second path"`
-	SyncServe       SyncServe  `usage:"export a directory to peers"`
-	API             API        `usage:"management API used by the CLI and the web UI"`
+	LogLevel        int             `usage:"(-1 = trace, 0 = debug, 1 = info, 2 = warn, 3 = error)"`
+	WorkerName      string          `usage:"name of this worker, the name its peers use for it (lower case letters, digits and _), defaults to the host name"`
+	Mode            string          `usage:"standalone (one source, one repository, one job per type, password file, no API) or ui (management API for the portal, many jobs, stored secrets)"`
+	Repository      string          `usage:"restic repository"`
+	PasswordFile    string          `usage:"file containing the repository password"`
+	PasswordSecret  string          `usage:"name of the stored secret that holds the repository password, replaces the password file"`
+	MasterKeyFile   string          `usage:"file with the key that encrypts the stored secrets (base64, 32 bytes), created in the data directory when empty"`
+	Source          string          `usage:"directory to back up"`
+	Compression     string          `usage:"restic compression mode (auto, off, max)"`
+	CacheDir        string          `usage:"restic cache directory"`
+	Nice            int             `usage:"niceness of restic processes (0-19)"`
+	ReadConcurrency int             `usage:"number of files restic reads in parallel, 0 uses the restic default"`
+	PackSize        int             `usage:"target restic pack size in MiB, 0 uses the restic default"`
+	OneFileSystem   bool            `usage:"do not cross filesystem boundaries while backing up"`
+	LockRetry       string          `usage:"how long restic waits for a repository lock"`
+	StopGraceSecs   int             `usage:"seconds a running job may finish after a shutdown signal"`
+	HistoryLimit    int             `usage:"number of runs kept in the history"`
+	RestoreRoot     string          `usage:"restores are only allowed below this directory"`
+	WebhookURL      string          `usage:"URL pinged with /start, /fail or no suffix on success (healthchecks.io compatible)"`
+	Jobs            []Job           `usage:"jobs, a list of name, type, schedule, ..."`
+	MountCheck      MountCheck      `usage:"repository mount guard"`
+	SyncDir         string          `usage:"directory for the state of sync jobs (rclone bisync listings), keep it on a volume"`
+	Peers           []Peer          `usage:"other workers that sync jobs can use as second path"`
+	SyncServe       SyncServe       `usage:"export a directory to peers"`
+	API             API             `usage:"management API used by the CLI and the web UI"`
+	Notify          notify.Settings `usage:"mail notifications about job results, stale backups, security and lifecycle events"`
 }
 
 // Default returns the default configuration. The run mode is the one setting read from the environment here, because
@@ -235,6 +237,7 @@ func Default() *Config {
 			CertificateFile: "certs/control.cert",
 			KeyFile:         "certs/control.key",
 		},
+		Notify: notify.Defaults(),
 	}
 	if c.Portal() {
 		c.PasswordFile, c.PasswordSecret, c.API.PasswordFile = "", "backup", "/run/secrets/portal_password"
@@ -272,6 +275,15 @@ func (c *Config) Validate() error {
 	}
 	if c.StopGraceSecs < 0 {
 		return apperror.NewError("stopGraceSecs must not be negative")
+	}
+	if err := c.Notify.Validate(); err != nil {
+		return err
+	}
+	if c.Notify.PasswordSecret != "" && !jobName.MatchString(c.Notify.PasswordSecret) {
+		return apperror.NewErrorf("notify.passwordSecret %q must be 1-32 lower case letters, digits, - or _", c.Notify.PasswordSecret)
+	}
+	if !c.Portal() && c.Notify.PasswordSecret != "" {
+		return apperror.NewError("notify.passwordSecret needs mode portal, standalone mode takes the password from notify.passwordFile")
 	}
 	switch c.Compression {
 	case "auto", "off", "max":

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/Valentin-Kaiser/backup/pkg/auth"
 	"github.com/Valentin-Kaiser/backup/pkg/config"
 	"github.com/Valentin-Kaiser/backup/pkg/manager"
+	"github.com/Valentin-Kaiser/backup/pkg/notify"
 	"github.com/Valentin-Kaiser/backup/pkg/runner"
 	"github.com/Valentin-Kaiser/backup/pkg/secrets"
 	"github.com/Valentin-Kaiser/backup/pkg/secure"
@@ -94,13 +96,28 @@ func main() {
 	}
 	m := manager.New(config.Get, runner.Runner{}, st)
 
+	// Mail notifications read the SMTP password from a file, or from the stored secrets in portal mode.
+	var secretStore *secrets.Store
+	notify.Configure(func() notify.Settings { return config.Get().Notify }, func(secret, file string) (string, error) {
+		if secret != "" && secretStore != nil {
+			return secretStore.Get(secret)
+		}
+		return notify.FileResolver(secret, file)
+	})
+
 	if once != "" {
-		os.Exit(bootstrap.RunOnce(m, once))
+		if err := notify.Start(); err != nil {
+			log.Warn().Err(err).Msg("mail notifications are not available")
+		}
+		code := bootstrap.RunOnce(m, once)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		notify.Stop(ctx)
+		cancel()
+		os.Exit(code)
 	}
 
 	// Standalone mode only runs the jobs of the configuration on their schedules: no API, no secret store and no
 	// editing of the jobs. portal mode adds them.
-	var secretStore *secrets.Store
 	if c.Portal() {
 		m.SetUpdater(config.Update)
 
@@ -127,14 +144,25 @@ func main() {
 				log.Info().Msg("restarting the API server due to an address, port or TLS change")
 				go web.Restart()
 			}
+			if o.Notify.Mail != n.Notify.Mail || o.Notify.Enabled != n.Notify.Enabled ||
+				o.Notify.PasswordFile != n.Notify.PasswordFile || o.Notify.PasswordSecret != n.Notify.PasswordSecret {
+				go notify.Restart(m.Context())
+			}
 			return m.Reload()
 		})
 		config.Watch(m.Context())
 	}
 
+	if err := notify.Start(); err != nil {
+		log.Warn().Err(err).Msg("mail notifications are not available")
+	}
 	if err := m.Start(); err != nil {
 		log.Fatal().Err(err).Msg("failed to start the scheduler")
 	}
+	notify.Send(notify.Event{
+		Kind: notify.KindLifecycle, Severity: notify.SeverityInfo, Title: "backup control started", Key: "start",
+		Fields: []notify.Field{{Label: "Version", Value: version.String()}, {Label: "Mode", Value: c.Mode}},
+	})
 
 	// Export a directory to the peers of this worker. In portal mode the server follows configuration changes.
 	syncServer := syncserve.Server{Password: m.SyncServePassword}
@@ -173,6 +201,7 @@ func main() {
 	signal := interruption.OnSignal([]func() error{
 		func() error {
 			log.Info().Msg("shutting down...")
+			notify.Send(notify.Event{Kind: notify.KindLifecycle, Severity: notify.SeverityInfo, Title: "backup control stopping", Key: "stop"})
 			if c.Portal() {
 				config.Stop()
 			}
@@ -182,6 +211,9 @@ func main() {
 				}
 			}
 			m.Shutdown(time.Duration(config.Get().StopGraceSecs) * time.Second)
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			notify.Stop(stopCtx)
+			stopCancel()
 			if adapter, ok := logging.GetGlobalAdapter[*logging.ZerologAdapter](); ok {
 				adapter.Stop()
 			}

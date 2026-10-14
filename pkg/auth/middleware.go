@@ -4,6 +4,9 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/Valentin-Kaiser/backup/pkg/notify"
+	"github.com/valentin-kaiser/go-core/logging/log"
 )
 
 // BearerPassword extracts the password of an "Authorization: Bearer" header.
@@ -39,6 +42,16 @@ func Middleware(next http.Handler, password *Password, limiter *Limiter) http.Ha
 		}
 		if !ok {
 			limiter.Fail(ip)
+			log.Warn().Field("ip", ip).Msg("failed API authentication")
+			if limiter.Locked(ip) {
+				notify.Send(notify.Event{
+					Kind: notify.KindSecurity, Severity: notify.SeverityFailure,
+					Title:  "API address locked after wrong passwords",
+					Key:    "api|" + ip,
+					Fields: []notify.Field{{Label: "Address", Value: ip}, {Label: "Component", Value: "control API"}},
+					Detail: "The address sent too many wrong passwords to the control API and is locked for a while.",
+				})
+			}
 			w.Header().Set("WWW-Authenticate", `Bearer realm="control"`)
 			http.Error(w, "authentication required", http.StatusUnauthorized)
 			return

@@ -161,6 +161,8 @@ func (m *Manager) Start() error {
 	}()
 	m.wg.Add(1)
 	go m.peerLoop()
+	m.wg.Add(1)
+	go m.staleLoop()
 	// From now on a changed configuration prepares the repositories of new jobs as well.
 	m.ready.Store(true)
 	return nil
@@ -669,6 +671,7 @@ func (m *Manager) finish(a *active, s store.Status, exit int, msg string) {
 		log.Error().Err(err).Msg("failed to persist run")
 	}
 	m.publish(Event{Type: "status", Run: r.ID, Job: r.Job, Status: s})
+	m.notifyRun(r)
 	if s == store.StatusSuccess {
 		for _, next := range m.cfg().Followers(r.Job) {
 			go func() {
