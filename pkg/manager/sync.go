@@ -45,6 +45,7 @@ type peerState struct {
 	remote  map[string]remoteJob // by job name, mirrored jobs
 	pushed  map[string]bool      // owned jobs whose mirror reached the peer
 	pending map[string]struct{}  // owned jobs whose mirror has to be pushed again
+	watched map[string]bool      // owners whose events are relayed
 	wake    chan struct{}
 }
 
@@ -55,6 +56,7 @@ func newPeerState() *peerState {
 		remote:  map[string]remoteJob{},
 		pushed:  map[string]bool{},
 		pending: map[string]struct{}{},
+		watched: map[string]bool{},
 		wake:    make(chan struct{}, 1),
 	}
 }
@@ -361,6 +363,7 @@ func (m *Manager) syncPeers() {
 		}
 		known[j.Name] = true
 		if j.Mirror() {
+			m.watchOwner(j.Owner)
 			m.refreshMirror(c, j)
 			continue
 		}
@@ -387,6 +390,82 @@ func (m *Manager) syncPeers() {
 		}
 	}
 	m.peers.mu.Unlock()
+}
+
+// peerWatchRetry is the pause before the event stream of an owner is opened again.
+const peerWatchRetry = 3 * time.Second
+
+// mirrorsOf reports whether this worker mirrors a job of the owner.
+func (m *Manager) mirrorsOf(owner string) bool {
+	for _, j := range m.cfg().Jobs {
+		if j.Mirror() && j.Owner == owner {
+			return true
+		}
+	}
+	return false
+}
+
+// watchOwner relays the events of the runs of an owner for the jobs mirrored here, so the output and the state of a
+// run that happens at the owner show up live. One stream per owner, it ends when the last mirror is gone.
+func (m *Manager) watchOwner(owner string) {
+	m.peers.mu.Lock()
+	if m.peers.watched[owner] {
+		m.peers.mu.Unlock()
+		return
+	}
+	m.peers.watched[owner] = true
+	m.peers.mu.Unlock()
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		defer func() {
+			m.peers.mu.Lock()
+			delete(m.peers.watched, owner)
+			m.peers.mu.Unlock()
+		}()
+		for m.mirrorsOf(owner) {
+			m.relayEvents(owner)
+			select {
+			case <-m.ctx.Done():
+				return
+			case <-time.After(peerWatchRetry):
+			}
+		}
+	}()
+}
+
+// relayEvents publishes the events of the owner for mirrored jobs until the stream ends.
+func (m *Manager) relayEvents(owner string) {
+	cl, err := m.peerClient(m.cfg(), owner)
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(m.ctx)
+	defer cancel()
+	out := make(chan *pb.Event, 64)
+	done := make(chan error, 1)
+	go func() { done <- cl.Watch(ctx, &pb.WatchRequest{}, out) }()
+	for {
+		select {
+		case e := <-out:
+			if j, ok := m.cfg().Job(e.GetJob()); !ok || !j.Mirror() || j.Owner != owner {
+				continue
+			}
+			if e.GetType() == pb.EventType_EVENT_TYPE_LINE {
+				m.publish(Event{Type: "line", Run: e.GetRun(), Job: e.GetJob(), Line: e.GetLine()})
+				continue
+			}
+			m.publish(Event{Type: "status", Run: e.GetRun(), Job: e.GetJob(), Status: peer.StatusFromProto(e.GetStatus())})
+			m.wakePeers() // the state of the mirror changed
+		case err := <-done:
+			if err != nil && m.ctx.Err() == nil {
+				log.Debug().Err(err).Msgf("the events of peer %s ended", owner)
+			}
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // refreshMirror asks the owner of a mirrored job for its state.
@@ -619,6 +698,30 @@ func (m *Manager) remoteRuns(j config.Job, n int) []store.Run {
 		}
 		return nil
 	})
+	return out
+}
+
+// mirroredRuns lists the runs of all mirrored jobs at their owners.
+func (m *Manager) mirroredRuns(n int) []store.Run {
+	var (
+		mu  sync.Mutex
+		wg  sync.WaitGroup
+		out []store.Run
+	)
+	for _, j := range m.cfg().Jobs {
+		if !j.Mirror() {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runs := m.remoteRuns(j, n)
+			mu.Lock()
+			out = append(out, runs...)
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
 	return out
 }
 

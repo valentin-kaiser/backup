@@ -54,6 +54,11 @@ func (f *fakePeer) GetRun(_ context.Context, in *pb.GetRunRequest) (*pb.Run, err
 	f.record("GetRun " + in.GetId())
 	return &pb.Run{Id: in.GetId(), Output: []string{"line"}}, nil
 }
+func (f *fakePeer) Watch(ctx context.Context, _ *pb.WatchRequest, _ chan<- *pb.Event) error {
+	<-ctx.Done()
+	return nil
+}
+
 func (f *fakePeer) StartJob(_ context.Context, in *pb.JobRequest) (*pb.Run, error) {
 	f.record("StartJob " + in.GetJob())
 	return &pb.Run{Id: "remote", Job: in.GetJob(), Status: pb.RunStatus_RUN_STATUS_QUEUED}, nil

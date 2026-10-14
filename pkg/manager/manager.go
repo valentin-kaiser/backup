@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -965,6 +966,13 @@ func (m *Manager) Runs(job string, n int) []store.Run {
 	for _, r := range m.store.List(job, n) {
 		r.Output = nil
 		out = append(out, r)
+	}
+	if job == "" {
+		// The runs of mirrored jobs happen at their owner.
+		if remote := m.mirroredRuns(n); len(remote) > 0 {
+			out = append(out, remote...)
+			sort.SliceStable(out, func(i, k int) bool { return out[i].Queued.After(out[k].Queued) })
+		}
 	}
 	if n > 0 && len(out) > n {
 		out = out[:n]

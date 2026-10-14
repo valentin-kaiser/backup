@@ -25,6 +25,7 @@ type Client interface {
 	GetStatus(ctx context.Context, in *pb.GetStatusRequest) (*pb.ControlStatus, error)
 	ListRuns(ctx context.Context, in *pb.ListRunsRequest) (*pb.ListRunsResponse, error)
 	GetRun(ctx context.Context, in *pb.GetRunRequest) (*pb.Run, error)
+	Watch(ctx context.Context, in *pb.WatchRequest, out chan<- *pb.Event) error
 	StartJob(ctx context.Context, in *pb.JobRequest) (*pb.Run, error)
 	CancelJob(ctx context.Context, in *pb.JobRequest) (*emptypb.Empty, error)
 	UnlockJob(ctx context.Context, in *pb.JobRequest) (*emptypb.Empty, error)
