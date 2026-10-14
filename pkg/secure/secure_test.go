@@ -125,7 +125,7 @@ func TestServerTLSSelfSignedAndPinning(t *testing.T) {
 		client := &http.Client{Transport: &http.Transport{TLSClientConfig: cc}}
 		resp, err := client.Get(srv.URL)
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		return err
 	}

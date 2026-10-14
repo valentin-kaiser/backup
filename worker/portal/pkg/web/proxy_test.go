@@ -24,7 +24,7 @@ func daemon(t *testing.T) *httptest.Server {
 			if err != nil {
 				return
 			}
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
 				return
@@ -56,7 +56,7 @@ func TestProxyForwardsHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if want := "POST /api/v1/rpc host=" + strings.TrimPrefix(d.URL, "http://"); string(body) != want {
 		t.Errorf("got %q, want %q", body, want)
@@ -73,7 +73,7 @@ func TestProxyForwardsWebsocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if conn.Subprotocol() != "xrpc.json" {
 		t.Errorf("negotiated %q", conn.Subprotocol())
 	}
@@ -112,7 +112,7 @@ func TestProxyReportsAnUnreachableDaemon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Errorf("status %d", resp.StatusCode)
 	}
@@ -134,7 +134,7 @@ func TestProxyAuthenticatesWithItsOwnToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if got != "Bearer secret" {
 		t.Errorf("daemon saw %q, the browser credentials must be replaced by the portal token", got)
 	}

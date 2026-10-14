@@ -86,8 +86,6 @@ func (p *portal) answer(f frame) []byte {
 	return b
 }
 
-var dbCounter int
-
 func newPortal(t *testing.T) *portal {
 	t.Helper()
 	passwordFile := filepath.Join(t.TempDir(), "password")
@@ -109,7 +107,7 @@ func newPortal(t *testing.T) *portal {
 			if err != nil {
 				return
 			}
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				_, msg, err := conn.ReadMessage()
 				if err != nil {
@@ -180,7 +178,7 @@ func (p *portal) do(t *testing.T, method, path, body string, headers ...string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(b)
 }
@@ -215,7 +213,7 @@ func (p *portal) dial(t *testing.T) *websocket.Conn {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { conn.Close() })
+	t.Cleanup(func() { _ = conn.Close() })
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	return conn
 }
@@ -278,7 +276,7 @@ func TestLoginSetsAHardenedCookie(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var c *http.Cookie
 	for _, k := range resp.Cookies() {
 		if k.Name == api.CookieName {
@@ -585,7 +583,7 @@ func TestACallThatGetsNoAnswerIsRecordedAsUnknown(t *testing.T) {
 	for len(p.saw()) == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	conn.Close()
+	_ = conn.Close()
 	deadline = time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		for _, e := range p.entries(t) {

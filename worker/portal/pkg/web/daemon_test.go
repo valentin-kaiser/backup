@@ -100,7 +100,7 @@ func TestChangingTheSettingsEndsOpenWebsockets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.WriteMessage(websocket.TextMessage, []byte(call))
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	if _, _, err := conn.ReadMessage(); err != nil {

@@ -77,23 +77,23 @@ func TestHelperProcess(t *testing.T) {
 		// Report what restic would see: the password file, the file of the new password and the arguments.
 		file := os.Getenv("RESTIC_PASSWORD_FILE")
 		data, err := os.ReadFile(file)
-		os.Stdout.WriteString("file=" + file + "\n")
+		_, _ = os.Stdout.WriteString("file=" + file + "\n")
 		if err == nil {
-			os.Stdout.WriteString("pw=" + string(data) + "\n")
+			_, _ = os.Stdout.WriteString("pw=" + string(data) + "\n")
 			if fi, e := os.Stat(file); e == nil {
-				os.Stdout.WriteString("mode=" + fi.Mode().Perm().String() + "\n")
+				_, _ = os.Stdout.WriteString("mode=" + fi.Mode().Perm().String() + "\n")
 			}
 		}
 		for i, a := range os.Args {
 			if a == "--new-password-file" && i+1 < len(os.Args) {
 				nd, _ := os.ReadFile(os.Args[i+1])
-				os.Stdout.WriteString("newfile=" + os.Args[i+1] + "\nnew=" + string(nd) + "\n")
+				_, _ = os.Stdout.WriteString("newfile=" + os.Args[i+1] + "\nnew=" + string(nd) + "\n")
 			}
 		}
 		os.Exit(0)
 	}
-	os.Stdout.WriteString("to stdout\n")
-	os.Stderr.WriteString("to stderr\n")
+	_, _ = os.Stdout.WriteString("to stdout\n")
+	_, _ = os.Stderr.WriteString("to stderr\n")
 	if os.Getenv("GO_FAKE_EXIT") == "3" {
 		os.Exit(3)
 	}
@@ -292,7 +292,7 @@ func TestRcloneHelper(t *testing.T) {
 	}
 	if len(args) > 0 && args[0] == "obscure" {
 		in, _ := io.ReadAll(os.Stdin)
-		os.Stdout.WriteString("obscured(" + string(in) + ")\n")
+		_, _ = os.Stdout.WriteString("obscured(" + string(in) + ")\n")
 		os.Exit(0)
 	}
 	fmt.Println("args=" + strings.Join(args, " "))

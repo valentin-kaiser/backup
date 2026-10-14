@@ -22,7 +22,7 @@ func TestEchoHelper(t *testing.T) {
 		return
 	}
 	wd, _ := os.Getwd()
-	os.Stdout.WriteString("dir=" + wd + " home=" + os.Getenv("HOME") + " unison=" + os.Getenv("UNISON") + " host=" + os.Getenv("UNISONLOCALHOSTNAME") + "\n")
+	_, _ = os.Stdout.WriteString("dir=" + wd + " home=" + os.Getenv("HOME") + " unison=" + os.Getenv("UNISON") + " host=" + os.Getenv("UNISONLOCALHOSTNAME") + "\n")
 	_, _ = io.Copy(os.Stdout, os.Stdin)
 	os.Exit(0)
 }

@@ -28,11 +28,11 @@ func TestHelperProcess(t *testing.T) {
 	}
 	switch {
 	case slices.Contains(os.Args, "snapshots"):
-		os.Stdout.WriteString(`[{"id":"1111111111111111","short_id":"11111111","time":"2024-01-01T00:00:00Z","hostname":"a","paths":["/src"]},` +
+		_, _ = os.Stdout.WriteString(`[{"id":"1111111111111111","short_id":"11111111","time":"2024-01-01T00:00:00Z","hostname":"a","paths":["/src"]},` +
 			`{"id":"2222222222222222","short_id":"22222222","time":"2024-01-02T00:00:00Z","hostname":"a","paths":["/src"],"tags":["x"]}]`)
 	case slices.Contains(os.Args, "ls"):
 		// Like restic: the snapshot, the listed directory itself, then its entries.
-		os.Stdout.WriteString(`
+		_, _ = os.Stdout.WriteString(`
 {"message_type":"snapshot","id":"2222222222222222"}
 {"name":"data","type":"dir","path":"/data","mtime":"2024-01-01T00:00:00Z","permissions":"drwxr-xr-x","message_type":"node"}
 {"name":"b.txt","type":"file","path":"/data/b.txt","size":12,"mtime":"2024-01-02T03:04:05Z","permissions":"-rw-r--r--","message_type":"node"}
@@ -41,9 +41,9 @@ func TestHelperProcess(t *testing.T) {
 {"name":"link","type":"symlink","path":"/data/link","mtime":"2024-01-02T03:04:05Z","permissions":"Lrwxrwxrwx","message_type":"node"}
 `)
 	case slices.Contains(os.Args, "stats"):
-		os.Stdout.WriteString(`{"total_size":10,"total_uncompressed_size":20,"compression_ratio":2,"total_blob_count":3,"snapshots_count":2}`)
+		_, _ = os.Stdout.WriteString(`{"total_size":10,"total_uncompressed_size":20,"compression_ratio":2,"total_blob_count":3,"snapshots_count":2}`)
 	default:
-		os.Stdout.WriteString("fake output\n")
+		_, _ = os.Stdout.WriteString("fake output\n")
 	}
 	os.Exit(0)
 }
@@ -116,7 +116,7 @@ func TestWebsocketCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(`{"jsonrpc":"2.0","id":7,"method":"Control.GetStatus","params":{}}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestWebsocketsFromOtherOriginsAreRefused(t *testing.T) {
 	_, srv := newService(t)
 	header := http.Header{"Origin": {"http://evil.example"}}
 	if conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+Endpoint, header); err == nil {
-		conn.Close()
+		_ = conn.Close()
 		t.Error("a page on another origin must not reach the API, there is no authentication")
 	}
 }
@@ -384,7 +384,7 @@ func TestHealth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status %d", resp.StatusCode)
 	}

@@ -18,10 +18,10 @@ func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_FAKE_RESTIC") != "1" {
 		return
 	}
-	os.Stdout.WriteString("fake output\n")
+	_, _ = os.Stdout.WriteString("fake output\n")
 	switch os.Getenv("GO_FAKE_MODE") {
 	case "fail":
-		os.Stderr.WriteString("boom\n")
+		_, _ = os.Stderr.WriteString("boom\n")
 		os.Exit(1)
 	case "sleep":
 		if !slices.Contains(os.Args, "backup") {
@@ -167,7 +167,8 @@ func TestMultipleJobsUseTheirOwnRepository(t *testing.T) {
 	if _, err := m.Trigger("nope", "manual", true); err == nil {
 		t.Error("an unknown job must be refused")
 	}
-	if m.sem("/repo/docs") == m.sem("/repo/photos") || m.sem("/repo/docs") != m.sem("/repo/docs") {
+	docs := m.sem("/repo/docs")
+	if docs == m.sem("/repo/photos") || docs != m.sem("/repo/docs") {
 		t.Error("jobs must share a lock per repository, not across repositories")
 	}
 
