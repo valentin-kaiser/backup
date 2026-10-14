@@ -1,8 +1,8 @@
 services:
   backup:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: ./Dockerfile
     image: backup:latest
     container_name: backup
     restart: unless-stopped
@@ -16,6 +16,8 @@ services:
       - CHOWN
       - SETUID
       - SETGID
+      # KILL lets the init process (tini, runs as root) forward signals to the daemon after it dropped to PUID/PGID
+      - KILL
     security_opt:
       - no-new-privileges:true
     tmpfs:
@@ -24,7 +26,6 @@ services:
     cpus: 2
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ./.backupignore:/.backupignore:ro
       - ./volumes/source:/source
       - ./volumes/backup:/backup
       - ./volumes/restore:/restore
@@ -48,12 +49,24 @@ services:
       # - CONTROL_MOUNTCHECK_MARKERFILE=.mounted
       # ping a healthchecks.io style URL on start, success and failure
       # - CONTROL_WEBHOOK_URL=https://hc-ping.com/your-uuid
+      # mail notifications for failed jobs, stale backups and security events (recipients: set notify.recipients in control.yaml)
+      # - CONTROL_NOTIFY_ENABLED=true
+      # - CONTROL_NOTIFY_MAIL_ENABLED=true
+      # - CONTROL_NOTIFY_MAIL_HOST=smtp.example.com
+      # - CONTROL_NOTIFY_MAIL_PORT=587
+      # - CONTROL_NOTIFY_MAIL_FROM=backup@example.com
+      # - CONTROL_NOTIFY_MAIL_FQDN=backup.example.com
+      # - CONTROL_NOTIFY_MAIL_ENCRYPTION=STARTTLS
+      # - CONTROL_NOTIFY_MAIL_AUTH=true
+      # - CONTROL_NOTIFY_MAIL_AUTH_METHOD=PLAIN
+      # - CONTROL_NOTIFY_MAIL_USERNAME=backup
+      # - CONTROL_NOTIFY_PASSWORDFILE=/run/secrets/smtp_password
 
   # The web portal, a separate process that only talks to the daemon above. Standalone mode does not use it.
   backup-portal:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: ./Dockerfile
     image: backup:latest
     container_name: backup-portal
     command: ["web"]
@@ -67,6 +80,8 @@ services:
       - CHOWN
       - SETUID
       - SETGID
+      # KILL lets the init process (tini, runs as root) forward signals to the portal after it dropped to PUID/PGID
+      - KILL
     security_opt:
       - no-new-privileges:true
     tmpfs:

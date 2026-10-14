@@ -21,22 +21,22 @@ A Go program, `control`, schedules the jobs, serialises access to each repositor
 docker pull ghcr.io/valentin-kaiser/backup:latest
 ```
 
-The [compose file](./compose.yaml) is the recommended starting point. It starts the daemon in portal mode together with the web portal.
+The [compose file](./examples/backup/compose.yaml) is the recommended starting point. It starts the daemon in portal mode together with the web portal.
 
 ```bash
-mkdir -p secrets
+mkdir -p examples/secrets
 # optional: the one password for the portal sign-in and the daemon API. Without it a random one is created in
-# ./secrets/portal_password on the first start
-openssl rand -hex 12 > ./secrets/portal_password
+# ./examples/secrets/portal_password on the first start
+openssl rand -hex 12 > ./examples/secrets/portal_password
 docker compose up -d
 ```
 
-Open `https://localhost:8443` (self-signed certificate) and sign in with that password (`cat ./secrets/portal_password` if it was created for you). The three default jobs fail until you create the secret `backup` under *Secrets*; it holds the repository password.
+Open `https://localhost:8443` (self-signed certificate) and sign in with that password (`cat ./examples/secrets/portal_password` if it was created for you). The three default jobs fail until you create the secret `backup` under *Secrets*; it holds the repository password.
 
 For a single source and repository without a portal, use standalone mode:
 
 ```bash
-openssl rand -hex 32 > ./secrets/backup_password
+openssl rand -hex 32 > ./examples/secrets/backup_password
 CONTROL_MODE=standalone docker compose up -d backup
 ```
 
@@ -198,6 +198,42 @@ Runs are then `skipped` (and the health check keeps its last good state) while t
 ### Notifications
 
 Set `CONTROL_WEBHOOK_URL` to a [healthchecks.io](https://healthchecks.io) compatible URL. It is called with `/start` and `/fail` suffixes, and without a suffix on success.
+
+#### Mail
+
+Mail notifications are off by default. In **portal mode** set the SMTP server, its password and the recipients in the portal under **Notifications**: the password is stored as the secret `smtp_password`, and the portal hands its own security events (failed sign-ins, refused calls) to the daemon, so both use the same mail settings. The portal has no mail settings of its own. In **standalone mode** there is no portal, configure everything in the `notify` block of `control.yaml`:
+
+```yaml
+notify:
+  enabled: true
+  recipients: [ops@example.com]
+  passwordfile: /run/secrets/smtp_password   # or passwordsecret: smtp in portal mode
+  mail:
+    enabled: true
+    host: smtp.example.com
+    port: 587
+    from: backup@example.com
+    fqdn: backup.example.com
+    auth: true
+    auth_method: PLAIN        # PLAIN, LOGIN or CRAMMD5
+    encryption: STARTTLS      # NONE, STARTTLS or TLS
+    username: backup
+```
+
+Every field is also available as `CONTROL_NOTIFY_*` (e.g. `CONTROL_NOTIFY_MAIL_HOST`) or a `--notify.*` flag. Which events are mailed:
+
+| Switch | Default | Event |
+| --- | --- | --- |
+| `onfailure` | on | a job run failed (with the exit code and the last output lines) |
+| `onsuccess` | off | a job run succeeded |
+| `onskipped` | off | a run was skipped (mount check, busy peer) or cancelled |
+| `onstale` | on | a job has no successful run within its `maxagehours` (once, repeated daily) |
+| `onsecurity` | on | wrong passwords: a locked address on the API, failed portal sign-ins, refused portal calls |
+| `onlifecycle` | off | the daemon started or is stopping |
+
+The Notifications page of the portal edits the same block in portal mode (the server and password only there, in standalone mode the page shows the server of the file read-only) and can send a test mail.
+
+`cooldownminutes` (default 60) limits mails of the same kind, severity and job or address, so a job that fails every five minutes sends one mail an hour. A failure always resets the success cooldown of its job. Mirrored sync jobs are mailed by the worker that owns them. The subject starts with `subjectprefix` (`[BACKUP]`).
 
 ## Sync
 

@@ -11,7 +11,8 @@ x-worker: &worker
   init: true
   read_only: true
   cap_drop: [ALL]
-  cap_add: [CHOWN, SETUID, SETGID]
+  # KILL lets the init process (tini, runs as root) forward signals to the worker after it dropped to PUID/PGID
+  cap_add: [CHOWN, SETUID, SETGID, KILL]
   security_opt: ["no-new-privileges:true"]
   tmpfs: [/tmp]
   environment:
@@ -104,4 +105,4 @@ services:
 
 secrets:
   portal_password:
-    file: ../../secrets/portal_password
+    file: ./secrets/portal_password
