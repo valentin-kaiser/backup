@@ -31,7 +31,7 @@ RUN CGO_ENABLED=0 go build -trimpath \
       -X github.com/valentin-kaiser/go-core/version.BuildDate=${BUILD_DATE}" \
     -o /out/control-portal ./worker/portal/cmd
 
-FROM alpine:3.21.3
+FROM alpine:3.24.2
 ARG RESTIC_VERSION=~0.17
 # bisync with --conflict-resolve needs rclone 1.66 or newer
 ARG RCLONE_VERSION=~1.68
