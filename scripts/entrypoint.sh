@@ -53,7 +53,9 @@ if [ "$(id -u)" = "0" ]; then
 	chown "$PUID:$PGID" "$DATA" "$CACHE"
 	# Only restores need it. On a read-only root file system without a volume at /restore (the sync example) it cannot be
 	# created, which is not an error.
-	mkdir -p /restore 2>/dev/null && chown "$PUID:$PGID" /restore 2>/dev/null || true
+	if mkdir -p /restore 2>/dev/null; then
+		chown "$PUID:$PGID" /restore 2>/dev/null || true
+	fi
 	prepare_secret_dir "${CONTROL_API_PASSWORDFILE:-}"
 	# The tokens and history are owned by the unprivileged user, the healthcheck runs as root.
 	chown -R "$PUID:$PGID" "$DATA" 2>/dev/null || true
