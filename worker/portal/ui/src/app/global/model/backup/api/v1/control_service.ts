@@ -13,6 +13,8 @@ import {
   FileNode,
   Job,
   JobDefinition,
+  NotificationEvent,
+  Notifications,
   Peer,
   PeerStatus,
   RepositoryStats,
@@ -20,6 +22,7 @@ import {
   SecretInfo,
   Snapshot,
   SyncServe,
+  TestNotificationsResponse,
 } from "./control";
 
 /** RPCs of the backup control daemon. */
@@ -176,6 +179,14 @@ export interface PeerRequest {
 
 /** Requests the export settings. */
 export interface GetSyncServeRequest {
+}
+
+/** Requests the notification settings. */
+export interface GetNotificationsRequest {
+}
+
+/** Requests a test mail. */
+export interface TestNotificationsRequest {
 }
 
 /** Reserves or releases a sync job. */
@@ -1977,6 +1988,110 @@ export const GetSyncServeRequest: MessageFns<GetSyncServeRequest> = {
   },
 };
 
+function createBaseGetNotificationsRequest(): GetNotificationsRequest {
+  return {};
+}
+
+export const GetNotificationsRequest: MessageFns<GetNotificationsRequest> = {
+  encode(_: GetNotificationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetNotificationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseGetNotificationsRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(_: any): GetNotificationsRequest {
+    return {};
+  },
+
+  toJSON(_: GetNotificationsRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetNotificationsRequest>, I>>(base?: I): GetNotificationsRequest {
+    return GetNotificationsRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetNotificationsRequest>, I>>(_: I): GetNotificationsRequest {
+    const message = createBaseGetNotificationsRequest();
+    return message;
+  },
+};
+
+function createBaseTestNotificationsRequest(): TestNotificationsRequest {
+  return {};
+}
+
+export const TestNotificationsRequest: MessageFns<TestNotificationsRequest> = {
+  encode(_: TestNotificationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TestNotificationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseTestNotificationsRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(_: any): TestNotificationsRequest {
+    return {};
+  },
+
+  toJSON(_: TestNotificationsRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TestNotificationsRequest>, I>>(base?: I): TestNotificationsRequest {
+    return TestNotificationsRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TestNotificationsRequest>, I>>(_: I): TestNotificationsRequest {
+    const message = createBaseTestNotificationsRequest();
+    return message;
+  },
+};
+
 function createBaseSyncLockRequest(): SyncLockRequest {
   return { job: "", owner: "", ttlSeconds: 0 };
 }
@@ -2500,6 +2615,45 @@ export const ControlDefinition = {
       requestType: SyncServe as typeof SyncServe,
       requestStream: false,
       responseType: SyncServe as typeof SyncServe,
+      responseStream: false,
+      options: {},
+    },
+    /** Returns which mails this worker sends. */
+    getNotifications: {
+      name: "GetNotifications",
+      requestType: GetNotificationsRequest as typeof GetNotificationsRequest,
+      requestStream: false,
+      responseType: Notifications as typeof Notifications,
+      responseStream: false,
+      options: {},
+    },
+    /**
+     * Changes which mails this worker sends. The SMTP server is changed in portal mode only, otherwise it stays as
+     * configured in the file.
+     */
+    setNotifications: {
+      name: "SetNotifications",
+      requestType: Notifications as typeof Notifications,
+      requestStream: false,
+      responseType: Notifications as typeof Notifications,
+      responseStream: false,
+      options: {},
+    },
+    /** Called by the portal: mails a security event of the portal with the settings of this worker. */
+    sendNotification: {
+      name: "SendNotification",
+      requestType: NotificationEvent as typeof NotificationEvent,
+      requestStream: false,
+      responseType: Empty as typeof Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Sends a test mail to the recipients, with the settings that are saved. */
+    testNotifications: {
+      name: "TestNotifications",
+      requestType: TestNotificationsRequest as typeof TestNotificationsRequest,
+      requestStream: false,
+      responseType: TestNotificationsResponse as typeof TestNotificationsResponse,
       responseStream: false,
       options: {},
     },

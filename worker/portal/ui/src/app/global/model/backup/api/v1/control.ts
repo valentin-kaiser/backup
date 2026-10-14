@@ -468,6 +468,90 @@ export interface PeerStatus {
   workerName: string;
 }
 
+/**
+ * Which mails this worker sends and how. In portal mode the SMTP server is part of this message and shared by the daemon
+ * and the portal, in standalone mode it is part of the configuration file and only reported here.
+ */
+export interface Notifications {
+  /** Whether mails are sent at all. */
+  enabled: boolean;
+  /** Addresses that receive the mails. */
+  recipients: string[];
+  /** Prefix of the subject of every mail. */
+  subjectPrefix: string;
+  /** Minimum minutes between two mails about the same job or address, 0 for no limit. */
+  cooldownMinutes: number;
+  /** Mail failed runs. */
+  onFailure: boolean;
+  /** Mail successful runs. */
+  onSuccess: boolean;
+  /** Mail skipped and cancelled runs. */
+  onSkipped: boolean;
+  /** Mail jobs without a successful run within their max age. */
+  onStale: boolean;
+  /** Mail wrong passwords at the control API. */
+  onSecurity: boolean;
+  /** Mail the start and stop of the daemon. */
+  onLifecycle: boolean;
+  /** Read only: whether an SMTP server and a sender address are configured. */
+  transportConfigured: boolean;
+  /**
+   * Read only: whether the SMTP server can be changed through the API, which is the case in portal mode. Otherwise the
+   * smtp fields only report the configuration file and a request must not change them.
+   */
+  transportEditable: boolean;
+  /** SMTP server host. */
+  smtpHost: string;
+  /** SMTP server port. */
+  smtpPort: number;
+  /** Sender address. */
+  smtpFrom: string;
+  /** NONE, STARTTLS or TLS. */
+  smtpEncryption: string;
+  /** Whether the server wants a login. */
+  smtpAuth: boolean;
+  /** PLAIN, LOGIN or CRAMMD5. */
+  smtpAuthMethod: string;
+  /** Login name. */
+  smtpUsername: string;
+  /** Accept any certificate of the server. */
+  smtpSkipVerify: boolean;
+  /** Host name announced in the HELO, empty for the name of the machine. */
+  smtpFqdn: string;
+  /** Write only: the new password. Empty keeps the stored one. It is stored as a secret and never returned. */
+  smtpPassword: string;
+  /** Write only: remove the stored password. */
+  clearSmtpPassword: boolean;
+  /** Read only: whether a password is stored or configured. */
+  smtpPasswordSet: boolean;
+}
+
+/** An event of another process, mailed by the daemon with its settings. */
+export interface NotificationEvent {
+  /** Short headline and subject. */
+  title: string;
+  /** failure, warning, success or info. */
+  severity: string;
+  /** Tells events apart for the cooldown. */
+  key: string;
+  /** Labelled values. */
+  fields: NotificationField[];
+  /** Preformatted text such as an error. */
+  detail: string;
+}
+
+/** One labelled value of a mail. */
+export interface NotificationField {
+  label: string;
+  value: string;
+}
+
+/** The result of a test mail. */
+export interface TestNotificationsResponse {
+  /** Addresses the test mail was sent to. */
+  recipients: string[];
+}
+
 function createBaseRun(): Run {
   return {
     id: "",
@@ -3107,6 +3191,849 @@ export const PeerStatus: MessageFns<PeerStatus> = {
     message.latencyMs = object.latencyMs ?? 0;
     message.error = object.error ?? "";
     message.workerName = object.workerName ?? "";
+    return message;
+  },
+};
+
+function createBaseNotifications(): Notifications {
+  return {
+    enabled: false,
+    recipients: [],
+    subjectPrefix: "",
+    cooldownMinutes: 0,
+    onFailure: false,
+    onSuccess: false,
+    onSkipped: false,
+    onStale: false,
+    onSecurity: false,
+    onLifecycle: false,
+    transportConfigured: false,
+    transportEditable: false,
+    smtpHost: "",
+    smtpPort: 0,
+    smtpFrom: "",
+    smtpEncryption: "",
+    smtpAuth: false,
+    smtpAuthMethod: "",
+    smtpUsername: "",
+    smtpSkipVerify: false,
+    smtpFqdn: "",
+    smtpPassword: "",
+    clearSmtpPassword: false,
+    smtpPasswordSet: false,
+  };
+}
+
+export const Notifications: MessageFns<Notifications> = {
+  encode(message: Notifications, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.enabled !== false) {
+      writer.uint32(8).bool(message.enabled);
+    }
+    for (const v of message.recipients) {
+      writer.uint32(18).string(v!);
+    }
+    if (message.subjectPrefix !== "") {
+      writer.uint32(26).string(message.subjectPrefix);
+    }
+    if (message.cooldownMinutes !== 0) {
+      writer.uint32(32).int32(message.cooldownMinutes);
+    }
+    if (message.onFailure !== false) {
+      writer.uint32(40).bool(message.onFailure);
+    }
+    if (message.onSuccess !== false) {
+      writer.uint32(48).bool(message.onSuccess);
+    }
+    if (message.onSkipped !== false) {
+      writer.uint32(56).bool(message.onSkipped);
+    }
+    if (message.onStale !== false) {
+      writer.uint32(64).bool(message.onStale);
+    }
+    if (message.onSecurity !== false) {
+      writer.uint32(72).bool(message.onSecurity);
+    }
+    if (message.onLifecycle !== false) {
+      writer.uint32(80).bool(message.onLifecycle);
+    }
+    if (message.transportConfigured !== false) {
+      writer.uint32(88).bool(message.transportConfigured);
+    }
+    if (message.transportEditable !== false) {
+      writer.uint32(112).bool(message.transportEditable);
+    }
+    if (message.smtpHost !== "") {
+      writer.uint32(122).string(message.smtpHost);
+    }
+    if (message.smtpPort !== 0) {
+      writer.uint32(128).int32(message.smtpPort);
+    }
+    if (message.smtpFrom !== "") {
+      writer.uint32(138).string(message.smtpFrom);
+    }
+    if (message.smtpEncryption !== "") {
+      writer.uint32(146).string(message.smtpEncryption);
+    }
+    if (message.smtpAuth !== false) {
+      writer.uint32(152).bool(message.smtpAuth);
+    }
+    if (message.smtpAuthMethod !== "") {
+      writer.uint32(162).string(message.smtpAuthMethod);
+    }
+    if (message.smtpUsername !== "") {
+      writer.uint32(170).string(message.smtpUsername);
+    }
+    if (message.smtpSkipVerify !== false) {
+      writer.uint32(176).bool(message.smtpSkipVerify);
+    }
+    if (message.smtpFqdn !== "") {
+      writer.uint32(186).string(message.smtpFqdn);
+    }
+    if (message.smtpPassword !== "") {
+      writer.uint32(194).string(message.smtpPassword);
+    }
+    if (message.clearSmtpPassword !== false) {
+      writer.uint32(200).bool(message.clearSmtpPassword);
+    }
+    if (message.smtpPasswordSet !== false) {
+      writer.uint32(208).bool(message.smtpPasswordSet);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Notifications {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseNotifications();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 8) {
+              break;
+            }
+
+            message.enabled = reader.bool();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.recipients.push(reader.string());
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.subjectPrefix = reader.string();
+            continue;
+          }
+          case 4: {
+            if (tag !== 32) {
+              break;
+            }
+
+            message.cooldownMinutes = reader.int32();
+            continue;
+          }
+          case 5: {
+            if (tag !== 40) {
+              break;
+            }
+
+            message.onFailure = reader.bool();
+            continue;
+          }
+          case 6: {
+            if (tag !== 48) {
+              break;
+            }
+
+            message.onSuccess = reader.bool();
+            continue;
+          }
+          case 7: {
+            if (tag !== 56) {
+              break;
+            }
+
+            message.onSkipped = reader.bool();
+            continue;
+          }
+          case 8: {
+            if (tag !== 64) {
+              break;
+            }
+
+            message.onStale = reader.bool();
+            continue;
+          }
+          case 9: {
+            if (tag !== 72) {
+              break;
+            }
+
+            message.onSecurity = reader.bool();
+            continue;
+          }
+          case 10: {
+            if (tag !== 80) {
+              break;
+            }
+
+            message.onLifecycle = reader.bool();
+            continue;
+          }
+          case 11: {
+            if (tag !== 88) {
+              break;
+            }
+
+            message.transportConfigured = reader.bool();
+            continue;
+          }
+          case 14: {
+            if (tag !== 112) {
+              break;
+            }
+
+            message.transportEditable = reader.bool();
+            continue;
+          }
+          case 15: {
+            if (tag !== 122) {
+              break;
+            }
+
+            message.smtpHost = reader.string();
+            continue;
+          }
+          case 16: {
+            if (tag !== 128) {
+              break;
+            }
+
+            message.smtpPort = reader.int32();
+            continue;
+          }
+          case 17: {
+            if (tag !== 138) {
+              break;
+            }
+
+            message.smtpFrom = reader.string();
+            continue;
+          }
+          case 18: {
+            if (tag !== 146) {
+              break;
+            }
+
+            message.smtpEncryption = reader.string();
+            continue;
+          }
+          case 19: {
+            if (tag !== 152) {
+              break;
+            }
+
+            message.smtpAuth = reader.bool();
+            continue;
+          }
+          case 20: {
+            if (tag !== 162) {
+              break;
+            }
+
+            message.smtpAuthMethod = reader.string();
+            continue;
+          }
+          case 21: {
+            if (tag !== 170) {
+              break;
+            }
+
+            message.smtpUsername = reader.string();
+            continue;
+          }
+          case 22: {
+            if (tag !== 176) {
+              break;
+            }
+
+            message.smtpSkipVerify = reader.bool();
+            continue;
+          }
+          case 23: {
+            if (tag !== 186) {
+              break;
+            }
+
+            message.smtpFqdn = reader.string();
+            continue;
+          }
+          case 24: {
+            if (tag !== 194) {
+              break;
+            }
+
+            message.smtpPassword = reader.string();
+            continue;
+          }
+          case 25: {
+            if (tag !== 200) {
+              break;
+            }
+
+            message.clearSmtpPassword = reader.bool();
+            continue;
+          }
+          case 26: {
+            if (tag !== 208) {
+              break;
+            }
+
+            message.smtpPasswordSet = reader.bool();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): Notifications {
+    return {
+      enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+      recipients: globalThis.Array.isArray(object?.recipients)
+        ? object.recipients.map((e: any) => globalThis.String(e))
+        : [],
+      subjectPrefix: isSet(object.subjectPrefix)
+        ? globalThis.String(object.subjectPrefix)
+        : isSet(object.subject_prefix)
+        ? globalThis.String(object.subject_prefix)
+        : "",
+      cooldownMinutes: isSet(object.cooldownMinutes)
+        ? globalThis.Number(object.cooldownMinutes)
+        : isSet(object.cooldown_minutes)
+        ? globalThis.Number(object.cooldown_minutes)
+        : 0,
+      onFailure: isSet(object.onFailure)
+        ? globalThis.Boolean(object.onFailure)
+        : isSet(object.on_failure)
+        ? globalThis.Boolean(object.on_failure)
+        : false,
+      onSuccess: isSet(object.onSuccess)
+        ? globalThis.Boolean(object.onSuccess)
+        : isSet(object.on_success)
+        ? globalThis.Boolean(object.on_success)
+        : false,
+      onSkipped: isSet(object.onSkipped)
+        ? globalThis.Boolean(object.onSkipped)
+        : isSet(object.on_skipped)
+        ? globalThis.Boolean(object.on_skipped)
+        : false,
+      onStale: isSet(object.onStale)
+        ? globalThis.Boolean(object.onStale)
+        : isSet(object.on_stale)
+        ? globalThis.Boolean(object.on_stale)
+        : false,
+      onSecurity: isSet(object.onSecurity)
+        ? globalThis.Boolean(object.onSecurity)
+        : isSet(object.on_security)
+        ? globalThis.Boolean(object.on_security)
+        : false,
+      onLifecycle: isSet(object.onLifecycle)
+        ? globalThis.Boolean(object.onLifecycle)
+        : isSet(object.on_lifecycle)
+        ? globalThis.Boolean(object.on_lifecycle)
+        : false,
+      transportConfigured: isSet(object.transportConfigured)
+        ? globalThis.Boolean(object.transportConfigured)
+        : isSet(object.transport_configured)
+        ? globalThis.Boolean(object.transport_configured)
+        : false,
+      transportEditable: isSet(object.transportEditable)
+        ? globalThis.Boolean(object.transportEditable)
+        : isSet(object.transport_editable)
+        ? globalThis.Boolean(object.transport_editable)
+        : false,
+      smtpHost: isSet(object.smtpHost)
+        ? globalThis.String(object.smtpHost)
+        : isSet(object.smtp_host)
+        ? globalThis.String(object.smtp_host)
+        : "",
+      smtpPort: isSet(object.smtpPort)
+        ? globalThis.Number(object.smtpPort)
+        : isSet(object.smtp_port)
+        ? globalThis.Number(object.smtp_port)
+        : 0,
+      smtpFrom: isSet(object.smtpFrom)
+        ? globalThis.String(object.smtpFrom)
+        : isSet(object.smtp_from)
+        ? globalThis.String(object.smtp_from)
+        : "",
+      smtpEncryption: isSet(object.smtpEncryption)
+        ? globalThis.String(object.smtpEncryption)
+        : isSet(object.smtp_encryption)
+        ? globalThis.String(object.smtp_encryption)
+        : "",
+      smtpAuth: isSet(object.smtpAuth)
+        ? globalThis.Boolean(object.smtpAuth)
+        : isSet(object.smtp_auth)
+        ? globalThis.Boolean(object.smtp_auth)
+        : false,
+      smtpAuthMethod: isSet(object.smtpAuthMethod)
+        ? globalThis.String(object.smtpAuthMethod)
+        : isSet(object.smtp_auth_method)
+        ? globalThis.String(object.smtp_auth_method)
+        : "",
+      smtpUsername: isSet(object.smtpUsername)
+        ? globalThis.String(object.smtpUsername)
+        : isSet(object.smtp_username)
+        ? globalThis.String(object.smtp_username)
+        : "",
+      smtpSkipVerify: isSet(object.smtpSkipVerify)
+        ? globalThis.Boolean(object.smtpSkipVerify)
+        : isSet(object.smtp_skip_verify)
+        ? globalThis.Boolean(object.smtp_skip_verify)
+        : false,
+      smtpFqdn: isSet(object.smtpFqdn)
+        ? globalThis.String(object.smtpFqdn)
+        : isSet(object.smtp_fqdn)
+        ? globalThis.String(object.smtp_fqdn)
+        : "",
+      smtpPassword: isSet(object.smtpPassword)
+        ? globalThis.String(object.smtpPassword)
+        : isSet(object.smtp_password)
+        ? globalThis.String(object.smtp_password)
+        : "",
+      clearSmtpPassword: isSet(object.clearSmtpPassword)
+        ? globalThis.Boolean(object.clearSmtpPassword)
+        : isSet(object.clear_smtp_password)
+        ? globalThis.Boolean(object.clear_smtp_password)
+        : false,
+      smtpPasswordSet: isSet(object.smtpPasswordSet)
+        ? globalThis.Boolean(object.smtpPasswordSet)
+        : isSet(object.smtp_password_set)
+        ? globalThis.Boolean(object.smtp_password_set)
+        : false,
+    };
+  },
+
+  toJSON(message: Notifications): unknown {
+    const obj: any = {};
+    if (message.enabled !== false) {
+      obj.enabled = message.enabled;
+    }
+    if (message.recipients?.length) {
+      obj.recipients = message.recipients;
+    }
+    if (message.subjectPrefix !== "") {
+      obj.subjectPrefix = message.subjectPrefix;
+    }
+    if (message.cooldownMinutes !== 0) {
+      obj.cooldownMinutes = Math.round(message.cooldownMinutes);
+    }
+    if (message.onFailure !== false) {
+      obj.onFailure = message.onFailure;
+    }
+    if (message.onSuccess !== false) {
+      obj.onSuccess = message.onSuccess;
+    }
+    if (message.onSkipped !== false) {
+      obj.onSkipped = message.onSkipped;
+    }
+    if (message.onStale !== false) {
+      obj.onStale = message.onStale;
+    }
+    if (message.onSecurity !== false) {
+      obj.onSecurity = message.onSecurity;
+    }
+    if (message.onLifecycle !== false) {
+      obj.onLifecycle = message.onLifecycle;
+    }
+    if (message.transportConfigured !== false) {
+      obj.transportConfigured = message.transportConfigured;
+    }
+    if (message.transportEditable !== false) {
+      obj.transportEditable = message.transportEditable;
+    }
+    if (message.smtpHost !== "") {
+      obj.smtpHost = message.smtpHost;
+    }
+    if (message.smtpPort !== 0) {
+      obj.smtpPort = Math.round(message.smtpPort);
+    }
+    if (message.smtpFrom !== "") {
+      obj.smtpFrom = message.smtpFrom;
+    }
+    if (message.smtpEncryption !== "") {
+      obj.smtpEncryption = message.smtpEncryption;
+    }
+    if (message.smtpAuth !== false) {
+      obj.smtpAuth = message.smtpAuth;
+    }
+    if (message.smtpAuthMethod !== "") {
+      obj.smtpAuthMethod = message.smtpAuthMethod;
+    }
+    if (message.smtpUsername !== "") {
+      obj.smtpUsername = message.smtpUsername;
+    }
+    if (message.smtpSkipVerify !== false) {
+      obj.smtpSkipVerify = message.smtpSkipVerify;
+    }
+    if (message.smtpFqdn !== "") {
+      obj.smtpFqdn = message.smtpFqdn;
+    }
+    if (message.smtpPassword !== "") {
+      obj.smtpPassword = message.smtpPassword;
+    }
+    if (message.clearSmtpPassword !== false) {
+      obj.clearSmtpPassword = message.clearSmtpPassword;
+    }
+    if (message.smtpPasswordSet !== false) {
+      obj.smtpPasswordSet = message.smtpPasswordSet;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Notifications>, I>>(base?: I): Notifications {
+    return Notifications.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<Notifications>, I>>(object: I): Notifications {
+    const message = createBaseNotifications();
+    message.enabled = object.enabled ?? false;
+    message.recipients = object.recipients?.map((e) => e) || [];
+    message.subjectPrefix = object.subjectPrefix ?? "";
+    message.cooldownMinutes = object.cooldownMinutes ?? 0;
+    message.onFailure = object.onFailure ?? false;
+    message.onSuccess = object.onSuccess ?? false;
+    message.onSkipped = object.onSkipped ?? false;
+    message.onStale = object.onStale ?? false;
+    message.onSecurity = object.onSecurity ?? false;
+    message.onLifecycle = object.onLifecycle ?? false;
+    message.transportConfigured = object.transportConfigured ?? false;
+    message.transportEditable = object.transportEditable ?? false;
+    message.smtpHost = object.smtpHost ?? "";
+    message.smtpPort = object.smtpPort ?? 0;
+    message.smtpFrom = object.smtpFrom ?? "";
+    message.smtpEncryption = object.smtpEncryption ?? "";
+    message.smtpAuth = object.smtpAuth ?? false;
+    message.smtpAuthMethod = object.smtpAuthMethod ?? "";
+    message.smtpUsername = object.smtpUsername ?? "";
+    message.smtpSkipVerify = object.smtpSkipVerify ?? false;
+    message.smtpFqdn = object.smtpFqdn ?? "";
+    message.smtpPassword = object.smtpPassword ?? "";
+    message.clearSmtpPassword = object.clearSmtpPassword ?? false;
+    message.smtpPasswordSet = object.smtpPasswordSet ?? false;
+    return message;
+  },
+};
+
+function createBaseNotificationEvent(): NotificationEvent {
+  return { title: "", severity: "", key: "", fields: [], detail: "" };
+}
+
+export const NotificationEvent: MessageFns<NotificationEvent> = {
+  encode(message: NotificationEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.title !== "") {
+      writer.uint32(10).string(message.title);
+    }
+    if (message.severity !== "") {
+      writer.uint32(18).string(message.severity);
+    }
+    if (message.key !== "") {
+      writer.uint32(26).string(message.key);
+    }
+    for (const v of message.fields) {
+      NotificationField.encode(v!, writer.uint32(34).fork()).join();
+    }
+    if (message.detail !== "") {
+      writer.uint32(42).string(message.detail);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): NotificationEvent {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseNotificationEvent();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.title = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.severity = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.key = reader.string();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.fields.push(NotificationField.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.detail = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): NotificationEvent {
+    return {
+      title: isSet(object.title) ? globalThis.String(object.title) : "",
+      severity: isSet(object.severity) ? globalThis.String(object.severity) : "",
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      fields: globalThis.Array.isArray(object?.fields)
+        ? object.fields.map((e: any) => NotificationField.fromJSON(e))
+        : [],
+      detail: isSet(object.detail) ? globalThis.String(object.detail) : "",
+    };
+  },
+
+  toJSON(message: NotificationEvent): unknown {
+    const obj: any = {};
+    if (message.title !== "") {
+      obj.title = message.title;
+    }
+    if (message.severity !== "") {
+      obj.severity = message.severity;
+    }
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.fields?.length) {
+      obj.fields = message.fields.map((e) => NotificationField.toJSON(e));
+    }
+    if (message.detail !== "") {
+      obj.detail = message.detail;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<NotificationEvent>, I>>(base?: I): NotificationEvent {
+    return NotificationEvent.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<NotificationEvent>, I>>(object: I): NotificationEvent {
+    const message = createBaseNotificationEvent();
+    message.title = object.title ?? "";
+    message.severity = object.severity ?? "";
+    message.key = object.key ?? "";
+    message.fields = object.fields?.map((e) => NotificationField.fromPartial(e)) || [];
+    message.detail = object.detail ?? "";
+    return message;
+  },
+};
+
+function createBaseNotificationField(): NotificationField {
+  return { label: "", value: "" };
+}
+
+export const NotificationField: MessageFns<NotificationField> = {
+  encode(message: NotificationField, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.label !== "") {
+      writer.uint32(10).string(message.label);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): NotificationField {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseNotificationField();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.label = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.value = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): NotificationField {
+    return {
+      label: isSet(object.label) ? globalThis.String(object.label) : "",
+      value: isSet(object.value) ? globalThis.String(object.value) : "",
+    };
+  },
+
+  toJSON(message: NotificationField): unknown {
+    const obj: any = {};
+    if (message.label !== "") {
+      obj.label = message.label;
+    }
+    if (message.value !== "") {
+      obj.value = message.value;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<NotificationField>, I>>(base?: I): NotificationField {
+    return NotificationField.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<NotificationField>, I>>(object: I): NotificationField {
+    const message = createBaseNotificationField();
+    message.label = object.label ?? "";
+    message.value = object.value ?? "";
+    return message;
+  },
+};
+
+function createBaseTestNotificationsResponse(): TestNotificationsResponse {
+  return { recipients: [] };
+}
+
+export const TestNotificationsResponse: MessageFns<TestNotificationsResponse> = {
+  encode(message: TestNotificationsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.recipients) {
+      writer.uint32(10).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TestNotificationsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseTestNotificationsResponse();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.recipients.push(reader.string());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): TestNotificationsResponse {
+    return {
+      recipients: globalThis.Array.isArray(object?.recipients)
+        ? object.recipients.map((e: any) => globalThis.String(e))
+        : [],
+    };
+  },
+
+  toJSON(message: TestNotificationsResponse): unknown {
+    const obj: any = {};
+    if (message.recipients?.length) {
+      obj.recipients = message.recipients;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TestNotificationsResponse>, I>>(base?: I): TestNotificationsResponse {
+    return TestNotificationsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TestNotificationsResponse>, I>>(object: I): TestNotificationsResponse {
+    const message = createBaseTestNotificationsResponse();
+    message.recipients = object.recipients?.map((e) => e) || [];
     return message;
   },
 };

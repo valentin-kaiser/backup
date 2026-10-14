@@ -1171,6 +1171,80 @@ func (*GetSyncServeRequest) Descriptor() ([]byte, []int) {
 	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{22}
 }
 
+// Requests the notification settings.
+type GetNotificationsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetNotificationsRequest) Reset() {
+	*x = GetNotificationsRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetNotificationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNotificationsRequest) ProtoMessage() {}
+
+func (x *GetNotificationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNotificationsRequest.ProtoReflect.Descriptor instead.
+func (*GetNotificationsRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{23}
+}
+
+// Requests a test mail.
+type TestNotificationsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestNotificationsRequest) Reset() {
+	*x = TestNotificationsRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestNotificationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestNotificationsRequest) ProtoMessage() {}
+
+func (x *TestNotificationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestNotificationsRequest.ProtoReflect.Descriptor instead.
+func (*TestNotificationsRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{24}
+}
+
 // Reserves or releases a sync job.
 type SyncLockRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1186,7 +1260,7 @@ type SyncLockRequest struct {
 
 func (x *SyncLockRequest) Reset() {
 	*x = SyncLockRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1198,7 +1272,7 @@ func (x *SyncLockRequest) String() string {
 func (*SyncLockRequest) ProtoMessage() {}
 
 func (x *SyncLockRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1211,7 +1285,7 @@ func (x *SyncLockRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncLockRequest.ProtoReflect.Descriptor instead.
 func (*SyncLockRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{23}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SyncLockRequest) GetJob() string {
@@ -1248,7 +1322,7 @@ type SyncLockResponse struct {
 
 func (x *SyncLockResponse) Reset() {
 	*x = SyncLockResponse{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1260,7 +1334,7 @@ func (x *SyncLockResponse) String() string {
 func (*SyncLockResponse) ProtoMessage() {}
 
 func (x *SyncLockResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1273,7 +1347,7 @@ func (x *SyncLockResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncLockResponse.ProtoReflect.Descriptor instead.
 func (*SyncLockResponse) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{24}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SyncLockResponse) GetGranted() bool {
@@ -1304,7 +1378,7 @@ type PushJobRequest struct {
 
 func (x *PushJobRequest) Reset() {
 	*x = PushJobRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1316,7 +1390,7 @@ func (x *PushJobRequest) String() string {
 func (*PushJobRequest) ProtoMessage() {}
 
 func (x *PushJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1329,7 +1403,7 @@ func (x *PushJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PushJobRequest.ProtoReflect.Descriptor instead.
 func (*PushJobRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{25}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *PushJobRequest) GetDefinition() *JobDefinition {
@@ -1409,7 +1483,9 @@ const file_backup_api_v1_control_service_proto_rawDesc = "" +
 	"workerName\"!\n" +
 	"\vPeerRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"\x15\n" +
-	"\x13GetSyncServeRequest\"Z\n" +
+	"\x13GetSyncServeRequest\"\x19\n" +
+	"\x17GetNotificationsRequest\"\x1a\n" +
+	"\x18TestNotificationsRequest\"Z\n" +
 	"\x0fSyncLockRequest\x12\x10\n" +
 	"\x03job\x18\x01 \x01(\tR\x03job\x12\x14\n" +
 	"\x05owner\x18\x02 \x01(\tR\x05owner\x12\x1f\n" +
@@ -1422,7 +1498,7 @@ const file_backup_api_v1_control_service_proto_rawDesc = "" +
 	"\n" +
 	"definition\x18\x01 \x01(\v2\x1c.backup.api.v1.JobDefinitionR\n" +
 	"definition\x12\x14\n" +
-	"\x05owner\x18\x02 \x01(\tR\x05owner2\xae\x11\n" +
+	"\x05owner\x18\x02 \x01(\tR\x05owner2\x8e\x14\n" +
 	"\aControl\x12J\n" +
 	"\tGetStatus\x12\x1f.backup.api.v1.GetStatusRequest\x1a\x1c.backup.api.v1.ControlStatus\x12K\n" +
 	"\bListRuns\x12\x1e.backup.api.v1.ListRunsRequest\x1a\x1f.backup.api.v1.ListRunsResponse\x12:\n" +
@@ -1450,7 +1526,11 @@ const file_backup_api_v1_control_service_proto_rawDesc = "" +
 	"DeletePeer\x12\x1a.backup.api.v1.PeerRequest\x1a\x16.google.protobuf.Empty\x12A\n" +
 	"\bTestPeer\x12\x1a.backup.api.v1.PeerRequest\x1a\x19.backup.api.v1.PeerStatus\x12L\n" +
 	"\fGetSyncServe\x12\".backup.api.v1.GetSyncServeRequest\x1a\x18.backup.api.v1.SyncServe\x12B\n" +
-	"\fSetSyncServe\x12\x18.backup.api.v1.SyncServe\x1a\x18.backup.api.v1.SyncServe\x12R\n" +
+	"\fSetSyncServe\x12\x18.backup.api.v1.SyncServe\x1a\x18.backup.api.v1.SyncServe\x12X\n" +
+	"\x10GetNotifications\x12&.backup.api.v1.GetNotificationsRequest\x1a\x1c.backup.api.v1.Notifications\x12N\n" +
+	"\x10SetNotifications\x12\x1c.backup.api.v1.Notifications\x1a\x1c.backup.api.v1.Notifications\x12L\n" +
+	"\x10SendNotification\x12 .backup.api.v1.NotificationEvent\x1a\x16.google.protobuf.Empty\x12f\n" +
+	"\x11TestNotifications\x12'.backup.api.v1.TestNotificationsRequest\x1a(.backup.api.v1.TestNotificationsResponse\x12R\n" +
 	"\x0fAcquireSyncLock\x12\x1e.backup.api.v1.SyncLockRequest\x1a\x1f.backup.api.v1.SyncLockResponse\x12I\n" +
 	"\x0fReleaseSyncLock\x12\x1e.backup.api.v1.SyncLockRequest\x1a\x16.google.protobuf.Empty\x12@\n" +
 	"\aPushJob\x12\x1d.backup.api.v1.PushJobRequest\x1a\x16.google.protobuf.Empty\x12@\n" +
@@ -1469,7 +1549,7 @@ func file_backup_api_v1_control_service_proto_rawDescGZIP() []byte {
 	return file_backup_api_v1_control_service_proto_rawDescData
 }
 
-var file_backup_api_v1_control_service_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_backup_api_v1_control_service_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_backup_api_v1_control_service_proto_goTypes = []any{
 	(*GetStatusRequest)(nil),                 // 0: backup.api.v1.GetStatusRequest
 	(*ListRunsRequest)(nil),                  // 1: backup.api.v1.ListRunsRequest
@@ -1494,37 +1574,42 @@ var file_backup_api_v1_control_service_proto_goTypes = []any{
 	(*ListPeersResponse)(nil),                // 20: backup.api.v1.ListPeersResponse
 	(*PeerRequest)(nil),                      // 21: backup.api.v1.PeerRequest
 	(*GetSyncServeRequest)(nil),              // 22: backup.api.v1.GetSyncServeRequest
-	(*SyncLockRequest)(nil),                  // 23: backup.api.v1.SyncLockRequest
-	(*SyncLockResponse)(nil),                 // 24: backup.api.v1.SyncLockResponse
-	(*PushJobRequest)(nil),                   // 25: backup.api.v1.PushJobRequest
-	(*Run)(nil),                              // 26: backup.api.v1.Run
-	(*Snapshot)(nil),                         // 27: backup.api.v1.Snapshot
-	(*FileNode)(nil),                         // 28: backup.api.v1.FileNode
-	(*SecretInfo)(nil),                       // 29: backup.api.v1.SecretInfo
-	(*Peer)(nil),                             // 30: backup.api.v1.Peer
-	(*JobDefinition)(nil),                    // 31: backup.api.v1.JobDefinition
-	(*SyncServe)(nil),                        // 32: backup.api.v1.SyncServe
-	(*ControlStatus)(nil),                    // 33: backup.api.v1.ControlStatus
-	(*Job)(nil),                              // 34: backup.api.v1.Job
-	(*emptypb.Empty)(nil),                    // 35: google.protobuf.Empty
-	(*RepositoryStats)(nil),                  // 36: backup.api.v1.RepositoryStats
-	(*PeerStatus)(nil),                       // 37: backup.api.v1.PeerStatus
-	(*Event)(nil),                            // 38: backup.api.v1.Event
+	(*GetNotificationsRequest)(nil),          // 23: backup.api.v1.GetNotificationsRequest
+	(*TestNotificationsRequest)(nil),         // 24: backup.api.v1.TestNotificationsRequest
+	(*SyncLockRequest)(nil),                  // 25: backup.api.v1.SyncLockRequest
+	(*SyncLockResponse)(nil),                 // 26: backup.api.v1.SyncLockResponse
+	(*PushJobRequest)(nil),                   // 27: backup.api.v1.PushJobRequest
+	(*Run)(nil),                              // 28: backup.api.v1.Run
+	(*Snapshot)(nil),                         // 29: backup.api.v1.Snapshot
+	(*FileNode)(nil),                         // 30: backup.api.v1.FileNode
+	(*SecretInfo)(nil),                       // 31: backup.api.v1.SecretInfo
+	(*Peer)(nil),                             // 32: backup.api.v1.Peer
+	(*JobDefinition)(nil),                    // 33: backup.api.v1.JobDefinition
+	(*SyncServe)(nil),                        // 34: backup.api.v1.SyncServe
+	(*Notifications)(nil),                    // 35: backup.api.v1.Notifications
+	(*NotificationEvent)(nil),                // 36: backup.api.v1.NotificationEvent
+	(*ControlStatus)(nil),                    // 37: backup.api.v1.ControlStatus
+	(*Job)(nil),                              // 38: backup.api.v1.Job
+	(*emptypb.Empty)(nil),                    // 39: google.protobuf.Empty
+	(*RepositoryStats)(nil),                  // 40: backup.api.v1.RepositoryStats
+	(*PeerStatus)(nil),                       // 41: backup.api.v1.PeerStatus
+	(*TestNotificationsResponse)(nil),        // 42: backup.api.v1.TestNotificationsResponse
+	(*Event)(nil),                            // 43: backup.api.v1.Event
 }
 var file_backup_api_v1_control_service_proto_depIdxs = []int32{
-	26, // 0: backup.api.v1.ListRunsResponse.runs:type_name -> backup.api.v1.Run
-	27, // 1: backup.api.v1.ListSnapshotsResponse.snapshots:type_name -> backup.api.v1.Snapshot
-	28, // 2: backup.api.v1.ListFilesResponse.files:type_name -> backup.api.v1.FileNode
-	29, // 3: backup.api.v1.ListSecretsResponse.secrets:type_name -> backup.api.v1.SecretInfo
-	29, // 4: backup.api.v1.SetSecretResponse.secret:type_name -> backup.api.v1.SecretInfo
-	29, // 5: backup.api.v1.ChangeRepositoryPasswordResponse.secret:type_name -> backup.api.v1.SecretInfo
-	30, // 6: backup.api.v1.ListPeersResponse.peers:type_name -> backup.api.v1.Peer
-	31, // 7: backup.api.v1.PushJobRequest.definition:type_name -> backup.api.v1.JobDefinition
+	28, // 0: backup.api.v1.ListRunsResponse.runs:type_name -> backup.api.v1.Run
+	29, // 1: backup.api.v1.ListSnapshotsResponse.snapshots:type_name -> backup.api.v1.Snapshot
+	30, // 2: backup.api.v1.ListFilesResponse.files:type_name -> backup.api.v1.FileNode
+	31, // 3: backup.api.v1.ListSecretsResponse.secrets:type_name -> backup.api.v1.SecretInfo
+	31, // 4: backup.api.v1.SetSecretResponse.secret:type_name -> backup.api.v1.SecretInfo
+	31, // 5: backup.api.v1.ChangeRepositoryPasswordResponse.secret:type_name -> backup.api.v1.SecretInfo
+	32, // 6: backup.api.v1.ListPeersResponse.peers:type_name -> backup.api.v1.Peer
+	33, // 7: backup.api.v1.PushJobRequest.definition:type_name -> backup.api.v1.JobDefinition
 	0,  // 8: backup.api.v1.Control.GetStatus:input_type -> backup.api.v1.GetStatusRequest
 	1,  // 9: backup.api.v1.Control.ListRuns:input_type -> backup.api.v1.ListRunsRequest
 	3,  // 10: backup.api.v1.Control.GetRun:input_type -> backup.api.v1.GetRunRequest
-	31, // 11: backup.api.v1.Control.CreateJob:input_type -> backup.api.v1.JobDefinition
-	31, // 12: backup.api.v1.Control.UpdateJob:input_type -> backup.api.v1.JobDefinition
+	33, // 11: backup.api.v1.Control.CreateJob:input_type -> backup.api.v1.JobDefinition
+	33, // 12: backup.api.v1.Control.UpdateJob:input_type -> backup.api.v1.JobDefinition
 	4,  // 13: backup.api.v1.Control.DeleteJob:input_type -> backup.api.v1.JobRequest
 	4,  // 14: backup.api.v1.Control.StartJob:input_type -> backup.api.v1.JobRequest
 	4,  // 15: backup.api.v1.Control.CancelJob:input_type -> backup.api.v1.JobRequest
@@ -1541,49 +1626,57 @@ var file_backup_api_v1_control_service_proto_depIdxs = []int32{
 	13, // 26: backup.api.v1.Control.DeleteSecret:input_type -> backup.api.v1.SecretRequest
 	4,  // 27: backup.api.v1.Control.ResyncJob:input_type -> backup.api.v1.JobRequest
 	19, // 28: backup.api.v1.Control.ListPeers:input_type -> backup.api.v1.ListPeersRequest
-	30, // 29: backup.api.v1.Control.SetPeer:input_type -> backup.api.v1.Peer
+	32, // 29: backup.api.v1.Control.SetPeer:input_type -> backup.api.v1.Peer
 	21, // 30: backup.api.v1.Control.DeletePeer:input_type -> backup.api.v1.PeerRequest
 	21, // 31: backup.api.v1.Control.TestPeer:input_type -> backup.api.v1.PeerRequest
 	22, // 32: backup.api.v1.Control.GetSyncServe:input_type -> backup.api.v1.GetSyncServeRequest
-	32, // 33: backup.api.v1.Control.SetSyncServe:input_type -> backup.api.v1.SyncServe
-	23, // 34: backup.api.v1.Control.AcquireSyncLock:input_type -> backup.api.v1.SyncLockRequest
-	23, // 35: backup.api.v1.Control.ReleaseSyncLock:input_type -> backup.api.v1.SyncLockRequest
-	25, // 36: backup.api.v1.Control.PushJob:input_type -> backup.api.v1.PushJobRequest
-	25, // 37: backup.api.v1.Control.DropJob:input_type -> backup.api.v1.PushJobRequest
-	18, // 38: backup.api.v1.Control.Watch:input_type -> backup.api.v1.WatchRequest
-	33, // 39: backup.api.v1.Control.GetStatus:output_type -> backup.api.v1.ControlStatus
-	2,  // 40: backup.api.v1.Control.ListRuns:output_type -> backup.api.v1.ListRunsResponse
-	26, // 41: backup.api.v1.Control.GetRun:output_type -> backup.api.v1.Run
-	34, // 42: backup.api.v1.Control.CreateJob:output_type -> backup.api.v1.Job
-	34, // 43: backup.api.v1.Control.UpdateJob:output_type -> backup.api.v1.Job
-	35, // 44: backup.api.v1.Control.DeleteJob:output_type -> google.protobuf.Empty
-	26, // 45: backup.api.v1.Control.StartJob:output_type -> backup.api.v1.Run
-	35, // 46: backup.api.v1.Control.CancelJob:output_type -> google.protobuf.Empty
-	35, // 47: backup.api.v1.Control.UnlockJob:output_type -> google.protobuf.Empty
-	35, // 48: backup.api.v1.Control.PauseJob:output_type -> google.protobuf.Empty
-	35, // 49: backup.api.v1.Control.ResumeJob:output_type -> google.protobuf.Empty
-	6,  // 50: backup.api.v1.Control.ListSnapshots:output_type -> backup.api.v1.ListSnapshotsResponse
-	8,  // 51: backup.api.v1.Control.ListFiles:output_type -> backup.api.v1.ListFilesResponse
-	36, // 52: backup.api.v1.Control.GetStats:output_type -> backup.api.v1.RepositoryStats
-	26, // 53: backup.api.v1.Control.Restore:output_type -> backup.api.v1.Run
-	12, // 54: backup.api.v1.Control.ListSecrets:output_type -> backup.api.v1.ListSecretsResponse
-	15, // 55: backup.api.v1.Control.SetSecret:output_type -> backup.api.v1.SetSecretResponse
-	17, // 56: backup.api.v1.Control.ChangeRepositoryPassword:output_type -> backup.api.v1.ChangeRepositoryPasswordResponse
-	35, // 57: backup.api.v1.Control.DeleteSecret:output_type -> google.protobuf.Empty
-	26, // 58: backup.api.v1.Control.ResyncJob:output_type -> backup.api.v1.Run
-	20, // 59: backup.api.v1.Control.ListPeers:output_type -> backup.api.v1.ListPeersResponse
-	30, // 60: backup.api.v1.Control.SetPeer:output_type -> backup.api.v1.Peer
-	35, // 61: backup.api.v1.Control.DeletePeer:output_type -> google.protobuf.Empty
-	37, // 62: backup.api.v1.Control.TestPeer:output_type -> backup.api.v1.PeerStatus
-	32, // 63: backup.api.v1.Control.GetSyncServe:output_type -> backup.api.v1.SyncServe
-	32, // 64: backup.api.v1.Control.SetSyncServe:output_type -> backup.api.v1.SyncServe
-	24, // 65: backup.api.v1.Control.AcquireSyncLock:output_type -> backup.api.v1.SyncLockResponse
-	35, // 66: backup.api.v1.Control.ReleaseSyncLock:output_type -> google.protobuf.Empty
-	35, // 67: backup.api.v1.Control.PushJob:output_type -> google.protobuf.Empty
-	35, // 68: backup.api.v1.Control.DropJob:output_type -> google.protobuf.Empty
-	38, // 69: backup.api.v1.Control.Watch:output_type -> backup.api.v1.Event
-	39, // [39:70] is the sub-list for method output_type
-	8,  // [8:39] is the sub-list for method input_type
+	34, // 33: backup.api.v1.Control.SetSyncServe:input_type -> backup.api.v1.SyncServe
+	23, // 34: backup.api.v1.Control.GetNotifications:input_type -> backup.api.v1.GetNotificationsRequest
+	35, // 35: backup.api.v1.Control.SetNotifications:input_type -> backup.api.v1.Notifications
+	36, // 36: backup.api.v1.Control.SendNotification:input_type -> backup.api.v1.NotificationEvent
+	24, // 37: backup.api.v1.Control.TestNotifications:input_type -> backup.api.v1.TestNotificationsRequest
+	25, // 38: backup.api.v1.Control.AcquireSyncLock:input_type -> backup.api.v1.SyncLockRequest
+	25, // 39: backup.api.v1.Control.ReleaseSyncLock:input_type -> backup.api.v1.SyncLockRequest
+	27, // 40: backup.api.v1.Control.PushJob:input_type -> backup.api.v1.PushJobRequest
+	27, // 41: backup.api.v1.Control.DropJob:input_type -> backup.api.v1.PushJobRequest
+	18, // 42: backup.api.v1.Control.Watch:input_type -> backup.api.v1.WatchRequest
+	37, // 43: backup.api.v1.Control.GetStatus:output_type -> backup.api.v1.ControlStatus
+	2,  // 44: backup.api.v1.Control.ListRuns:output_type -> backup.api.v1.ListRunsResponse
+	28, // 45: backup.api.v1.Control.GetRun:output_type -> backup.api.v1.Run
+	38, // 46: backup.api.v1.Control.CreateJob:output_type -> backup.api.v1.Job
+	38, // 47: backup.api.v1.Control.UpdateJob:output_type -> backup.api.v1.Job
+	39, // 48: backup.api.v1.Control.DeleteJob:output_type -> google.protobuf.Empty
+	28, // 49: backup.api.v1.Control.StartJob:output_type -> backup.api.v1.Run
+	39, // 50: backup.api.v1.Control.CancelJob:output_type -> google.protobuf.Empty
+	39, // 51: backup.api.v1.Control.UnlockJob:output_type -> google.protobuf.Empty
+	39, // 52: backup.api.v1.Control.PauseJob:output_type -> google.protobuf.Empty
+	39, // 53: backup.api.v1.Control.ResumeJob:output_type -> google.protobuf.Empty
+	6,  // 54: backup.api.v1.Control.ListSnapshots:output_type -> backup.api.v1.ListSnapshotsResponse
+	8,  // 55: backup.api.v1.Control.ListFiles:output_type -> backup.api.v1.ListFilesResponse
+	40, // 56: backup.api.v1.Control.GetStats:output_type -> backup.api.v1.RepositoryStats
+	28, // 57: backup.api.v1.Control.Restore:output_type -> backup.api.v1.Run
+	12, // 58: backup.api.v1.Control.ListSecrets:output_type -> backup.api.v1.ListSecretsResponse
+	15, // 59: backup.api.v1.Control.SetSecret:output_type -> backup.api.v1.SetSecretResponse
+	17, // 60: backup.api.v1.Control.ChangeRepositoryPassword:output_type -> backup.api.v1.ChangeRepositoryPasswordResponse
+	39, // 61: backup.api.v1.Control.DeleteSecret:output_type -> google.protobuf.Empty
+	28, // 62: backup.api.v1.Control.ResyncJob:output_type -> backup.api.v1.Run
+	20, // 63: backup.api.v1.Control.ListPeers:output_type -> backup.api.v1.ListPeersResponse
+	32, // 64: backup.api.v1.Control.SetPeer:output_type -> backup.api.v1.Peer
+	39, // 65: backup.api.v1.Control.DeletePeer:output_type -> google.protobuf.Empty
+	41, // 66: backup.api.v1.Control.TestPeer:output_type -> backup.api.v1.PeerStatus
+	34, // 67: backup.api.v1.Control.GetSyncServe:output_type -> backup.api.v1.SyncServe
+	34, // 68: backup.api.v1.Control.SetSyncServe:output_type -> backup.api.v1.SyncServe
+	35, // 69: backup.api.v1.Control.GetNotifications:output_type -> backup.api.v1.Notifications
+	35, // 70: backup.api.v1.Control.SetNotifications:output_type -> backup.api.v1.Notifications
+	39, // 71: backup.api.v1.Control.SendNotification:output_type -> google.protobuf.Empty
+	42, // 72: backup.api.v1.Control.TestNotifications:output_type -> backup.api.v1.TestNotificationsResponse
+	26, // 73: backup.api.v1.Control.AcquireSyncLock:output_type -> backup.api.v1.SyncLockResponse
+	39, // 74: backup.api.v1.Control.ReleaseSyncLock:output_type -> google.protobuf.Empty
+	39, // 75: backup.api.v1.Control.PushJob:output_type -> google.protobuf.Empty
+	39, // 76: backup.api.v1.Control.DropJob:output_type -> google.protobuf.Empty
+	43, // 77: backup.api.v1.Control.Watch:output_type -> backup.api.v1.Event
+	43, // [43:78] is the sub-list for method output_type
+	8,  // [8:43] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
@@ -1601,7 +1694,7 @@ func file_backup_api_v1_control_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backup_api_v1_control_service_proto_rawDesc), len(file_backup_api_v1_control_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   26,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

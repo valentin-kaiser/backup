@@ -207,6 +207,11 @@
         },
         "type": "object"
       },
+      "backup.api.v1.GetNotificationsRequest": {
+        "description": "Requests the notification settings.",
+        "properties": {},
+        "type": "object"
+      },
       "backup.api.v1.GetRunRequest": {
         "description": "Requests a single run.",
         "properties": {
@@ -502,6 +507,154 @@
               "$ref": "#/components/schemas/backup.api.v1.Snapshot"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.NotificationEvent": {
+        "description": "An event of another process, mailed by the daemon with its settings.",
+        "properties": {
+          "detail": {
+            "description": "Preformatted text such as an error.",
+            "type": "string"
+          },
+          "fields": {
+            "description": "Labelled values.",
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.NotificationField"
+            },
+            "type": "array"
+          },
+          "key": {
+            "description": "Tells events apart for the cooldown.",
+            "type": "string"
+          },
+          "severity": {
+            "description": "failure, warning, success or info.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Short headline and subject.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.NotificationField": {
+        "description": "One labelled value of a mail.",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.Notifications": {
+        "description": "Which mails this worker sends and how. In portal mode the SMTP server is part of this message and shared by the daemon\nand the portal, in standalone mode it is part of the configuration file and only reported here.",
+        "properties": {
+          "clearSmtpPassword": {
+            "description": "Write only: remove the stored password.",
+            "type": "boolean"
+          },
+          "cooldownMinutes": {
+            "description": "Minimum minutes between two mails about the same job or address, 0 for no limit.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "enabled": {
+            "description": "Whether mails are sent at all.",
+            "type": "boolean"
+          },
+          "onFailure": {
+            "description": "Mail failed runs.",
+            "type": "boolean"
+          },
+          "onLifecycle": {
+            "description": "Mail the start and stop of the daemon.",
+            "type": "boolean"
+          },
+          "onSecurity": {
+            "description": "Mail wrong passwords at the control API.",
+            "type": "boolean"
+          },
+          "onSkipped": {
+            "description": "Mail skipped and cancelled runs.",
+            "type": "boolean"
+          },
+          "onStale": {
+            "description": "Mail jobs without a successful run within their max age.",
+            "type": "boolean"
+          },
+          "onSuccess": {
+            "description": "Mail successful runs.",
+            "type": "boolean"
+          },
+          "recipients": {
+            "description": "Addresses that receive the mails.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "smtpAuth": {
+            "description": "Whether the server wants a login.",
+            "type": "boolean"
+          },
+          "smtpAuthMethod": {
+            "description": "PLAIN, LOGIN or CRAMMD5.",
+            "type": "string"
+          },
+          "smtpEncryption": {
+            "description": "NONE, STARTTLS or TLS.",
+            "type": "string"
+          },
+          "smtpFqdn": {
+            "description": "Host name announced in the HELO, empty for the name of the machine.",
+            "type": "string"
+          },
+          "smtpFrom": {
+            "description": "Sender address.",
+            "type": "string"
+          },
+          "smtpHost": {
+            "description": "SMTP server host.",
+            "type": "string"
+          },
+          "smtpPassword": {
+            "description": "Write only: the new password. Empty keeps the stored one. It is stored as a secret and never returned.",
+            "type": "string"
+          },
+          "smtpPasswordSet": {
+            "description": "Read only: whether a password is stored or configured.",
+            "type": "boolean"
+          },
+          "smtpPort": {
+            "description": "SMTP server port.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "smtpSkipVerify": {
+            "description": "Accept any certificate of the server.",
+            "type": "boolean"
+          },
+          "smtpUsername": {
+            "description": "Login name.",
+            "type": "string"
+          },
+          "subjectPrefix": {
+            "description": "Prefix of the subject of every mail.",
+            "type": "string"
+          },
+          "transportConfigured": {
+            "description": "Read only: whether an SMTP server and a sender address are configured.",
+            "type": "boolean"
+          },
+          "transportEditable": {
+            "description": "Read only: whether the SMTP server can be changed through the API, which is the case in portal mode. Otherwise the\nsmtp fields only report the configuration file and a request must not change them.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -919,6 +1072,24 @@
           "username": {
             "description": "User name the peers have to use.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.TestNotificationsRequest": {
+        "description": "Requests a test mail.",
+        "properties": {},
+        "type": "object"
+      },
+      "backup.api.v1.TestNotificationsResponse": {
+        "description": "The result of a test mail.",
+        "properties": {
+          "recipients": {
+            "description": "Addresses the test mail was sent to.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -1638,6 +1809,91 @@
           }
         },
         "summary": "Called by a peer: removes the mirror of a job the peer owned.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/GetNotifications": {
+      "post": {
+        "description": "Returns which mails this worker sends.\n\nJSON-RPC 2.0 call of `Control.GetNotifications`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.GetNotifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.GetNotifications",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.GetNotifications"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.GetNotificationsRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Notifications"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Returns which mails this worker sends.",
         "tags": [
           "Control"
         ]
@@ -2918,6 +3174,176 @@
         ]
       }
     },
+    "/Control/SendNotification": {
+      "post": {
+        "description": "Called by the portal: mails a security event of the portal with the settings of this worker.\n\nJSON-RPC 2.0 call of `Control.SendNotification`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.SendNotification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.SendNotification",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.SendNotification"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.NotificationEvent"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Called by the portal: mails a security event of the portal with the settings of this worker.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/SetNotifications": {
+      "post": {
+        "description": "Changes which mails this worker sends. The SMTP server is changed in portal mode only, otherwise it stays as\nconfigured in the file.\n\nJSON-RPC 2.0 call of `Control.SetNotifications`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.SetNotifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.SetNotifications",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.SetNotifications"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.Notifications"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Notifications"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Changes which mails this worker sends.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
     "/Control/SetPeer": {
       "post": {
         "description": "Creates a peer or replaces it.\n\nJSON-RPC 2.0 call of `Control.SetPeer`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
@@ -3253,6 +3679,91 @@
           }
         },
         "summary": "Starts a job now.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/TestNotifications": {
+      "post": {
+        "description": "Sends a test mail to the recipients, with the settings that are saved.\n\nJSON-RPC 2.0 call of `Control.TestNotifications`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.TestNotifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.TestNotifications",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.TestNotifications"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.TestNotificationsRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.TestNotificationsResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Sends a test mail to the recipients, with the settings that are saved.",
         "tags": [
           "Control"
         ]

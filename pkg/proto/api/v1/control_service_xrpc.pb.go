@@ -42,6 +42,10 @@ type ControlServer interface {
 	TestPeer(ctx context.Context, in *PeerRequest) (*PeerStatus, error)
 	GetSyncServe(ctx context.Context, in *GetSyncServeRequest) (*SyncServe, error)
 	SetSyncServe(ctx context.Context, in *SyncServe) (*SyncServe, error)
+	GetNotifications(ctx context.Context, in *GetNotificationsRequest) (*Notifications, error)
+	SetNotifications(ctx context.Context, in *Notifications) (*Notifications, error)
+	SendNotification(ctx context.Context, in *NotificationEvent) (*emptypb.Empty, error)
+	TestNotifications(ctx context.Context, in *TestNotificationsRequest) (*TestNotificationsResponse, error)
 	AcquireSyncLock(ctx context.Context, in *SyncLockRequest) (*SyncLockResponse, error)
 	ReleaseSyncLock(ctx context.Context, in *SyncLockRequest) (*emptypb.Empty, error)
 	PushJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error)
@@ -159,6 +163,22 @@ func (UnimplementedControlServer) SetSyncServe(ctx context.Context, in *SyncServ
 	return nil, errors.New("method Control.SetSyncServe not implemented")
 }
 
+func (UnimplementedControlServer) GetNotifications(ctx context.Context, in *GetNotificationsRequest) (*Notifications, error) {
+	return nil, errors.New("method Control.GetNotifications not implemented")
+}
+
+func (UnimplementedControlServer) SetNotifications(ctx context.Context, in *Notifications) (*Notifications, error) {
+	return nil, errors.New("method Control.SetNotifications not implemented")
+}
+
+func (UnimplementedControlServer) SendNotification(ctx context.Context, in *NotificationEvent) (*emptypb.Empty, error) {
+	return nil, errors.New("method Control.SendNotification not implemented")
+}
+
+func (UnimplementedControlServer) TestNotifications(ctx context.Context, in *TestNotificationsRequest) (*TestNotificationsResponse, error) {
+	return nil, errors.New("method Control.TestNotifications not implemented")
+}
+
 func (UnimplementedControlServer) AcquireSyncLock(ctx context.Context, in *SyncLockRequest) (*SyncLockResponse, error) {
 	return nil, errors.New("method Control.AcquireSyncLock not implemented")
 }
@@ -216,6 +236,10 @@ type ControlClientDefinition interface {
 	TestPeer(ctx context.Context, in *PeerRequest) (*PeerStatus, error)
 	GetSyncServe(ctx context.Context, in *GetSyncServeRequest) (*SyncServe, error)
 	SetSyncServe(ctx context.Context, in *SyncServe) (*SyncServe, error)
+	GetNotifications(ctx context.Context, in *GetNotificationsRequest) (*Notifications, error)
+	SetNotifications(ctx context.Context, in *Notifications) (*Notifications, error)
+	SendNotification(ctx context.Context, in *NotificationEvent) (*emptypb.Empty, error)
+	TestNotifications(ctx context.Context, in *TestNotificationsRequest) (*TestNotificationsResponse, error)
 	AcquireSyncLock(ctx context.Context, in *SyncLockRequest) (*SyncLockResponse, error)
 	ReleaseSyncLock(ctx context.Context, in *SyncLockRequest) (*emptypb.Empty, error)
 	PushJob(ctx context.Context, in *PushJobRequest) (*emptypb.Empty, error)
@@ -470,6 +494,42 @@ func (c *ControlClient) GetSyncServe(ctx context.Context, in *GetSyncServeReques
 func (c *ControlClient) SetSyncServe(ctx context.Context, in *SyncServe) (*SyncServe, error) {
 	out := &SyncServe{}
 	err := c.client.Call(ctx, "backup.api.v1.Control/SetSyncServe", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) GetNotifications(ctx context.Context, in *GetNotificationsRequest) (*Notifications, error) {
+	out := &Notifications{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/GetNotifications", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) SetNotifications(ctx context.Context, in *Notifications) (*Notifications, error) {
+	out := &Notifications{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/SetNotifications", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) SendNotification(ctx context.Context, in *NotificationEvent) (*emptypb.Empty, error) {
+	out := &emptypb.Empty{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/SendNotification", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) TestNotifications(ctx context.Context, in *TestNotificationsRequest) (*TestNotificationsResponse, error) {
+	out := &TestNotificationsResponse{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/TestNotifications", in, out)
 	if err != nil {
 		return nil, err
 	}

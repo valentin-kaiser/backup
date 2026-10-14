@@ -1638,6 +1638,442 @@ func (x *PeerStatus) GetWorkerName() string {
 	return ""
 }
 
+// Which mails this worker sends and how. In portal mode the SMTP server is part of this message and shared by the daemon
+// and the portal, in standalone mode it is part of the configuration file and only reported here.
+type Notifications struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether mails are sent at all.
+	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// Addresses that receive the mails.
+	Recipients []string `protobuf:"bytes,2,rep,name=recipients,proto3" json:"recipients,omitempty"`
+	// Prefix of the subject of every mail.
+	SubjectPrefix string `protobuf:"bytes,3,opt,name=subject_prefix,json=subjectPrefix,proto3" json:"subject_prefix,omitempty"`
+	// Minimum minutes between two mails about the same job or address, 0 for no limit.
+	CooldownMinutes int32 `protobuf:"varint,4,opt,name=cooldown_minutes,json=cooldownMinutes,proto3" json:"cooldown_minutes,omitempty"`
+	// Mail failed runs.
+	OnFailure bool `protobuf:"varint,5,opt,name=on_failure,json=onFailure,proto3" json:"on_failure,omitempty"`
+	// Mail successful runs.
+	OnSuccess bool `protobuf:"varint,6,opt,name=on_success,json=onSuccess,proto3" json:"on_success,omitempty"`
+	// Mail skipped and cancelled runs.
+	OnSkipped bool `protobuf:"varint,7,opt,name=on_skipped,json=onSkipped,proto3" json:"on_skipped,omitempty"`
+	// Mail jobs without a successful run within their max age.
+	OnStale bool `protobuf:"varint,8,opt,name=on_stale,json=onStale,proto3" json:"on_stale,omitempty"`
+	// Mail wrong passwords at the control API.
+	OnSecurity bool `protobuf:"varint,9,opt,name=on_security,json=onSecurity,proto3" json:"on_security,omitempty"`
+	// Mail the start and stop of the daemon.
+	OnLifecycle bool `protobuf:"varint,10,opt,name=on_lifecycle,json=onLifecycle,proto3" json:"on_lifecycle,omitempty"`
+	// Read only: whether an SMTP server and a sender address are configured.
+	TransportConfigured bool `protobuf:"varint,11,opt,name=transport_configured,json=transportConfigured,proto3" json:"transport_configured,omitempty"`
+	// Read only: whether the SMTP server can be changed through the API, which is the case in portal mode. Otherwise the
+	// smtp fields only report the configuration file and a request must not change them.
+	TransportEditable bool `protobuf:"varint,14,opt,name=transport_editable,json=transportEditable,proto3" json:"transport_editable,omitempty"`
+	// SMTP server host.
+	SmtpHost string `protobuf:"bytes,15,opt,name=smtp_host,json=smtpHost,proto3" json:"smtp_host,omitempty"`
+	// SMTP server port.
+	SmtpPort int32 `protobuf:"varint,16,opt,name=smtp_port,json=smtpPort,proto3" json:"smtp_port,omitempty"`
+	// Sender address.
+	SmtpFrom string `protobuf:"bytes,17,opt,name=smtp_from,json=smtpFrom,proto3" json:"smtp_from,omitempty"`
+	// NONE, STARTTLS or TLS.
+	SmtpEncryption string `protobuf:"bytes,18,opt,name=smtp_encryption,json=smtpEncryption,proto3" json:"smtp_encryption,omitempty"`
+	// Whether the server wants a login.
+	SmtpAuth bool `protobuf:"varint,19,opt,name=smtp_auth,json=smtpAuth,proto3" json:"smtp_auth,omitempty"`
+	// PLAIN, LOGIN or CRAMMD5.
+	SmtpAuthMethod string `protobuf:"bytes,20,opt,name=smtp_auth_method,json=smtpAuthMethod,proto3" json:"smtp_auth_method,omitempty"`
+	// Login name.
+	SmtpUsername string `protobuf:"bytes,21,opt,name=smtp_username,json=smtpUsername,proto3" json:"smtp_username,omitempty"`
+	// Accept any certificate of the server.
+	SmtpSkipVerify bool `protobuf:"varint,22,opt,name=smtp_skip_verify,json=smtpSkipVerify,proto3" json:"smtp_skip_verify,omitempty"`
+	// Host name announced in the HELO, empty for the name of the machine.
+	SmtpFqdn string `protobuf:"bytes,23,opt,name=smtp_fqdn,json=smtpFqdn,proto3" json:"smtp_fqdn,omitempty"`
+	// Write only: the new password. Empty keeps the stored one. It is stored as a secret and never returned.
+	SmtpPassword string `protobuf:"bytes,24,opt,name=smtp_password,json=smtpPassword,proto3" json:"smtp_password,omitempty"`
+	// Write only: remove the stored password.
+	ClearSmtpPassword bool `protobuf:"varint,25,opt,name=clear_smtp_password,json=clearSmtpPassword,proto3" json:"clear_smtp_password,omitempty"`
+	// Read only: whether a password is stored or configured.
+	SmtpPasswordSet bool `protobuf:"varint,26,opt,name=smtp_password_set,json=smtpPasswordSet,proto3" json:"smtp_password_set,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *Notifications) Reset() {
+	*x = Notifications{}
+	mi := &file_backup_api_v1_control_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Notifications) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Notifications) ProtoMessage() {}
+
+func (x *Notifications) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Notifications.ProtoReflect.Descriptor instead.
+func (*Notifications) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *Notifications) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Notifications) GetRecipients() []string {
+	if x != nil {
+		return x.Recipients
+	}
+	return nil
+}
+
+func (x *Notifications) GetSubjectPrefix() string {
+	if x != nil {
+		return x.SubjectPrefix
+	}
+	return ""
+}
+
+func (x *Notifications) GetCooldownMinutes() int32 {
+	if x != nil {
+		return x.CooldownMinutes
+	}
+	return 0
+}
+
+func (x *Notifications) GetOnFailure() bool {
+	if x != nil {
+		return x.OnFailure
+	}
+	return false
+}
+
+func (x *Notifications) GetOnSuccess() bool {
+	if x != nil {
+		return x.OnSuccess
+	}
+	return false
+}
+
+func (x *Notifications) GetOnSkipped() bool {
+	if x != nil {
+		return x.OnSkipped
+	}
+	return false
+}
+
+func (x *Notifications) GetOnStale() bool {
+	if x != nil {
+		return x.OnStale
+	}
+	return false
+}
+
+func (x *Notifications) GetOnSecurity() bool {
+	if x != nil {
+		return x.OnSecurity
+	}
+	return false
+}
+
+func (x *Notifications) GetOnLifecycle() bool {
+	if x != nil {
+		return x.OnLifecycle
+	}
+	return false
+}
+
+func (x *Notifications) GetTransportConfigured() bool {
+	if x != nil {
+		return x.TransportConfigured
+	}
+	return false
+}
+
+func (x *Notifications) GetTransportEditable() bool {
+	if x != nil {
+		return x.TransportEditable
+	}
+	return false
+}
+
+func (x *Notifications) GetSmtpHost() string {
+	if x != nil {
+		return x.SmtpHost
+	}
+	return ""
+}
+
+func (x *Notifications) GetSmtpPort() int32 {
+	if x != nil {
+		return x.SmtpPort
+	}
+	return 0
+}
+
+func (x *Notifications) GetSmtpFrom() string {
+	if x != nil {
+		return x.SmtpFrom
+	}
+	return ""
+}
+
+func (x *Notifications) GetSmtpEncryption() string {
+	if x != nil {
+		return x.SmtpEncryption
+	}
+	return ""
+}
+
+func (x *Notifications) GetSmtpAuth() bool {
+	if x != nil {
+		return x.SmtpAuth
+	}
+	return false
+}
+
+func (x *Notifications) GetSmtpAuthMethod() string {
+	if x != nil {
+		return x.SmtpAuthMethod
+	}
+	return ""
+}
+
+func (x *Notifications) GetSmtpUsername() string {
+	if x != nil {
+		return x.SmtpUsername
+	}
+	return ""
+}
+
+func (x *Notifications) GetSmtpSkipVerify() bool {
+	if x != nil {
+		return x.SmtpSkipVerify
+	}
+	return false
+}
+
+func (x *Notifications) GetSmtpFqdn() string {
+	if x != nil {
+		return x.SmtpFqdn
+	}
+	return ""
+}
+
+func (x *Notifications) GetSmtpPassword() string {
+	if x != nil {
+		return x.SmtpPassword
+	}
+	return ""
+}
+
+func (x *Notifications) GetClearSmtpPassword() bool {
+	if x != nil {
+		return x.ClearSmtpPassword
+	}
+	return false
+}
+
+func (x *Notifications) GetSmtpPasswordSet() bool {
+	if x != nil {
+		return x.SmtpPasswordSet
+	}
+	return false
+}
+
+// An event of another process, mailed by the daemon with its settings.
+type NotificationEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Short headline and subject.
+	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	// failure, warning, success or info.
+	Severity string `protobuf:"bytes,2,opt,name=severity,proto3" json:"severity,omitempty"`
+	// Tells events apart for the cooldown.
+	Key string `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	// Labelled values.
+	Fields []*NotificationField `protobuf:"bytes,4,rep,name=fields,proto3" json:"fields,omitempty"`
+	// Preformatted text such as an error.
+	Detail        string `protobuf:"bytes,5,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NotificationEvent) Reset() {
+	*x = NotificationEvent{}
+	mi := &file_backup_api_v1_control_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotificationEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotificationEvent) ProtoMessage() {}
+
+func (x *NotificationEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotificationEvent.ProtoReflect.Descriptor instead.
+func (*NotificationEvent) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *NotificationEvent) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *NotificationEvent) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *NotificationEvent) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *NotificationEvent) GetFields() []*NotificationField {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+func (x *NotificationEvent) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+// One labelled value of a mail.
+type NotificationField struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Label         string                 `protobuf:"bytes,1,opt,name=label,proto3" json:"label,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NotificationField) Reset() {
+	*x = NotificationField{}
+	mi := &file_backup_api_v1_control_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotificationField) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotificationField) ProtoMessage() {}
+
+func (x *NotificationField) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotificationField.ProtoReflect.Descriptor instead.
+func (*NotificationField) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *NotificationField) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *NotificationField) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+// The result of a test mail.
+type TestNotificationsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Addresses the test mail was sent to.
+	Recipients    []string `protobuf:"bytes,1,rep,name=recipients,proto3" json:"recipients,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestNotificationsResponse) Reset() {
+	*x = TestNotificationsResponse{}
+	mi := &file_backup_api_v1_control_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestNotificationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestNotificationsResponse) ProtoMessage() {}
+
+func (x *TestNotificationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestNotificationsResponse.ProtoReflect.Descriptor instead.
+func (*TestNotificationsResponse) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *TestNotificationsResponse) GetRecipients() []string {
+	if x != nil {
+		return x.Recipients
+	}
+	return nil
+}
+
 var File_backup_api_v1_control_proto protoreflect.FileDescriptor
 
 const file_backup_api_v1_control_proto_rawDesc = "" +
@@ -1786,7 +2222,52 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"latency_ms\x18\x04 \x01(\x03R\tlatencyMs\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1f\n" +
 	"\vworker_name\x18\x06 \x01(\tR\n" +
-	"workerName*\xb7\x01\n" +
+	"workerName\"\xf9\x06\n" +
+	"\rNotifications\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1e\n" +
+	"\n" +
+	"recipients\x18\x02 \x03(\tR\n" +
+	"recipients\x12%\n" +
+	"\x0esubject_prefix\x18\x03 \x01(\tR\rsubjectPrefix\x12)\n" +
+	"\x10cooldown_minutes\x18\x04 \x01(\x05R\x0fcooldownMinutes\x12\x1d\n" +
+	"\n" +
+	"on_failure\x18\x05 \x01(\bR\tonFailure\x12\x1d\n" +
+	"\n" +
+	"on_success\x18\x06 \x01(\bR\tonSuccess\x12\x1d\n" +
+	"\n" +
+	"on_skipped\x18\a \x01(\bR\tonSkipped\x12\x19\n" +
+	"\bon_stale\x18\b \x01(\bR\aonStale\x12\x1f\n" +
+	"\von_security\x18\t \x01(\bR\n" +
+	"onSecurity\x12!\n" +
+	"\fon_lifecycle\x18\n" +
+	" \x01(\bR\vonLifecycle\x121\n" +
+	"\x14transport_configured\x18\v \x01(\bR\x13transportConfigured\x12-\n" +
+	"\x12transport_editable\x18\x0e \x01(\bR\x11transportEditable\x12\x1b\n" +
+	"\tsmtp_host\x18\x0f \x01(\tR\bsmtpHost\x12\x1b\n" +
+	"\tsmtp_port\x18\x10 \x01(\x05R\bsmtpPort\x12\x1b\n" +
+	"\tsmtp_from\x18\x11 \x01(\tR\bsmtpFrom\x12'\n" +
+	"\x0fsmtp_encryption\x18\x12 \x01(\tR\x0esmtpEncryption\x12\x1b\n" +
+	"\tsmtp_auth\x18\x13 \x01(\bR\bsmtpAuth\x12(\n" +
+	"\x10smtp_auth_method\x18\x14 \x01(\tR\x0esmtpAuthMethod\x12#\n" +
+	"\rsmtp_username\x18\x15 \x01(\tR\fsmtpUsername\x12(\n" +
+	"\x10smtp_skip_verify\x18\x16 \x01(\bR\x0esmtpSkipVerify\x12\x1b\n" +
+	"\tsmtp_fqdn\x18\x17 \x01(\tR\bsmtpFqdn\x12#\n" +
+	"\rsmtp_password\x18\x18 \x01(\tR\fsmtpPassword\x12.\n" +
+	"\x13clear_smtp_password\x18\x19 \x01(\bR\x11clearSmtpPassword\x12*\n" +
+	"\x11smtp_password_set\x18\x1a \x01(\bR\x0fsmtpPasswordSetJ\x04\b\f\x10\rJ\x04\b\r\x10\x0e\"\xa9\x01\n" +
+	"\x11NotificationEvent\x12\x14\n" +
+	"\x05title\x18\x01 \x01(\tR\x05title\x12\x1a\n" +
+	"\bseverity\x18\x02 \x01(\tR\bseverity\x12\x10\n" +
+	"\x03key\x18\x03 \x01(\tR\x03key\x128\n" +
+	"\x06fields\x18\x04 \x03(\v2 .backup.api.v1.NotificationFieldR\x06fields\x12\x16\n" +
+	"\x06detail\x18\x05 \x01(\tR\x06detail\"?\n" +
+	"\x11NotificationField\x12\x14\n" +
+	"\x05label\x18\x01 \x01(\tR\x05label\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\";\n" +
+	"\x19TestNotificationsResponse\x12\x1e\n" +
+	"\n" +
+	"recipients\x18\x01 \x03(\tR\n" +
+	"recipients*\xb7\x01\n" +
 	"\tRunStatus\x12\x1a\n" +
 	"\x16RUN_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11RUN_STATUS_QUEUED\x10\x01\x12\x16\n" +
@@ -1819,51 +2300,56 @@ func file_backup_api_v1_control_proto_rawDescGZIP() []byte {
 }
 
 var file_backup_api_v1_control_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_backup_api_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_backup_api_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_backup_api_v1_control_proto_goTypes = []any{
-	(RunStatus)(0),                // 0: backup.api.v1.RunStatus
-	(FileType)(0),                 // 1: backup.api.v1.FileType
-	(EventType)(0),                // 2: backup.api.v1.EventType
-	(*Run)(nil),                   // 3: backup.api.v1.Run
-	(*JobDefinition)(nil),         // 4: backup.api.v1.JobDefinition
-	(*Defaults)(nil),              // 5: backup.api.v1.Defaults
-	(*SecretInfo)(nil),            // 6: backup.api.v1.SecretInfo
-	(*Job)(nil),                   // 7: backup.api.v1.Job
-	(*ControlStatus)(nil),         // 8: backup.api.v1.ControlStatus
-	(*Snapshot)(nil),              // 9: backup.api.v1.Snapshot
-	(*FileNode)(nil),              // 10: backup.api.v1.FileNode
-	(*RepositoryStats)(nil),       // 11: backup.api.v1.RepositoryStats
-	(*Event)(nil),                 // 12: backup.api.v1.Event
-	(*Peer)(nil),                  // 13: backup.api.v1.Peer
-	(*SyncServe)(nil),             // 14: backup.api.v1.SyncServe
-	(*PeerStatus)(nil),            // 15: backup.api.v1.PeerStatus
-	(*timestamppb.Timestamp)(nil), // 16: google.protobuf.Timestamp
+	(RunStatus)(0),                    // 0: backup.api.v1.RunStatus
+	(FileType)(0),                     // 1: backup.api.v1.FileType
+	(EventType)(0),                    // 2: backup.api.v1.EventType
+	(*Run)(nil),                       // 3: backup.api.v1.Run
+	(*JobDefinition)(nil),             // 4: backup.api.v1.JobDefinition
+	(*Defaults)(nil),                  // 5: backup.api.v1.Defaults
+	(*SecretInfo)(nil),                // 6: backup.api.v1.SecretInfo
+	(*Job)(nil),                       // 7: backup.api.v1.Job
+	(*ControlStatus)(nil),             // 8: backup.api.v1.ControlStatus
+	(*Snapshot)(nil),                  // 9: backup.api.v1.Snapshot
+	(*FileNode)(nil),                  // 10: backup.api.v1.FileNode
+	(*RepositoryStats)(nil),           // 11: backup.api.v1.RepositoryStats
+	(*Event)(nil),                     // 12: backup.api.v1.Event
+	(*Peer)(nil),                      // 13: backup.api.v1.Peer
+	(*SyncServe)(nil),                 // 14: backup.api.v1.SyncServe
+	(*PeerStatus)(nil),                // 15: backup.api.v1.PeerStatus
+	(*Notifications)(nil),             // 16: backup.api.v1.Notifications
+	(*NotificationEvent)(nil),         // 17: backup.api.v1.NotificationEvent
+	(*NotificationField)(nil),         // 18: backup.api.v1.NotificationField
+	(*TestNotificationsResponse)(nil), // 19: backup.api.v1.TestNotificationsResponse
+	(*timestamppb.Timestamp)(nil),     // 20: google.protobuf.Timestamp
 }
 var file_backup_api_v1_control_proto_depIdxs = []int32{
 	0,  // 0: backup.api.v1.Run.status:type_name -> backup.api.v1.RunStatus
-	16, // 1: backup.api.v1.Run.queue_time:type_name -> google.protobuf.Timestamp
-	16, // 2: backup.api.v1.Run.start_time:type_name -> google.protobuf.Timestamp
-	16, // 3: backup.api.v1.Run.finish_time:type_name -> google.protobuf.Timestamp
-	16, // 4: backup.api.v1.SecretInfo.create_time:type_name -> google.protobuf.Timestamp
-	16, // 5: backup.api.v1.SecretInfo.update_time:type_name -> google.protobuf.Timestamp
-	16, // 6: backup.api.v1.Job.next_run_time:type_name -> google.protobuf.Timestamp
+	20, // 1: backup.api.v1.Run.queue_time:type_name -> google.protobuf.Timestamp
+	20, // 2: backup.api.v1.Run.start_time:type_name -> google.protobuf.Timestamp
+	20, // 3: backup.api.v1.Run.finish_time:type_name -> google.protobuf.Timestamp
+	20, // 4: backup.api.v1.SecretInfo.create_time:type_name -> google.protobuf.Timestamp
+	20, // 5: backup.api.v1.SecretInfo.update_time:type_name -> google.protobuf.Timestamp
+	20, // 6: backup.api.v1.Job.next_run_time:type_name -> google.protobuf.Timestamp
 	3,  // 7: backup.api.v1.Job.active:type_name -> backup.api.v1.Run
 	3,  // 8: backup.api.v1.Job.last:type_name -> backup.api.v1.Run
-	16, // 9: backup.api.v1.Job.last_success_time:type_name -> google.protobuf.Timestamp
+	20, // 9: backup.api.v1.Job.last_success_time:type_name -> google.protobuf.Timestamp
 	4,  // 10: backup.api.v1.Job.definition:type_name -> backup.api.v1.JobDefinition
 	7,  // 11: backup.api.v1.ControlStatus.jobs:type_name -> backup.api.v1.Job
 	5,  // 12: backup.api.v1.ControlStatus.defaults:type_name -> backup.api.v1.Defaults
-	16, // 13: backup.api.v1.Snapshot.time:type_name -> google.protobuf.Timestamp
+	20, // 13: backup.api.v1.Snapshot.time:type_name -> google.protobuf.Timestamp
 	1,  // 14: backup.api.v1.FileNode.type:type_name -> backup.api.v1.FileType
-	16, // 15: backup.api.v1.FileNode.modify_time:type_name -> google.protobuf.Timestamp
+	20, // 15: backup.api.v1.FileNode.modify_time:type_name -> google.protobuf.Timestamp
 	2,  // 16: backup.api.v1.Event.type:type_name -> backup.api.v1.EventType
 	0,  // 17: backup.api.v1.Event.status:type_name -> backup.api.v1.RunStatus
-	16, // 18: backup.api.v1.Event.time:type_name -> google.protobuf.Timestamp
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	20, // 18: backup.api.v1.Event.time:type_name -> google.protobuf.Timestamp
+	18, // 19: backup.api.v1.NotificationEvent.fields:type_name -> backup.api.v1.NotificationField
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_backup_api_v1_control_proto_init() }
@@ -1877,7 +2363,7 @@ func file_backup_api_v1_control_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backup_api_v1_control_proto_rawDesc), len(file_backup_api_v1_control_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   13,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
