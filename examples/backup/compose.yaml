@@ -1,0 +1,112 @@
+services:
+  backup:
+    build:
+      context: ../../
+      dockerfile: ./Dockerfile
+    image: backup:latest
+    container_name: backup
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 90s
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      # CHOWN/SETUID/SETGID apply PUID/PGID at start-up
+      - CHOWN
+      - SETUID
+      - SETGID
+      # KILL lets the init process (tini, runs as root) forward signals to the daemon after it dropped to PUID/PGID
+      - KILL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    mem_limit: 1g
+    cpus: 2
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./volumes/source:/source
+      - ./volumes/backup:/backup
+      - ./volumes/restore:/restore
+      - ./volumes/control/server:/var/lib/control
+      - ./volumes/control/cache:/var/cache/restic
+      # the portal password (portal_password), created with a random value on the first start when it does not exist
+      - ./secrets:/run/secrets
+    environment:
+      # portal (default): the daemon of the web portal below, any number of jobs and stored secrets, the password file
+      # is not used. standalone (CONTROL_MODE=standalone docker compose up -d backup): one source, one repository, one job
+      # per type with the defaults of the image (change the jobs in control.yaml), the password from
+      # /run/secrets/backup_password, no API and no portal.
+      - CONTROL_MODE=${CONTROL_MODE:-portal}
+      # portal mode: the API wants the password of the portal (the secret below), the CLI inside the container uses it too
+      - CONTROL_API_PASSWORDFILE=/run/secrets/portal_password
+      - CONTROL_PASSWORD_FILE=/run/secrets/portal_password
+      - PUID=1000
+      - PGID=1000
+      # refuse to run when the repository is not mounted (create ./backup/.mounted on the real disk)
+      # - CONTROL_MOUNTCHECK_PATH=/backup
+      # - CONTROL_MOUNTCHECK_MARKERFILE=.mounted
+      # ping a healthchecks.io style URL on start, success and failure
+      # - CONTROL_WEBHOOK_URL=https://hc-ping.com/your-uuid
+      # mail notifications for failed jobs, stale backups and security events (recipients: set notify.recipients in control.yaml)
+      # - CONTROL_NOTIFY_ENABLED=true
+      # - CONTROL_NOTIFY_MAIL_ENABLED=true
+      # - CONTROL_NOTIFY_MAIL_HOST=smtp.example.com
+      # - CONTROL_NOTIFY_MAIL_PORT=587
+      # - CONTROL_NOTIFY_MAIL_FROM=backup@example.com
+      # - CONTROL_NOTIFY_MAIL_FQDN=backup.example.com
+      # - CONTROL_NOTIFY_MAIL_ENCRYPTION=STARTTLS
+      # - CONTROL_NOTIFY_MAIL_AUTH=true
+      # - CONTROL_NOTIFY_MAIL_AUTH_METHOD=PLAIN
+      # - CONTROL_NOTIFY_MAIL_USERNAME=backup
+      # - CONTROL_NOTIFY_PASSWORDFILE=/run/secrets/smtp_password
+
+  # The web portal, a separate process that only talks to the daemon above. Standalone mode does not use it.
+  backup-portal:
+    build:
+      context: ../../
+      dockerfile: ./Dockerfile
+    image: backup:latest
+    container_name: backup-portal
+    command: ["web"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      # CHOWN/SETUID/SETGID let the entrypoint fix the ownership of the volumes and drop to PUID/PGID
+      - CHOWN
+      - SETUID
+      - SETGID
+      # KILL lets the init process (tini, runs as root) forward signals to the portal after it dropped to PUID/PGID
+      - KILL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    mem_limit: 128m
+    depends_on:
+      - backup
+    volumes:
+      # password, sessions and audit log of the portal
+      - ./volumes/portal:/var/lib/portal
+      - ./secrets:/run/secrets
+    ports:
+      # Users have to sign in. The port is published on loopback only, put a reverse proxy with a proper certificate in
+      # front to reach it from the network (and set PORTAL_TRUSTEDPROXIES to its address).
+      - "127.0.0.1:8443:8443"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PORTAL_DAEMON_URL=http://backup:9080
+      # the password of the portal and of the daemon, the same file the daemon reads, created when it does not exist
+      - PORTAL_PASSWORDFILE=/run/secrets/portal_password
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1:8443/"]
+      interval: 1m
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+

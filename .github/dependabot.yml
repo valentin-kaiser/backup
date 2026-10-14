@@ -3,11 +3,31 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    assignees:
+      - "Valentin-Kaiser"
+    reviewers:
+      - "Valentin-Kaiser"
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "Valentin-Kaiser"
+    reviewers:
+      - "Valentin-Kaiser"
+  - package-ecosystem: "npm"
+    directory: "/worker/portal/ui"
+    schedule:
+      interval: "weekly"
+    groups:
+      angular:
+        patterns:
+          - "@angular/*"
     assignees:
       - "Valentin-Kaiser"
     reviewers:

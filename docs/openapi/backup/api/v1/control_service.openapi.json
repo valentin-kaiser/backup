@@ -1,0 +1,4077 @@
+{
+  "components": {
+    "schemas": {
+      "backup.api.v1.ChangeRepositoryPasswordRequest": {
+        "description": "Requests a new password for the repositories of a secret.",
+        "properties": {
+          "generate": {
+            "description": "Generate a strong random password. It is returned once.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Name of the secret that the repositories use.",
+            "type": "string"
+          },
+          "value": {
+            "description": "The new password, a single line. Ignored when generate is set.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ChangeRepositoryPasswordResponse": {
+        "description": "The outcome of a password change.",
+        "properties": {
+          "generatedValue": {
+            "description": "The generated password. Only returned now, store it somewhere safe.",
+            "type": "string"
+          },
+          "repositories": {
+            "description": "Number of repositories that were changed.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "secret": {
+            "$ref": "#/components/schemas/backup.api.v1.SecretInfo"
+          },
+          "warnings": {
+            "description": "Things that did not work but did not stop the change, e.g. an old key that is still there.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ControlStatus": {
+        "description": "The state of the daemon.",
+        "properties": {
+          "defaults": {
+            "$ref": "#/components/schemas/backup.api.v1.Defaults",
+            "description": "What jobs inherit when they do not set their own."
+          },
+          "healthy": {
+            "description": "Whether the Docker health check passes.",
+            "type": "boolean"
+          },
+          "jobs": {
+            "description": "All jobs.",
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.Job"
+            },
+            "type": "array"
+          },
+          "problems": {
+            "description": "Reasons why the daemon is not healthy.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "description": "Version of the daemon.",
+            "type": "string"
+          },
+          "workerName": {
+            "description": "Name of this worker. Peers refer to it by this name, see Peer.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.Defaults": {
+        "description": "Settings that jobs inherit when they do not set their own.",
+        "properties": {
+          "passwordFile": {
+            "type": "string"
+          },
+          "passwordSecret": {
+            "description": "The stored secret that holds the default repository password, empty when the password file is used.",
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "restoreRoot": {
+            "description": "Restores are only allowed below this directory.",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.Event": {
+        "description": "Published whenever a run changes its state or prints a line.",
+        "properties": {
+          "job": {
+            "description": "Name of the job.",
+            "type": "string"
+          },
+          "line": {
+            "description": "Line printed by restic, set for line events.",
+            "type": "string"
+          },
+          "run": {
+            "description": "Identifier of the run.",
+            "type": "string"
+          },
+          "status": {
+            "description": "New state of the run, set for status events.\n\nThe state of a run.\n\n- `0` `RUN_STATUS_UNSPECIFIED`\n- `1` `RUN_STATUS_QUEUED`\n- `2` `RUN_STATUS_RUNNING`\n- `3` `RUN_STATUS_SUCCESS`\n- `4` `RUN_STATUS_FAILED`\n- `5` `RUN_STATUS_CANCELLED`\n- `6` `RUN_STATUS_SKIPPED`",
+            "enum": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "type": "integer",
+            "x-enum-varnames": [
+              "RUN_STATUS_UNSPECIFIED",
+              "RUN_STATUS_QUEUED",
+              "RUN_STATUS_RUNNING",
+              "RUN_STATUS_SUCCESS",
+              "RUN_STATUS_FAILED",
+              "RUN_STATUS_CANCELLED",
+              "RUN_STATUS_SKIPPED"
+            ]
+          },
+          "time": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time at which the event happened."
+          },
+          "type": {
+            "description": "Kind of the event.\n\nThe kind of an event.\n\n- `0` `EVENT_TYPE_UNSPECIFIED`\n- `1` `EVENT_TYPE_STATUS`\n- `2` `EVENT_TYPE_LINE`",
+            "enum": [
+              0,
+              1,
+              2
+            ],
+            "type": "integer",
+            "x-enum-varnames": [
+              "EVENT_TYPE_UNSPECIFIED",
+              "EVENT_TYPE_STATUS",
+              "EVENT_TYPE_LINE"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.FileNode": {
+        "description": "A file, directory or link inside a snapshot.",
+        "properties": {
+          "modifyTime": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time of the last modification."
+          },
+          "name": {
+            "description": "Name without the directory.",
+            "type": "string"
+          },
+          "path": {
+            "description": "Absolute path inside the snapshot.",
+            "type": "string"
+          },
+          "permissions": {
+            "description": "Permissions in the form of ls -l, e.g. -rw-r--r--.",
+            "type": "string"
+          },
+          "size": {
+            "description": "Size in bytes, 0 for directories.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": {
+            "description": "What the entry is.\n\nThe kind of an entry in a snapshot.\n\n- `0` `FILE_TYPE_UNSPECIFIED`\n- `1` `FILE_TYPE_FILE`\n- `2` `FILE_TYPE_DIRECTORY`\n- `3` `FILE_TYPE_SYMLINK`\n- `4` `FILE_TYPE_OTHER`",
+            "enum": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "type": "integer",
+            "x-enum-varnames": [
+              "FILE_TYPE_UNSPECIFIED",
+              "FILE_TYPE_FILE",
+              "FILE_TYPE_DIRECTORY",
+              "FILE_TYPE_SYMLINK",
+              "FILE_TYPE_OTHER"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.GetNotificationsRequest": {
+        "description": "Requests the notification settings.",
+        "properties": {},
+        "type": "object"
+      },
+      "backup.api.v1.GetRunRequest": {
+        "description": "Requests a single run.",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.GetStatsRequest": {
+        "description": "Requests the repository statistics.",
+        "properties": {
+          "job": {
+            "description": "Name of a job, the statistics of its repository are returned. The global repository when empty.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.GetStatusRequest": {
+        "description": "Requests the status of the daemon.",
+        "properties": {},
+        "type": "object"
+      },
+      "backup.api.v1.GetSyncServeRequest": {
+        "description": "Requests the export settings.",
+        "properties": {},
+        "type": "object"
+      },
+      "backup.api.v1.Job": {
+        "description": "A job, its configuration and its state.",
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/backup.api.v1.Run",
+            "description": "The queued or running run, when there is one."
+          },
+          "definition": {
+            "$ref": "#/components/schemas/backup.api.v1.JobDefinition",
+            "description": "The configuration of the job, not set for restore."
+          },
+          "enabled": {
+            "description": "Whether the job is enabled in the configuration.",
+            "type": "boolean"
+          },
+          "last": {
+            "$ref": "#/components/schemas/backup.api.v1.Run",
+            "description": "The most recent finished run."
+          },
+          "lastSuccessTime": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Finish time of the most recent successful run."
+          },
+          "name": {
+            "description": "Name of the job, restore for restore runs.",
+            "type": "string"
+          },
+          "nextRunTime": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Next scheduled run, not set when the job is disabled or paused."
+          },
+          "paused": {
+            "description": "Whether scheduling is paused. Manual runs still work.",
+            "type": "boolean"
+          },
+          "schedule": {
+            "description": "Cron expression, empty for jobs that are not scheduled.",
+            "type": "string"
+          },
+          "type": {
+            "description": "What the job does: backup, forget, check or sync. Empty for restore.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.JobDefinition": {
+        "description": "The configuration of a job, as stored in control.yaml.",
+        "properties": {
+          "after": {
+            "description": "Name of a job that starts this job when it succeeds. Such a job has no schedule of its own.",
+            "type": "string"
+          },
+          "args": {
+            "description": "Additional restic arguments, split like a shell would without expanding anything.",
+            "type": "string"
+          },
+          "checkAccess": {
+            "description": "Sync jobs only: abort unless the file RCLONE_TEST exists on both sides.",
+            "type": "boolean"
+          },
+          "conflict": {
+            "description": "Sync jobs only: which version wins when a file changed on both sides: newer, older, larger, smaller,\npath1, path2 or none (keep both). newer when empty.",
+            "type": "string"
+          },
+          "conflictLoser": {
+            "description": "Sync jobs only: what happens to the losing version: num, pathname or delete. num when empty.",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Whether the job is scheduled.",
+            "type": "boolean"
+          },
+          "engine": {
+            "description": "Sync jobs only: the program that syncs, rclone (bisync) when empty or unison.",
+            "type": "string"
+          },
+          "force": {
+            "description": "Sync jobs only: do not abort when all files changed or too many would be deleted (rclone --force). For small\ndirectories, where every file changing is normal. Also turns off max_delete_pct.",
+            "type": "boolean"
+          },
+          "maxAgeHours": {
+            "description": "Unhealthy when no run succeeded within this many hours, 0 disables.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "maxDeletePct": {
+            "description": "Sync jobs only: abort when a run would delete more than this percentage of the files, 50 when 0.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved.",
+            "type": "string"
+          },
+          "owner": {
+            "description": "Sync jobs only: name of the peer that holds the schedule and the state of this job. When set this worker\nonly mirrors the job: it shows its state and forwards starts and changes to the owner.",
+            "type": "string"
+          },
+          "passwordFile": {
+            "description": "File containing the repository password. The default password file when empty.",
+            "type": "string"
+          },
+          "passwordSecret": {
+            "description": "Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the\ndefault.",
+            "type": "string"
+          },
+          "path1": {
+            "description": "Sync jobs only: first directory, always local.",
+            "type": "string"
+          },
+          "path2": {
+            "description": "Sync jobs only: second directory. A local directory, or peer:\u003cname\u003e[/subdirectory] on another worker.",
+            "type": "string"
+          },
+          "repository": {
+            "description": "Restic repository. The default repository when empty.",
+            "type": "string"
+          },
+          "schedule": {
+            "description": "Cron expression: minute hour day month weekday.",
+            "type": "string"
+          },
+          "source": {
+            "description": "Directory to back up, backup jobs only. The default source when empty.",
+            "type": "string"
+          },
+          "timeoutMinutes": {
+            "description": "Abort the run after this many minutes, 0 disables the timeout.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "type": {
+            "description": "What the job does: backup, forget, check or sync.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.JobRequest": {
+        "description": "Addresses a job.",
+        "properties": {
+          "job": {
+            "description": "Name of a configured job. restore may only be cancelled.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListFilesRequest": {
+        "description": "Requests the content of a directory in a snapshot.",
+        "properties": {
+          "job": {
+            "description": "Name of a job, the snapshot is read from its repository. The global repository when empty.",
+            "type": "string"
+          },
+          "path": {
+            "description": "Absolute directory inside the snapshot, / when empty.",
+            "type": "string"
+          },
+          "snapshot": {
+            "description": "Snapshot id.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListFilesResponse": {
+        "description": "The entries of a directory, directories first, then by name.",
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.FileNode"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "description": "Set when the directory has more entries than are returned.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListPeersRequest": {
+        "description": "Requests the peers.",
+        "properties": {},
+        "type": "object"
+      },
+      "backup.api.v1.ListPeersResponse": {
+        "description": "The peers sorted by name.",
+        "properties": {
+          "peers": {
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.Peer"
+            },
+            "type": "array"
+          },
+          "workerName": {
+            "description": "Name of this worker.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListRunsRequest": {
+        "description": "Requests the run history.",
+        "properties": {
+          "job": {
+            "description": "Only return runs of this job, all jobs when empty.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of runs to return, 50 when not set, at most 500.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListRunsResponse": {
+        "description": "A list of runs without their output.",
+        "properties": {
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.Run"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListSecretsRequest": {
+        "description": "Requests the secrets.",
+        "properties": {},
+        "type": "object"
+      },
+      "backup.api.v1.ListSecretsResponse": {
+        "description": "The secrets sorted by name.",
+        "properties": {
+          "secrets": {
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.SecretInfo"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListSnapshotsRequest": {
+        "description": "Requests the snapshot list.",
+        "properties": {
+          "job": {
+            "description": "Name of a job, its repository is listed. The global repository when empty.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListSnapshotsResponse": {
+        "description": "The snapshots of the repository, newest first.",
+        "properties": {
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.Snapshot"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.NotificationEvent": {
+        "description": "An event of another process, mailed by the daemon with its settings.",
+        "properties": {
+          "detail": {
+            "description": "Preformatted text such as an error.",
+            "type": "string"
+          },
+          "fields": {
+            "description": "Labelled values.",
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.NotificationField"
+            },
+            "type": "array"
+          },
+          "key": {
+            "description": "Tells events apart for the cooldown.",
+            "type": "string"
+          },
+          "severity": {
+            "description": "failure, warning, success or info.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Short headline and subject.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.NotificationField": {
+        "description": "One labelled value of a mail.",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.Notifications": {
+        "description": "Which mails this worker sends and how. In portal mode the SMTP server is part of this message and shared by the daemon\nand the portal, in standalone mode it is part of the configuration file and only reported here.",
+        "properties": {
+          "clearSmtpPassword": {
+            "description": "Write only: remove the stored password.",
+            "type": "boolean"
+          },
+          "cooldownMinutes": {
+            "description": "Minimum minutes between two mails about the same job or address, 0 for no limit.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "enabled": {
+            "description": "Whether mails are sent at all.",
+            "type": "boolean"
+          },
+          "onFailure": {
+            "description": "Mail failed runs.",
+            "type": "boolean"
+          },
+          "onLifecycle": {
+            "description": "Mail the start and stop of the daemon.",
+            "type": "boolean"
+          },
+          "onSecurity": {
+            "description": "Mail wrong passwords at the control API.",
+            "type": "boolean"
+          },
+          "onSkipped": {
+            "description": "Mail skipped and cancelled runs.",
+            "type": "boolean"
+          },
+          "onStale": {
+            "description": "Mail jobs without a successful run within their max age.",
+            "type": "boolean"
+          },
+          "onSuccess": {
+            "description": "Mail successful runs.",
+            "type": "boolean"
+          },
+          "recipients": {
+            "description": "Addresses that receive the mails.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "smtpAuth": {
+            "description": "Whether the server wants a login.",
+            "type": "boolean"
+          },
+          "smtpAuthMethod": {
+            "description": "PLAIN, LOGIN or CRAMMD5.",
+            "type": "string"
+          },
+          "smtpEncryption": {
+            "description": "NONE, STARTTLS or TLS.",
+            "type": "string"
+          },
+          "smtpFqdn": {
+            "description": "Host name announced in the HELO, empty for the name of the machine.",
+            "type": "string"
+          },
+          "smtpFrom": {
+            "description": "Sender address.",
+            "type": "string"
+          },
+          "smtpHost": {
+            "description": "SMTP server host.",
+            "type": "string"
+          },
+          "smtpPassword": {
+            "description": "Write only: the new password. Empty keeps the stored one. It is stored as a secret and never returned.",
+            "type": "string"
+          },
+          "smtpPasswordSet": {
+            "description": "Read only: whether a password is stored or configured.",
+            "type": "boolean"
+          },
+          "smtpPort": {
+            "description": "SMTP server port.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "smtpSkipVerify": {
+            "description": "Accept any certificate of the server.",
+            "type": "boolean"
+          },
+          "smtpUsername": {
+            "description": "Login name.",
+            "type": "string"
+          },
+          "subjectPrefix": {
+            "description": "Prefix of the subject of every mail.",
+            "type": "string"
+          },
+          "transportConfigured": {
+            "description": "Read only: whether an SMTP server and a sender address are configured.",
+            "type": "boolean"
+          },
+          "transportEditable": {
+            "description": "Read only: whether the SMTP server can be changed through the API, which is the case in portal mode. Otherwise the\nsmtp fields only report the configuration file and a request must not change them.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.Peer": {
+        "description": "Another worker that sync jobs can use as their second path.",
+        "properties": {
+          "apiCaFile": {
+            "description": "CA file that signed the certificate of the control API of the peer, the system roots when empty.",
+            "type": "string"
+          },
+          "apiPasswordFile": {
+            "description": "File with the password of the control API of the peer.",
+            "type": "string"
+          },
+          "apiPasswordSecret": {
+            "description": "Name of the stored secret that holds the password of the control API of the peer. Replaces api_password_file.",
+            "type": "string"
+          },
+          "apiUrl": {
+            "description": "URL of the control API of the peer, e.g. https://east:9080. Needed to manage the jobs from both sides, to\nlock a pair of directories while it syncs and to start jobs on the peer. Empty uses the data connection only.",
+            "type": "string"
+          },
+          "caFile": {
+            "description": "CA file that signed the certificate of the sync server of the peer, the system roots when empty.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name, 1-32 characters of lower case letters, digits and _. It is the name the peer has as worker name.",
+            "type": "string"
+          },
+          "passwordFile": {
+            "description": "File with the password of the sync server of the peer.",
+            "type": "string"
+          },
+          "passwordSecret": {
+            "description": "Name of the stored secret that holds the password of the sync server of the peer. Replaces password_file.",
+            "type": "string"
+          },
+          "url": {
+            "description": "WebDAV URL of the sync server of the peer, e.g. https://east:9081.",
+            "type": "string"
+          },
+          "username": {
+            "description": "User name of the sync server of the peer.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.PeerRequest": {
+        "description": "Addresses a peer.",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.PeerStatus": {
+        "description": "The result of a connection test to a peer.",
+        "properties": {
+          "apiOk": {
+            "description": "Whether the control API answered with the given credentials. False when the peer has no API URL.",
+            "type": "boolean"
+          },
+          "dataOk": {
+            "description": "Whether the sync server answered with the given credentials.",
+            "type": "boolean"
+          },
+          "error": {
+            "description": "Why a test failed.",
+            "type": "string"
+          },
+          "latencyMs": {
+            "description": "Round trip time to the control API in milliseconds, 0 when it was not tested.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Name of the peer.",
+            "type": "string"
+          },
+          "workerName": {
+            "description": "Worker name the peer reports, to check that it is the worker the peer entry is named after.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.PushJobRequest": {
+        "description": "Hands a job definition to a peer.",
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/backup.api.v1.JobDefinition",
+            "description": "The job as the owner has it. The receiver turns it into its mirror: its own path1, path2 pointing back at the\nowner, no schedule."
+          },
+          "owner": {
+            "description": "Worker name of the caller, the owner of the job.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.RepositoryStats": {
+        "description": "Statistics of the restic repository.",
+        "properties": {
+          "blobCount": {
+            "description": "Number of blobs in the repository.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "compressionRatio": {
+            "description": "Ratio between uncompressed and stored size.",
+            "format": "double",
+            "type": "number"
+          },
+          "snapshotCount": {
+            "description": "Number of snapshots in the repository.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "totalSize": {
+            "description": "Size of the stored data in bytes.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "uncompressedSize": {
+            "description": "Size of the data before compression in bytes.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.RestoreRequest": {
+        "description": "Requests a restore.",
+        "properties": {
+          "include": {
+            "description": "Paths to restore, everything when empty.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "job": {
+            "description": "Name of a job, the snapshot is restored from its repository. The global repository when empty.",
+            "type": "string"
+          },
+          "snapshot": {
+            "description": "Snapshot id, latest when empty.",
+            "type": "string"
+          },
+          "target": {
+            "description": "Target directory, must be below the restore directory.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.Run": {
+        "description": "One execution of a job.",
+        "properties": {
+          "error": {
+            "description": "Human readable reason when the run did not succeed.",
+            "type": "string"
+          },
+          "exitCode": {
+            "description": "Exit code of restic, 0 when it did not run.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "finishTime": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time at which the run reached a final state, when it did."
+          },
+          "id": {
+            "description": "Unique identifier of the run.",
+            "type": "string"
+          },
+          "job": {
+            "description": "Name of the job that was run, restore for restores.",
+            "type": "string"
+          },
+          "output": {
+            "description": "The last lines of output of restic. Not set in lists.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "queueTime": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time at which the run was queued."
+          },
+          "startTime": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time at which restic was started, when it was."
+          },
+          "status": {
+            "description": "Current state of the run.\n\nThe state of a run.\n\n- `0` `RUN_STATUS_UNSPECIFIED`\n- `1` `RUN_STATUS_QUEUED`\n- `2` `RUN_STATUS_RUNNING`\n- `3` `RUN_STATUS_SUCCESS`\n- `4` `RUN_STATUS_FAILED`\n- `5` `RUN_STATUS_CANCELLED`\n- `6` `RUN_STATUS_SKIPPED`",
+            "enum": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "type": "integer",
+            "x-enum-varnames": [
+              "RUN_STATUS_UNSPECIFIED",
+              "RUN_STATUS_QUEUED",
+              "RUN_STATUS_RUNNING",
+              "RUN_STATUS_SUCCESS",
+              "RUN_STATUS_FAILED",
+              "RUN_STATUS_CANCELLED",
+              "RUN_STATUS_SKIPPED"
+            ]
+          },
+          "trigger": {
+            "description": "What started the run: schedule, manual or init.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.SecretInfo": {
+        "description": "A stored secret, a repository password. The value is never returned.",
+        "properties": {
+          "createTime": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time at which the secret was created."
+          },
+          "defaultPassword": {
+            "description": "Whether the default password of the daemon is this secret.",
+            "type": "boolean"
+          },
+          "jobs": {
+            "description": "Names of the jobs that take their password from this secret.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Name of the secret.",
+            "type": "string"
+          },
+          "updateTime": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time at which the value was last set or changed."
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.SecretRequest": {
+        "description": "Addresses a secret.",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.SetSecretRequest": {
+        "description": "Requests a secret to be created or its value replaced.",
+        "properties": {
+          "generate": {
+            "description": "Generate a strong random value instead of taking one. It is returned once.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Name: 1-32 characters of lower case letters, digits, - and _.",
+            "type": "string"
+          },
+          "value": {
+            "description": "The value, a single line. Ignored when generate is set.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.SetSecretResponse": {
+        "description": "The secret and, when it was generated, its value.",
+        "properties": {
+          "generatedValue": {
+            "description": "The generated value. Only returned now, store it somewhere safe: without it the repository is lost.",
+            "type": "string"
+          },
+          "secret": {
+            "$ref": "#/components/schemas/backup.api.v1.SecretInfo"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.Snapshot": {
+        "description": "A restic snapshot.",
+        "properties": {
+          "hostname": {
+            "description": "Host that created the snapshot.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Full snapshot id.",
+            "type": "string"
+          },
+          "paths": {
+            "description": "Backed up paths.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "shortId": {
+            "description": "Abbreviated snapshot id.",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Tags of the snapshot.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "time": {
+            "$ref": "#/components/schemas/google.protobuf.Timestamp",
+            "description": "Time at which the snapshot was taken."
+          },
+          "username": {
+            "description": "User that created the snapshot.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.SyncLockRequest": {
+        "description": "Reserves or releases a sync job.",
+        "properties": {
+          "job": {
+            "description": "Name of the sync job.",
+            "type": "string"
+          },
+          "owner": {
+            "description": "Worker name of the caller.",
+            "type": "string"
+          },
+          "ttlSeconds": {
+            "description": "Seconds the reservation lasts when it is not released, 1 hour when 0.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.SyncLockResponse": {
+        "description": "The result of a reservation.",
+        "properties": {
+          "granted": {
+            "description": "Whether the job is reserved for the caller.",
+            "type": "boolean"
+          },
+          "holder": {
+            "description": "Who holds the reservation when it was not granted.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.SyncServe": {
+        "description": "How this worker exports a directory to its peers.",
+        "properties": {
+          "address": {
+            "description": "Address to bind to.",
+            "type": "string"
+          },
+          "certificateFile": {
+            "description": "TLS certificate file, plain HTTP when empty.",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Whether the directory is served.",
+            "type": "boolean"
+          },
+          "keyFile": {
+            "description": "TLS key file.",
+            "type": "string"
+          },
+          "passwordFile": {
+            "description": "File with the password the peers have to use.",
+            "type": "string"
+          },
+          "passwordSecret": {
+            "description": "Name of the stored secret that holds the password the peers have to use. Replaces password_file.",
+            "type": "string"
+          },
+          "path": {
+            "description": "Directory to export.",
+            "type": "string"
+          },
+          "port": {
+            "description": "Port to bind to.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "tunnel": {
+            "description": "Whether peers may run unison against the exported directory through the control API.",
+            "type": "boolean"
+          },
+          "username": {
+            "description": "User name the peers have to use.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.TestNotificationsRequest": {
+        "description": "Requests a test mail.",
+        "properties": {},
+        "type": "object"
+      },
+      "backup.api.v1.TestNotificationsResponse": {
+        "description": "The result of a test mail.",
+        "properties": {
+          "recipients": {
+            "description": "Addresses the test mail was sent to.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.WatchRequest": {
+        "description": "Requests the event stream.",
+        "properties": {},
+        "type": "object"
+      },
+      "google.protobuf.Empty": {
+        "type": "object"
+      },
+      "google.protobuf.Timestamp": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "xrpc.Error": {
+        "description": "JSON-RPC 2.0 error object.",
+        "properties": {
+          "code": {
+            "description": "-32700 parse error, -32600 invalid request, -32601 method not found, -32602 invalid params, -32603 internal error, -32000 server error.",
+            "type": "integer"
+          },
+          "data": {
+            "description": "Optional additional information."
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "backup.api.v1",
+    "version": "0.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/Control/AcquireSyncLock": {
+      "post": {
+        "description": "Called by a peer: reserves a sync job for the caller so this worker does not run it at the same time.\n\nJSON-RPC 2.0 call of `Control.AcquireSyncLock`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.AcquireSyncLock",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.AcquireSyncLock",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.AcquireSyncLock"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.SyncLockRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.SyncLockResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Called by a peer: reserves a sync job for the caller so this worker does not run it at the same time.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/CancelJob": {
+      "post": {
+        "description": "Cancels the queued or running run of a job.\n\nJSON-RPC 2.0 call of `Control.CancelJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.CancelJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.CancelJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.CancelJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Cancels the queued or running run of a job.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ChangeRepositoryPassword": {
+      "post": {
+        "description": "Changes the password of every repository that uses the secret and stores the new one. A new key is added\nfirst and the old one removed last, so no step can lock the daemon out.\n\nJSON-RPC 2.0 call of `Control.ChangeRepositoryPassword`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ChangeRepositoryPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ChangeRepositoryPassword",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ChangeRepositoryPassword"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ChangeRepositoryPasswordRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ChangeRepositoryPasswordResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Changes the password of every repository that uses the secret and stores the new one.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/CreateJob": {
+      "post": {
+        "description": "Creates a job and schedules it. Fails when the name is taken or the configuration is invalid.\n\nJSON-RPC 2.0 call of `Control.CreateJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.CreateJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.CreateJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.CreateJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobDefinition"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Job"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Creates a job and schedules it.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/DeleteJob": {
+      "post": {
+        "description": "Removes a job. Its history stays. Fails while the job is running.\n\nJSON-RPC 2.0 call of `Control.DeleteJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.DeleteJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.DeleteJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.DeleteJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Removes a job.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/DeletePeer": {
+      "post": {
+        "description": "Removes a peer. Fails while a sync job uses it.\n\nJSON-RPC 2.0 call of `Control.DeletePeer`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.DeletePeer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.DeletePeer",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.DeletePeer"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.PeerRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Removes a peer.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/DeleteSecret": {
+      "post": {
+        "description": "Deletes a secret that no job uses.\n\nJSON-RPC 2.0 call of `Control.DeleteSecret`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.DeleteSecret",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.DeleteSecret",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.DeleteSecret"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.SecretRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Deletes a secret that no job uses.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/DropJob": {
+      "post": {
+        "description": "Called by a peer: removes the mirror of a job the peer owned.\n\nJSON-RPC 2.0 call of `Control.DropJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.DropJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.DropJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.DropJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.PushJobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Called by a peer: removes the mirror of a job the peer owned.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/GetNotifications": {
+      "post": {
+        "description": "Returns which mails this worker sends.\n\nJSON-RPC 2.0 call of `Control.GetNotifications`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.GetNotifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.GetNotifications",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.GetNotifications"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.GetNotificationsRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Notifications"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Returns which mails this worker sends.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/GetRun": {
+      "post": {
+        "description": "Returns a run including its output.\n\nJSON-RPC 2.0 call of `Control.GetRun`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.GetRun",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.GetRun",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.GetRun"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.GetRunRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Run"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Returns a run including its output.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/GetStats": {
+      "post": {
+        "description": "Returns the statistics of the repository.\n\nJSON-RPC 2.0 call of `Control.GetStats`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.GetStats",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.GetStats",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.GetStats"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.GetStatsRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.RepositoryStats"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Returns the statistics of the repository.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/GetStatus": {
+      "post": {
+        "description": "Returns the health and the state of all jobs.\n\nJSON-RPC 2.0 call of `Control.GetStatus`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.GetStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.GetStatus",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.GetStatus"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.GetStatusRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ControlStatus"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Returns the health and the state of all jobs.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/GetSyncServe": {
+      "post": {
+        "description": "Returns how this worker exports a directory to its peers.\n\nJSON-RPC 2.0 call of `Control.GetSyncServe`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.GetSyncServe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.GetSyncServe",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.GetSyncServe"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.GetSyncServeRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.SyncServe"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Returns how this worker exports a directory to its peers.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ListFiles": {
+      "post": {
+        "description": "Lists the entries directly inside a directory of a snapshot.\n\nJSON-RPC 2.0 call of `Control.ListFiles`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ListFiles",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ListFiles",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ListFiles"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ListFilesRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ListFilesResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Lists the entries directly inside a directory of a snapshot.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ListPeers": {
+      "post": {
+        "description": "Lists the peers and the name of this worker.\n\nJSON-RPC 2.0 call of `Control.ListPeers`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ListPeers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ListPeers",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ListPeers"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ListPeersRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ListPeersResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Lists the peers and the name of this worker.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ListRuns": {
+      "post": {
+        "description": "Lists runs, newest first. Active runs come first.\n\nJSON-RPC 2.0 call of `Control.ListRuns`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ListRuns",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ListRuns",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ListRuns"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ListRunsRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ListRunsResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Lists runs, newest first.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ListSecrets": {
+      "post": {
+        "description": "Lists the stored secrets, without their values.\n\nJSON-RPC 2.0 call of `Control.ListSecrets`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ListSecrets",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ListSecrets",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ListSecrets"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ListSecretsRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ListSecretsResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Lists the stored secrets, without their values.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ListSnapshots": {
+      "post": {
+        "description": "Lists the snapshots of the repository.\n\nJSON-RPC 2.0 call of `Control.ListSnapshots`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ListSnapshots",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ListSnapshots",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ListSnapshots"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ListSnapshotsRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ListSnapshotsResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Lists the snapshots of the repository.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/PauseJob": {
+      "post": {
+        "description": "Stops a job from being scheduled. Manual runs still work.\n\nJSON-RPC 2.0 call of `Control.PauseJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.PauseJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.PauseJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.PauseJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Stops a job from being scheduled.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/PushJob": {
+      "post": {
+        "description": "Called by a peer: creates or replaces the mirror of a job the peer owns.\n\nJSON-RPC 2.0 call of `Control.PushJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.PushJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.PushJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.PushJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.PushJobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Called by a peer: creates or replaces the mirror of a job the peer owns.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ReleaseSyncLock": {
+      "post": {
+        "description": "Called by a peer: releases the reservation.\n\nJSON-RPC 2.0 call of `Control.ReleaseSyncLock`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ReleaseSyncLock",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ReleaseSyncLock",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ReleaseSyncLock"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.SyncLockRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Called by a peer: releases the reservation.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/Restore": {
+      "post": {
+        "description": "Restores a snapshot below the restore directory.\n\nJSON-RPC 2.0 call of `Control.Restore`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.Restore",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.Restore",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.Restore"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.RestoreRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Run"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Restores a snapshot below the restore directory.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ResumeJob": {
+      "post": {
+        "description": "Schedules a paused job again.\n\nJSON-RPC 2.0 call of `Control.ResumeJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ResumeJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ResumeJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ResumeJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Schedules a paused job again.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ResyncJob": {
+      "post": {
+        "description": "Runs a sync job from scratch: its state is dropped, so the next run rebuilds the listings of both sides. Files\nare copied, nothing is deleted. Forwarded to the owner of a mirrored job.\n\nJSON-RPC 2.0 call of `Control.ResyncJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ResyncJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ResyncJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ResyncJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Run"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Runs a sync job from scratch: its state is dropped, so the next run rebuilds the listings of both sides.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/SendNotification": {
+      "post": {
+        "description": "Called by the portal: mails a security event of the portal with the settings of this worker.\n\nJSON-RPC 2.0 call of `Control.SendNotification`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.SendNotification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.SendNotification",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.SendNotification"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.NotificationEvent"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Called by the portal: mails a security event of the portal with the settings of this worker.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/SetNotifications": {
+      "post": {
+        "description": "Changes which mails this worker sends. The SMTP server is changed in portal mode only, otherwise it stays as\nconfigured in the file.\n\nJSON-RPC 2.0 call of `Control.SetNotifications`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.SetNotifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.SetNotifications",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.SetNotifications"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.Notifications"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Notifications"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Changes which mails this worker sends.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/SetPeer": {
+      "post": {
+        "description": "Creates a peer or replaces it.\n\nJSON-RPC 2.0 call of `Control.SetPeer`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.SetPeer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.SetPeer",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.SetPeer"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.Peer"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Peer"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Creates a peer or replaces it.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/SetSecret": {
+      "post": {
+        "description": "Creates a secret or replaces its value. This only changes what the daemon will present to restic, it does not\nchange the password of a repository. Use ChangeRepositoryPassword for that.\n\nJSON-RPC 2.0 call of `Control.SetSecret`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.SetSecret",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.SetSecret",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.SetSecret"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.SetSecretRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.SetSecretResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Creates a secret or replaces its value.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/SetSyncServe": {
+      "post": {
+        "description": "Changes how this worker exports a directory to its peers.\n\nJSON-RPC 2.0 call of `Control.SetSyncServe`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.SetSyncServe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.SetSyncServe",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.SetSyncServe"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.SyncServe"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.SyncServe"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Changes how this worker exports a directory to its peers.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/StartJob": {
+      "post": {
+        "description": "Starts a job now.\n\nJSON-RPC 2.0 call of `Control.StartJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.StartJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.StartJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.StartJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Run"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Starts a job now.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/TestNotifications": {
+      "post": {
+        "description": "Sends a test mail to the recipients, with the settings that are saved.\n\nJSON-RPC 2.0 call of `Control.TestNotifications`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.TestNotifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.TestNotifications",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.TestNotifications"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.TestNotificationsRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.TestNotificationsResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Sends a test mail to the recipients, with the settings that are saved.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/TestPeer": {
+      "post": {
+        "description": "Tests the connections to a peer.\n\nJSON-RPC 2.0 call of `Control.TestPeer`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.TestPeer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.TestPeer",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.TestPeer"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.PeerRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.PeerStatus"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Tests the connections to a peer.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/UnlockJob": {
+      "post": {
+        "description": "Removes all locks from the repository of a job. Only use it when no other process works on the repository.\n\nJSON-RPC 2.0 call of `Control.UnlockJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.UnlockJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.UnlockJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.UnlockJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Removes all locks from the repository of a job.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/UpdateJob": {
+      "post": {
+        "description": "Replaces the configuration of an existing job.\n\nJSON-RPC 2.0 call of `Control.UpdateJob`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.UpdateJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.UpdateJob",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.UpdateJob"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.JobDefinition"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Job"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Replaces the configuration of an existing job.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/Watch": {
+      "get": {
+        "description": "Streams run state changes and output lines as they happen.\n\n**WebSocket endpoint.** Connect with a WebSocket upgrade request (`ws://` or `wss://`, sub-protocol `xrpc.json`). The client sends the JSON-RPC request `Control.Watch` with the single `WatchRequest` message as `params`; the server then sends any number of `xrpc.message` notifications carrying `Event` messages in `params.data`, and ends the stream with the response to the request (`result` is null). Notifications are JSON-RPC objects with `params` of the form `{\"id\": \u003crequest id\u003e, \"data\": \u003cmessage\u003e}`; a client aborts a stream with an `xrpc.cancel` notification.",
+        "operationId": "backup.api.v1.Control.Watch",
+        "responses": {
+          "101": {
+            "description": "Switching Protocols. The connection is upgraded to a WebSocket."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Streams run state changes and output lines as they happen.",
+        "tags": [
+          "Control"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "WebSocket",
+            "lang": "JavaScript",
+            "source": "// baseURL is the API base address with a ws:// or wss:// scheme; add authentication as your deployment requires.\nconst ws = new WebSocket(baseURL.replace(/\\/$/, \"\") + \"/Control/Watch\", \"xrpc.json\");\nws.onopen = () =\u003e ws.send(JSON.stringify({ jsonrpc: \"2.0\", method: \"Control.Watch\", params: { /* WatchRequest */ }, id: 1 }));\nws.onmessage = (event) =\u003e {\n  const frame = JSON.parse(event.data);\n  if (frame.method === \"xrpc.message\") console.log(frame.params.data); // Event\n};\n"
+          }
+        ],
+        "x-stream": "server",
+        "x-stream-messages": {
+          "client": {
+            "count": "one",
+            "description": "Message sent by the client, wrapped as described in the operation description.",
+            "schema": {
+              "$ref": "#/components/schemas/backup.api.v1.WatchRequest"
+            }
+          },
+          "encoding": "application/json",
+          "server": {
+            "count": "many",
+            "description": "Message sent by the server, wrapped as described in the operation description.",
+            "schema": {
+              "$ref": "#/components/schemas/backup.api.v1.Event"
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Controls the backup jobs and inspects the repository.",
+      "name": "Control"
+    }
+  ]
+}

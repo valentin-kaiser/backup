@@ -1,0 +1,19 @@
+# Worker "west" owns the schedule and the state of the job. Unison reaches the volume of "east" through the control API
+# of east (no sshd, no extra port). east shows the job as a mirror and forwards starts and changes to west.
+workername: west                 # the name east uses for this worker
+peers:
+  - name: east                   # east has to call itself "east" (its workername)
+    url: http://sync-east:9081   # only for the rclone engine: the WebDAV server of east
+    apiurl: http://sync-east:9080                   # control API of east: tunnel, locking, mirrored jobs, forwarded starts
+    apipasswordfile: /run/secrets/portal_password   # the password of the portal of east
+syncserve:
+  tunnel: true                   # let east sync with this worker through the control API (unison)
+  path: /sync
+jobs:
+  - name: west-east
+    type: sync
+    engine: unison
+    enabled: true
+    schedule: "*/5 * * * *"
+    path1: /sync                 # volume of this worker
+    path2: peer:east             # volume of the other worker, peer:east/subdirectory for a part of it

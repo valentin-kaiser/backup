@@ -1,0 +1,129 @@
+@for (group of groups(); track group.title) {
+  <fieldset class="group">
+    <legend>{{ group.title }}</legend>
+    @if (group.description) {
+      <p class="hint">{{ group.description }}</p>
+    }
+
+    <div class="specs" [class.compact]="group.compact">
+      @for (spec of group.specs; track spec.flag) {
+        @switch (spec.kind) {
+          @case ('bool') {
+            <label class="check wide">
+              <input #toggle type="checkbox" [checked]="bool(spec)" (change)="set(spec, toggle.checked)" />
+              <span>
+                <strong>{{ spec.label }}</strong> <code>{{ flag(spec) }}</code>
+                @if (spec.hint) {
+                  <span class="hint">{{ spec.hint }}</span>
+                }
+              </span>
+            </label>
+          }
+
+          @case ('text') {
+            <div class="field">
+              <label [for]="'arg-' + spec.flag">{{ spec.label }} <code>{{ flag(spec) }}</code></label>
+              <input
+                #textInput
+                [id]="'arg-' + spec.flag"
+                class="mono"
+                autocomplete="off"
+                spellcheck="false"
+                [placeholder]="spec.placeholder ?? ''"
+                [value]="text(spec)"
+                (input)="set(spec, textInput.value)"
+              />
+              @if (spec.hint) {
+                <span class="hint">{{ spec.hint }}</span>
+              }
+            </div>
+          }
+
+          @case ('number') {
+            <div class="field">
+              <label [for]="'arg-' + spec.flag">{{ spec.label }} @if (!group.compact) { <code>{{ flag(spec) }}</code> }</label>
+              <input
+                #numberInput
+                [id]="'arg-' + spec.flag"
+                type="number"
+                min="0"
+                step="1"
+                [placeholder]="spec.placeholder ?? ''"
+                [value]="text(spec)"
+                (input)="set(spec, numberInput.value)"
+              />
+              @if (spec.hint) {
+                <span class="hint">{{ spec.hint }}</span>
+              }
+            </div>
+          }
+
+          @case ('select') {
+            <div class="field">
+              <label [for]="'arg-' + spec.flag">{{ spec.label }} <code>{{ flag(spec) }}</code></label>
+              <select #selectInput [id]="'arg-' + spec.flag" (change)="set(spec, selectInput.value)">
+                @for (option of spec.options; track option.value) {
+                  <option [value]="option.value" [selected]="option.value === text(spec)">{{ option.label }}</option>
+                }
+              </select>
+            </div>
+          }
+
+          @case ('list') {
+            <div class="field wide">
+              <label [for]="'arg-' + spec.flag">{{ spec.label }} <code>{{ flag(spec) }}</code></label>
+              <div class="add">
+                <input
+                  #listInput
+                  [id]="'arg-' + spec.flag"
+                  class="mono"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [placeholder]="spec.placeholder ?? ''"
+                  (keydown.enter)="$event.preventDefault(); add(spec, listInput)"
+                />
+                <button type="button" class="secondary" (click)="add(spec, listInput)"><app-icon name="add" /> Add</button>
+              </div>
+              @if (list(spec).length) {
+                <div class="items">
+                  @for (item of list(spec); track item) {
+                    <span class="tag mono">
+                      {{ item }}
+                      <button type="button" class="x" [attr.aria-label]="'Remove ' + item" (click)="remove(spec, item)">×</button>
+                    </span>
+                  }
+                </div>
+              }
+              @if (spec.hint) {
+                <span class="hint">{{ spec.hint }}</span>
+              }
+            </div>
+          }
+        }
+      }
+    </div>
+  </fieldset>
+}
+
+<div class="field">
+  <label for="arg-extra">Other arguments</label>
+  <textarea
+    #extraInput
+    id="arg-extra"
+    class="mono"
+    rows="2"
+    spellcheck="false"
+    placeholder="--limit-upload 500"
+    [value]="extra()"
+    (input)="setExtra(extraInput.value)"
+  ></textarea>
+  <span class="hint">Anything else restic accepts. Split like a shell would, but never expanded or executed.</span>
+</div>
+
+<div class="preview" [class.broken]="broken()">
+  <span class="label">Command</span>
+  <code>{{ preview() }}</code>
+  @if (broken()) {
+    <span class="field-error">The arguments have an unclosed quote or a trailing backslash.</span>
+  }
+</div>

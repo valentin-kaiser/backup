@@ -1,0 +1,12 @@
+# One worker with both volumes: /sync/a and /sync/b are two mounts of the same container.
+jobs:
+  - name: mirror
+    type: sync
+    engine: unison           # unison (mature) or rclone (bisync, beta upstream)
+    enabled: true
+    schedule: "*/5 * * * *"
+    path1: /sync/a
+    path2: /sync/b
+    conflict: newer          # newer, older, path1, path2, none (skip and fail the run); rclone also larger, smaller
+    conflictloser: num       # keep the losing version next to the winner (num, pathname) or delete it
+    checkaccess: true        # needs a file RCLONE_TEST in both directories, protects against an unmounted volume

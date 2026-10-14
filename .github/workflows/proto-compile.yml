@@ -1,0 +1,16 @@
+name: Compile Protobuffer
+
+on: [push]
+
+permissions:
+  contents: write
+
+jobs:
+  compile-portal-proto:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Compile Portal Protobuffer
+      uses: valentin-kaiser/protocdock@master
+      with:
+        command: 'cd proto && make'
+        commit_message: '[GEN] compiled proto definitions'

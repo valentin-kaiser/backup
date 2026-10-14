@@ -1,0 +1,88 @@
+// Resources of the audit log of the backup portal.
+syntax = "proto3";
+
+package backup.api.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1";
+
+option optimize_for = SPEED;
+
+// One line of the audit log.
+message AuditEntry {
+  // Increasing identifier of the entry.
+  int64 id = 1;
+
+  // Time at which it happened.
+  google.protobuf.Timestamp time = 2;
+
+  // Address the request came from.
+  string ip = 3;
+
+  // What was done, e.g. login or start_job.
+  string action = 4;
+
+  // What the action was done to, e.g. the name of a job.
+  string target = 5;
+
+  // ok, failed, denied or unknown.
+  string result = 6;
+
+  // Further information, never a secret.
+  string detail = 7;
+}
+
+// Selects entries of the audit log. Fields that are not set match everything.
+message AuditFilter {
+  string action = 1;
+  string result = 2;
+
+  // Text that the target, the detail or the address contains.
+  string text = 3;
+
+  // Only entries from this time on.
+  google.protobuf.Timestamp since = 4;
+
+  // Only entries before this time.
+  google.protobuf.Timestamp until = 5;
+}
+
+// Requests a page of the audit log.
+message ListAuditLogRequest {
+  AuditFilter filter = 1;
+
+  // Only entries with a lower id, to continue after the last entry of a page.
+  int64 before_id = 2;
+
+  // Maximum number of entries, 100 when not set, at most 1000.
+  int32 limit = 3;
+}
+
+// A page of the audit log, newest first.
+message ListAuditLogResponse {
+  repeated AuditEntry entries = 1;
+
+  // Pass as before_id to get the next page, 0 when there is nothing more.
+  int64 next_id = 2;
+}
+
+// Requests the matching entries as a file.
+message ExportAuditLogRequest {
+  AuditFilter filter = 1;
+
+  // csv or json (one object per line).
+  string format = 2;
+}
+
+// The exported entries, oldest first.
+message ExportAuditLogResponse {
+  // Suggested name of the file.
+  string filename = 1;
+
+  // Media type of the data.
+  string content_type = 2;
+
+  // The file.
+  bytes data = 3;
+}

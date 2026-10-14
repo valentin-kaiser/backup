@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<meta name="color-scheme" content="light dark">
+	<meta name="supported-color-schemes" content="light dark">
+	<title>{{.Title}}</title>
+	<style>
+		body { margin:0; padding:0; width:100% !important; background:#f3f4f6; }
+		table { border-collapse:collapse; }
+		.b-wrap { width:100%; background:#f3f4f6; padding:24px 0; }
+		.b-container { width:100%; max-width:640px; margin:0 auto; }
+		.b-mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; word-break:break-all; }
+		@media only screen and (max-width:560px) {
+			.b-container { width:100% !important; }
+			.b-pad { padding:20px !important; }
+			.b-h1 { font-size:20px !important; }
+		}
+		@media (prefers-color-scheme: dark) {
+			body, .b-wrap { background:#0b0f17 !important; }
+			.b-card { background:#111827 !important; color:#e5e7eb !important; }
+			.b-kv { border-color:#374151 !important; }
+			.b-kv td { color:#e5e7eb !important; border-color:#374151 !important; }
+			.b-kv .b-label { color:#9ca3af !important; }
+			.b-detail { background:#1f2937 !important; color:#e5e7eb !important; }
+			.b-footer { color:#6b7280 !important; }
+		}
+	</style>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#111827;">
+
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f3f4f6;opacity:0;">{{.Preheads}}</div>
+
+<table role="presentation" class="b-wrap" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f3f4f6;padding:24px 0;">
+	<tr>
+		<td align="center">
+			<table role="presentation" class="b-container" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;">
+
+				<tr>
+					<td class="b-pad" style="padding:24px 28px;background:{{.Color}};color:#ffffff;">
+						<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+							<tr>
+								<td style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#ffffff;opacity:.85;">Backup{{if .Host}} · {{.Host}}{{end}}</td>
+								<td align="right" style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#ffffff;opacity:.85;">{{.Label}}</td>
+							</tr>
+							<tr>
+								<td colspan="2" style="padding-top:10px;">
+									<h1 class="b-h1" style="margin:0;font-size:22px;line-height:1.25;font-weight:600;color:#ffffff;">{{.Title}}</h1>
+								</td>
+							</tr>
+						</table>
+					</td>
+				</tr>
+
+				<tr>
+					<td class="b-card b-pad" style="background:#ffffff;padding:24px 28px;">
+
+						<table role="presentation" class="b-kv" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;border:1px solid #e5e7eb;">
+							{{- range .Fields}}
+							<tr>
+								<td class="b-label" style="padding:10px 14px;width:110px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e5e7eb;vertical-align:top;">{{.Label}}</td>
+								<td class="b-mono" style="padding:10px 14px;font-size:13px;color:#111827;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all;border-bottom:1px solid #e5e7eb;">{{.Value}}</td>
+							</tr>
+							{{- end}}
+							<tr>
+								<td class="b-label" style="padding:10px 14px;width:110px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">Time</td>
+								<td class="b-mono" style="padding:10px 14px;font-size:13px;color:#111827;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{{.When}}</td>
+							</tr>
+						</table>
+
+						{{- if .Detail}}
+						<pre class="b-detail b-mono" style="margin:0;padding:12px 14px;background:#f9fafb;border-left:4px solid {{.Color}};font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#111827;">{{.Detail}}</pre>
+						{{- end}}
+
+						<p class="b-footer" style="margin:24px 0 0;font-size:12px;color:#9ca3af;text-align:center;">
+							Automated notification from <b style="color:#6b7280;">backup</b>.
+						</p>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,23 @@
+// RPCs of the sign-in of the backup portal.
+syntax = "proto3";
+
+package backup.api.v1;
+
+import "backup/api/v1/auth.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1";
+
+option optimize_for = SPEED;
+
+// Signs in to the portal. The session is an HttpOnly cookie. The portal has one password and no users, the one the daemon expects too.
+service Auth {
+  // Checks the password and starts a session. Too many wrong passwords lock the address for a while.
+  rpc Login(LoginRequest) returns (Session);
+
+  // Ends the session of the caller.
+  rpc Logout(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // Returns the session of the caller. Fails with 401 without a valid session.
+  rpc GetSession(google.protobuf.Empty) returns (Session);
+}

@@ -1,0 +1,109 @@
+@if (!auth.ready()) {
+  <!-- looking for a session -->
+} @else if (!auth.signedIn()) {
+  <app-login />
+} @else if (!control.loaded()) {
+  <main class="login"><p class="muted" role="status">{{ control.error() || 'Loading…' }}</p></main>
+} @else if (setupOpen()) {
+  <app-setup (done)="setupOpen.set(false)" />
+} @else {
+  <div class="shell" [class.drawer-open]="drawerOpen()" [class.drawer-wide]="drawerWide()">
+    <header class="topbar">
+      <a class="brand" href="#/" (click)="$event.preventDefault(); toTop()">
+        <span class="logo"><app-icon name="inventory_2" /></span>
+        <span>Backup & Sync</span>
+      </a>
+
+      <div class="spacer"></div>
+
+      <div class="status">
+        @if (!control.connected()) {
+          <span class="dot bad"></span> <span class="status-text">Connecting…</span>
+        } @else if (control.status(); as status) {
+          <span class="dot" [class.ok]="status.healthy" [class.bad]="!status.healthy"></span>
+          <span class="status-text">{{ status.healthy ? 'Healthy' : 'Needs attention' }}</span>
+          <span class="muted version" [title]="status.version">{{
+            status.version.split('\n')[0]
+          }}</span>
+        } @else {
+          <span class="dot"></span> <span class="status-text">Loading…</span>
+        }
+      </div>
+
+      <a class="button ghost" routerLink="/peers" title="Sync peers"
+        ><app-icon name="link" /> <span class="btn-text">Peers</span></a
+      >
+      <a class="button ghost" routerLink="/secrets" title="Secrets"
+        ><app-icon name="lock" /> <span class="btn-text">Secrets</span></a
+      >
+      <a class="button ghost" routerLink="/notifications" title="Mail notifications"
+        ><app-icon name="mail" /> <span class="btn-text">Mail</span></a
+      >
+      <a class="button ghost" routerLink="/audit" title="Audit log"
+        ><app-icon name="history" /> <span class="btn-text">Audit</span></a
+      >
+      <a class="button primary" routerLink="/jobs/new"
+        ><app-icon name="add" /> <span class="btn-text">New job</span></a
+      >
+      <button
+        type="button"
+        class="icon theme-toggle"
+        (click)="toggleTheme()"
+        [attr.aria-label]="dark() ? 'Switch to light theme' : 'Switch to dark theme'"
+        [title]="dark() ? 'Light mode' : 'Dark mode'"
+      >
+        <app-icon [name]="dark() ? 'light_mode' : 'dark_mode'" />
+      </button>
+      <button type="button" class="icon" (click)="signOut()" aria-label="Sign out" title="Sign out">
+        <app-icon name="logout" />
+      </button>
+    </header>
+
+    <main class="content">
+      @if (!control.connected()) {
+        <div class="banner error" role="alert">
+          <app-icon name="warning" />
+          The portal lost the connection to the daemon. It reconnects on its own, what you see may
+          be out of date.
+        </div>
+      }
+      <section id="overview" class="section"><app-dashboard /></section>
+      <div class="panels">
+        <section id="snapshots" class="section">
+          <!-- Querying a repository is slow, only do it once the section comes into view. -->
+          @defer (on viewport; prefetch on idle) {
+            <app-snapshots />
+          } @placeholder (minimum 0ms) {
+            <div class="skeleton cards-skeleton"></div>
+          }
+        </section>
+        <section id="history" class="section"><app-history /></section>
+      </div>
+    </main>
+
+    <div class="drawer-backdrop" (click)="close()" aria-hidden="true"></div>
+    <aside
+      class="drawer"
+      role="dialog"
+      aria-label="Details"
+      [attr.aria-hidden]="!drawerOpen()"
+      [attr.inert]="drawerOpen() ? null : ''"
+    >
+      <button
+        type="button"
+        class="icon drawer-close"
+        (click)="close()"
+        aria-label="Close (Esc)"
+        title="Close (Esc)"
+      >
+        <app-icon name="close" />
+      </button>
+      <div class="drawer-body">
+        <router-outlet />
+      </div>
+    </aside>
+  </div>
+}
+
+<app-toasts />
+<app-confirm-dialog />

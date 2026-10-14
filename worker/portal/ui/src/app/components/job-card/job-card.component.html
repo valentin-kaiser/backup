@@ -1,0 +1,65 @@
+<article class="card job">
+  <header>
+    <div>
+      <h3>
+        <a [routerLink]="['/jobs', job().name]">{{ job().name }}</a>
+      </h3>
+      <span class="muted">{{ jobTypeLabel(job().type) }}</span>
+      @if (job().definition?.owner) {
+        <span class="tag" title="This job runs on a peer, starts and changes are forwarded to it">mirrored from {{ job().definition?.owner }}</span>
+      }
+    </div>
+    @if (job().type === 'sync' && job().definition; as d) {
+      <div class="muted ellip mono" [title]="d.path1 + ' ⇄ ' + d.path2">{{ d.path1 }} ⇄ {{ d.path2 }}</div>
+    }
+    <app-status-chip [status]="status()" />
+  </header>
+
+  <dl>
+    <dt>Schedule</dt>
+    <dd>
+      <span class="ellip" [title]="schedule()">{{ schedule() }}</span>
+      @if (job().paused) {
+        <span class="tag">paused</span>
+      }
+    </dd>
+    <dt>Next run</dt>
+    <dd [title]="formatTime(job().nextRunTime)">
+      {{ job().enabled && !job().paused ? formatRelative(job().nextRunTime) : '–' }}
+    </dd>
+    <dt>Last run</dt>
+    <dd [title]="formatTime(lastRun())">{{ formatRelative(lastRun()) }}</dd>
+    <dt>Last success</dt>
+    <dd [title]="formatTime(job().lastSuccessTime)">{{ formatRelative(job().lastSuccessTime) }}</dd>
+  </dl>
+
+  <footer>
+  @if (job().active) {
+    <button type="button" class="secondary small" data-label="Cancel" aria-label="Cancel" (click)="control.cancelJob(job().name)">
+      <app-icon name="stop" />
+    </button>
+  } @else {
+    <button type="button" class="primary small" data-label="Run now" aria-label="Run now" (click)="control.startJob(job().name)">
+      <app-icon name="play_arrow" />
+    </button>
+  }
+  @if (job().enabled) {
+    <button type="button" class="ghost small" [attr.data-label]="job().paused ? 'Resume' : 'Pause'" [attr.aria-label]="job().paused ? 'Resume' : 'Pause'" (click)="togglePause()">
+      <app-icon [name]="job().paused ? 'play_arrow' : 'pause'" />
+    </button>
+  }
+  @if (job().type === 'sync' && !job().active) {
+    <button type="button" class="ghost small" data-label="Resync" aria-label="Resync" (click)="resync()">
+      <app-icon name="refresh" />
+    </button>
+  }
+  @if (job().type !== 'sync' && !job().active) {
+    <button type="button" class="ghost small" data-label="Unlock repository" aria-label="Unlock repository" (click)="unlock()">
+      <app-icon name="lock_open" />
+    </button>
+  }
+  <a class="button ghost small push" data-label="Edit" aria-label="Edit" [routerLink]="['/jobs', job().name]">
+    <app-icon name="edit" />
+  </a>
+  </footer>
+</article>

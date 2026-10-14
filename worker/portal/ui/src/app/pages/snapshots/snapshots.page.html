@@ -1,0 +1,150 @@
+<header class="page-header section-title">
+  <div>
+    <h2>Snapshots</h2>
+    <p class="muted">What is stored in each repository. This list follows your backups.</p>
+  </div>
+  @if (selected()) {
+    <button type="button" class="secondary" [disabled]="loading()" (click)="reload()" title="Ask the repository again">
+      <app-icon name="refresh" /> {{ loading() ? 'Loading…' : 'Refresh' }}
+    </button>
+  }
+</header>
+
+@if (!control.status()) {
+  <div class="skeleton cards-skeleton"></div>
+} @else if (!selected()) {
+  <div class="empty-state">
+    <app-icon name="inventory_2" />
+    <h3>No repositories yet</h3>
+    <p>Snapshots appear here once you have a job that backs up to a repository.</p>
+    <a class="button primary" routerLink="/jobs/new"><app-icon name="add" /> Create a job</a>
+  </div>
+} @else {
+
+<!--  @if (control.repositories().length > 1) {
+    <div class="repositories" role="tablist" aria-label="Repositories">
+      @for (repository of control.repositories(); track repository.key) {
+        <button
+          type="button"
+          role="tab"
+          class="repository"
+          [class.active]="repository.key === selected()?.key"
+          [attr.aria-selected]="repository.key === selected()?.key"
+          (click)="choose(repository)"
+        >
+          <app-icon name="folder" />
+          <span>
+            <strong class="mono">{{ repository.key }}</strong>
+            <small>{{ repository.jobs.join(', ') }}</small>
+          </span>
+        </button>
+      }
+    </div>
+  } @else {
+    <p class="repository-line">
+      <app-icon name="folder" /> <span class="mono">{{ selected()?.key }}</span>
+      <span class="muted">used by {{ selected()?.jobs?.join(', ') }}</span>
+    </p>
+  }
+
+  @if (error()) {
+    <div class="banner error" role="alert">
+      <app-icon name="warning" />
+      <div>
+        <strong>The repository could not be read</strong>
+        <div>{{ error() }}</div>
+      </div>
+      <button type="button" class="secondary small push" (click)="reload()">Try again</button>
+    </div>
+  } -->
+
+  @if (stats(); as stats) {
+    <section class="tiles" aria-label="Repository">
+      <div class="tile">
+        <span class="label">Snapshots</span>
+        <span class="value">{{ stats.snapshotCount }}</span>
+      </div>
+      <div class="tile">
+        <span class="label">Stored size</span>
+        <span class="value small">{{ formatBytes(stats.totalSize) }}</span>
+      </div>
+      <div class="tile">
+        <span class="label">Before compression</span>
+        <span class="value small">{{ formatBytes(stats.uncompressedSize) }}</span>
+      </div>
+      <div class="tile">
+        <span class="label">Compression</span>
+        <span class="value small">{{ stats.compressionRatio ? stats.compressionRatio.toFixed(2) + '×' : '–' }}</span>
+      </div>
+    </section>
+  } @else if (!error()) {
+    <div class="skeleton tiles-skeleton"></div>
+  }
+
+  @if (snapshots()) {
+    <div class="toolbar">
+      <div class="field inline grow">
+        <label for="filter" class="sr-only">Filter</label>
+        <input
+          #filterInput
+          id="filter"
+          type="search"
+          placeholder="Filter by id, host, path or tag"
+          [value]="filter()"
+          (input)="filter.set(filterInput.value)"
+        />
+      </div>
+      <span class="muted">{{ shown().length }} of {{ snapshots()?.length }}</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Snapshot</th>
+            <th>Taken</th>
+            <th>Host</th>
+            <th>Paths</th>
+            <th>Tags</th>
+            <th><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (snapshot of shown(); track snapshot.id) {
+            <tr>
+              <td class="mono strong">
+                <a [routerLink]="['/snapshots', snapshot.id]" [queryParams]="{ job: selected()?.job }" title="Browse the files">{{ snapshot.shortId }}</a>
+              </td>
+              <td [title]="formatTime(snapshot.time)">{{ formatRelative(snapshot.time) }}</td>
+              <td>{{ snapshot.hostname }}</td>
+              <td class="mono paths">{{ snapshot.paths.join(', ') }}</td>
+              <td>
+                @for (tag of snapshot.tags; track tag) {
+                  <span class="tag">{{ tag }}</span>
+                }
+              </td>
+              <td class="right">
+                <div class="row-actions">
+                <a class="button ghost small" [routerLink]="['/snapshots', snapshot.id]" [queryParams]="{ job: selected()?.job }">
+                  <app-icon name="folder" /> Browse
+                </a>
+                <button type="button" class="secondary small" (click)="restore(snapshot)">
+                  <app-icon name="settings_backup_restore" /> Restore
+                </button>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="empty">{{ filter() ? 'No snapshot matches the filter' : 'No snapshots in this repository yet' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else if (!error()) {
+    <div class="skeleton cards-skeleton"></div>
+  }
+}
+
+<app-restore-dialog />

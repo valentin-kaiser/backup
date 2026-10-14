@@ -1,0 +1,61 @@
+
+@if (run(); as run) {
+  <header class="page-header">
+    <div>
+      <h1>
+        <a [routerLink]="run.job === 'restore' ? '/' : ['/jobs', run.job]" [fragment]="run.job === 'restore' ? 'history' : undefined">{{ run.job }}</a>
+        <app-status-chip [status]="run.status" />
+      </h1>
+      <p class="muted">Run {{ run.id }}, started by {{ run.trigger }}</p>
+    </div>
+    @if (active()) {
+      <button type="button" class="secondary" (click)="cancel()"><app-icon name="stop" /> Cancel</button>
+    }
+  </header>
+
+  @if (run.error) {
+    <div class="banner error" role="alert"><app-icon name="warning" /> {{ run.error }}</div>
+  }
+
+  <section class="tiles" aria-label="Details">
+    <div class="tile">
+      <span class="label">Queued</span>
+      <span class="value small">{{ formatTime(run.queueTime) }}</span>
+    </div>
+    <div class="tile">
+      <span class="label">Started</span>
+      <span class="value small">{{ formatTime(run.startTime) }}</span>
+    </div>
+    <div class="tile">
+      <span class="label">Finished</span>
+      <span class="value small">{{ formatTime(run.finishTime) }}</span>
+    </div>
+    <div class="tile">
+      <span class="label">Duration</span>
+      <span class="value small">{{ duration() }}</span>
+    </div>
+    <div class="tile">
+      <span class="label">Exit code</span>
+      <span class="value small" [class.bad]="run.exitCode">{{ run.exitCode }}</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-header">
+      <h2>Output</h2>
+      @if (active()) {
+        <span class="muted live"><span class="dot ok"></span> live</span>
+      }
+    </div>
+    <pre #output class="output tall" aria-live="polite">{{ lines().length ? lines().join('\n') : active() ? 'Waiting for output…' : '(no output)' }}</pre>
+  </section>
+} @else if (error()) {
+  <div class="empty-state">
+    <app-icon name="warning" />
+    <h3>This run is not available</h3>
+    <p>{{ error() }}</p>
+    <a class="button secondary" routerLink="/">Back to the overview</a>
+  </div>
+} @else {
+  <div class="skeleton cards-skeleton"></div>
+}

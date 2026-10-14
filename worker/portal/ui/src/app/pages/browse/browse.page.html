@@ -1,0 +1,118 @@
+
+<header class="page-header">
+  <div>
+    <h1>Snapshot <span class="mono">{{ shortId() }}</span></h1>
+    @if (details(); as snapshot) {
+      <p class="muted">
+        Taken <span [title]="formatTime(snapshot.time)">{{ formatRelative(snapshot.time) }}</span> on {{ snapshot.hostname }},
+        <span class="mono">{{ snapshot.paths.join(', ') }}</span>
+      </p>
+    } @else {
+      <p class="muted">The files as they were when the snapshot was taken.</p>
+    }
+  </div>
+  <button type="button" class="secondary" (click)="restore()">
+    <app-icon name="settings_backup_restore" /> {{ directory() === '/' ? 'Restore everything' : 'Restore this folder' }}
+  </button>
+</header>
+
+<nav class="crumbs" aria-label="Path">
+  @for (crumb of crumbs(); track crumb.path; let last = $last) {
+    @if (last) {
+      <span class="current mono" aria-current="page">{{ crumb.name }}</span>
+    } @else {
+      <button type="button" class="link mono" (click)="open(crumb.path)">{{ crumb.name }}</button>
+      @if (crumb.path !== '/') {
+        <span class="sep">/</span>
+      }
+    }
+  }
+</nav>
+
+@if (error()) {
+  <div class="banner error" role="alert">
+    <app-icon name="warning" />
+    <div>
+      <strong>The folder could not be read</strong>
+      <div>{{ error() }}</div>
+    </div>
+    <button type="button" class="secondary small push" (click)="reload()">Try again</button>
+  </div>
+}
+
+@if (files()) {
+  <div class="toolbar">
+    <div class="field inline grow">
+      <label for="filter" class="sr-only">Filter</label>
+      <input #filterInput id="filter" type="search" placeholder="Filter this folder" [value]="filter()" (input)="filter.set(filterInput.value)" />
+    </div>
+    <span class="muted">{{ shown().length }} of {{ files()?.length }}</span>
+    @if (loading()) {
+      <span class="muted"><app-icon name="refresh" /> Loading…</span>
+    }
+  </div>
+
+  @if (truncated()) {
+    <div class="banner warn">
+      <app-icon name="warning" />
+      This folder is too large to show completely. Open a subfolder, or restore with a path.
+    </div>
+  }
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th class="right">Size</th>
+          <th>Modified</th>
+          <th>Permissions</th>
+          <th><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (parent(); as up) {
+          <tr class="up">
+            <td colspan="5">
+              <button type="button" class="link" (click)="open(up)"><app-icon name="arrow_back" /> Parent folder</button>
+            </td>
+          </tr>
+        }
+        @for (file of shown(); track file.path) {
+          <tr>
+            <td>
+              <div class="name">
+              @switch (file.type) {
+                @case (FileType.FILE_TYPE_DIRECTORY) {
+                  <app-icon name="folder" />
+                  <button type="button" class="link strong" (click)="open(file.path)">{{ file.name }}</button>
+                }
+                @case (FileType.FILE_TYPE_SYMLINK) {
+                  <app-icon name="link" /> <span>{{ file.name }}</span>
+                }
+                @default {
+                  <app-icon name="description" /> <span>{{ file.name }}</span>
+                }
+              }
+              </div>
+            </td>
+            <td class="right">{{ file.type === FileType.FILE_TYPE_FILE ? formatBytes(file.size) : '' }}</td>
+            <td [title]="formatTime(file.modifyTime)">{{ formatRelative(file.modifyTime) }}</td>
+            <td class="mono muted">{{ file.permissions }}</td>
+            <td class="right">
+              <button type="button" class="secondary small" (click)="restore(file)"><app-icon name="settings_backup_restore" /> Restore</button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="5" class="empty">{{ filter() ? 'Nothing here matches the filter' : 'This folder is empty' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+} @else if (!error()) {
+  <div class="skeleton cards-skeleton"></div>
+}
+
+<app-restore-dialog />

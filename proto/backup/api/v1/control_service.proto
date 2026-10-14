@@ -1,0 +1,321 @@
+// RPCs of the backup control daemon.
+syntax = "proto3";
+
+package backup.api.v1;
+
+import "backup/api/v1/control.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1";
+
+option optimize_for = SPEED;
+
+// Controls the backup jobs and inspects the repository.
+service Control {
+  // Returns the health and the state of all jobs.
+  rpc GetStatus(GetStatusRequest) returns (ControlStatus);
+
+  // Lists runs, newest first. Active runs come first.
+  rpc ListRuns(ListRunsRequest) returns (ListRunsResponse);
+
+  // Returns a run including its output.
+  rpc GetRun(GetRunRequest) returns (Run);
+
+  // Creates a job and schedules it. Fails when the name is taken or the configuration is invalid.
+  rpc CreateJob(JobDefinition) returns (Job);
+
+  // Replaces the configuration of an existing job.
+  rpc UpdateJob(JobDefinition) returns (Job);
+
+  // Removes a job. Its history stays. Fails while the job is running.
+  rpc DeleteJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Starts a job now.
+  rpc StartJob(JobRequest) returns (Run);
+
+  // Cancels the queued or running run of a job.
+  rpc CancelJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Removes all locks from the repository of a job. Only use it when no other process works on the repository.
+  rpc UnlockJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Stops a job from being scheduled. Manual runs still work.
+  rpc PauseJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Schedules a paused job again.
+  rpc ResumeJob(JobRequest) returns (google.protobuf.Empty);
+
+  // Lists the snapshots of the repository.
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+
+  // Lists the entries directly inside a directory of a snapshot.
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+
+  // Returns the statistics of the repository.
+  rpc GetStats(GetStatsRequest) returns (RepositoryStats);
+
+  // Restores a snapshot below the restore directory.
+  rpc Restore(RestoreRequest) returns (Run);
+
+  // Lists the stored secrets, without their values.
+  rpc ListSecrets(ListSecretsRequest) returns (ListSecretsResponse);
+
+  // Creates a secret or replaces its value. This only changes what the daemon will present to restic, it does not
+  // change the password of a repository. Use ChangeRepositoryPassword for that.
+  rpc SetSecret(SetSecretRequest) returns (SetSecretResponse);
+
+  // Changes the password of every repository that uses the secret and stores the new one. A new key is added
+  // first and the old one removed last, so no step can lock the daemon out.
+  rpc ChangeRepositoryPassword(ChangeRepositoryPasswordRequest) returns (ChangeRepositoryPasswordResponse);
+
+  // Deletes a secret that no job uses.
+  rpc DeleteSecret(SecretRequest) returns (google.protobuf.Empty);
+
+  // Runs a sync job from scratch: its state is dropped, so the next run rebuilds the listings of both sides. Files
+  // are copied, nothing is deleted. Forwarded to the owner of a mirrored job.
+  rpc ResyncJob(JobRequest) returns (Run);
+
+  // Lists the peers and the name of this worker.
+  rpc ListPeers(ListPeersRequest) returns (ListPeersResponse);
+
+  // Creates a peer or replaces it.
+  rpc SetPeer(Peer) returns (Peer);
+
+  // Removes a peer. Fails while a sync job uses it.
+  rpc DeletePeer(PeerRequest) returns (google.protobuf.Empty);
+
+  // Tests the connections to a peer.
+  rpc TestPeer(PeerRequest) returns (PeerStatus);
+
+  // Returns how this worker exports a directory to its peers.
+  rpc GetSyncServe(GetSyncServeRequest) returns (SyncServe);
+
+  // Changes how this worker exports a directory to its peers.
+  rpc SetSyncServe(SyncServe) returns (SyncServe);
+
+  // Returns which mails this worker sends.
+  rpc GetNotifications(GetNotificationsRequest) returns (Notifications);
+
+  // Changes which mails this worker sends. The SMTP server is changed in portal mode only, otherwise it stays as
+  // configured in the file.
+  rpc SetNotifications(Notifications) returns (Notifications);
+
+  // Called by the portal: mails a security event of the portal with the settings of this worker.
+  rpc SendNotification(NotificationEvent) returns (google.protobuf.Empty);
+
+  // Sends a test mail to the recipients, with the settings that are saved.
+  rpc TestNotifications(TestNotificationsRequest) returns (TestNotificationsResponse);
+
+  // Called by a peer: reserves a sync job for the caller so this worker does not run it at the same time.
+  rpc AcquireSyncLock(SyncLockRequest) returns (SyncLockResponse);
+
+  // Called by a peer: releases the reservation.
+  rpc ReleaseSyncLock(SyncLockRequest) returns (google.protobuf.Empty);
+
+  // Called by a peer: creates or replaces the mirror of a job the peer owns.
+  rpc PushJob(PushJobRequest) returns (google.protobuf.Empty);
+
+  // Called by a peer: removes the mirror of a job the peer owned.
+  rpc DropJob(PushJobRequest) returns (google.protobuf.Empty);
+
+  // Streams run state changes and output lines as they happen.
+  rpc Watch(WatchRequest) returns (stream Event);
+}
+
+// Requests the status of the daemon.
+message GetStatusRequest {}
+
+// Requests the run history.
+message ListRunsRequest {
+  // Only return runs of this job, all jobs when empty.
+  string job = 1;
+
+  // Maximum number of runs to return, 50 when not set, at most 500.
+  int32 limit = 2;
+}
+
+// A list of runs without their output.
+message ListRunsResponse {
+  repeated Run runs = 1;
+}
+
+// Requests a single run.
+message GetRunRequest {
+  string id = 1;
+}
+
+// Addresses a job.
+message JobRequest {
+  // Name of a configured job. restore may only be cancelled.
+  string job = 1;
+}
+
+// Requests the snapshot list.
+message ListSnapshotsRequest {
+  // Name of a job, its repository is listed. The global repository when empty.
+  string job = 1;
+}
+
+// The snapshots of the repository, newest first.
+message ListSnapshotsResponse {
+  repeated Snapshot snapshots = 1;
+}
+
+// Requests the content of a directory in a snapshot.
+message ListFilesRequest {
+  // Name of a job, the snapshot is read from its repository. The global repository when empty.
+  string job = 1;
+
+  // Snapshot id.
+  string snapshot = 2;
+
+  // Absolute directory inside the snapshot, / when empty.
+  string path = 3;
+}
+
+// The entries of a directory, directories first, then by name.
+message ListFilesResponse {
+  repeated FileNode files = 1;
+
+  // Set when the directory has more entries than are returned.
+  bool truncated = 2;
+}
+
+// Requests the repository statistics.
+message GetStatsRequest {
+  // Name of a job, the statistics of its repository are returned. The global repository when empty.
+  string job = 1;
+}
+
+// Requests a restore.
+message RestoreRequest {
+  // Snapshot id, latest when empty.
+  string snapshot = 1;
+
+  // Target directory, must be below the restore directory.
+  string target = 2;
+
+  // Paths to restore, everything when empty.
+  repeated string include = 3;
+
+  // Name of a job, the snapshot is restored from its repository. The global repository when empty.
+  string job = 4;
+}
+
+// Requests the secrets.
+message ListSecretsRequest {}
+
+// The secrets sorted by name.
+message ListSecretsResponse {
+  repeated SecretInfo secrets = 1;
+}
+
+// Addresses a secret.
+message SecretRequest {
+  string name = 1;
+}
+
+// Requests a secret to be created or its value replaced.
+message SetSecretRequest {
+  // Name: 1-32 characters of lower case letters, digits, - and _.
+  string name = 1;
+
+  // The value, a single line. Ignored when generate is set.
+  string value = 2;
+
+  // Generate a strong random value instead of taking one. It is returned once.
+  bool generate = 3;
+}
+
+// The secret and, when it was generated, its value.
+message SetSecretResponse {
+  SecretInfo secret = 1;
+
+  // The generated value. Only returned now, store it somewhere safe: without it the repository is lost.
+  string generated_value = 2;
+}
+
+// Requests a new password for the repositories of a secret.
+message ChangeRepositoryPasswordRequest {
+  // Name of the secret that the repositories use.
+  string name = 1;
+
+  // The new password, a single line. Ignored when generate is set.
+  string value = 2;
+
+  // Generate a strong random password. It is returned once.
+  bool generate = 3;
+}
+
+// The outcome of a password change.
+message ChangeRepositoryPasswordResponse {
+  SecretInfo secret = 1;
+
+  // The generated password. Only returned now, store it somewhere safe.
+  string generated_value = 2;
+
+  // Number of repositories that were changed.
+  int32 repositories = 3;
+
+  // Things that did not work but did not stop the change, e.g. an old key that is still there.
+  repeated string warnings = 4;
+}
+
+// Requests the event stream.
+message WatchRequest {}
+
+// Requests the peers.
+message ListPeersRequest {}
+
+// The peers sorted by name.
+message ListPeersResponse {
+  repeated Peer peers = 1;
+
+  // Name of this worker.
+  string worker_name = 2;
+}
+
+// Addresses a peer.
+message PeerRequest {
+  string name = 1;
+}
+
+// Requests the export settings.
+message GetSyncServeRequest {}
+
+// Requests the notification settings.
+message GetNotificationsRequest {}
+
+// Requests a test mail.
+message TestNotificationsRequest {}
+
+// Reserves or releases a sync job.
+message SyncLockRequest {
+  // Name of the sync job.
+  string job = 1;
+
+  // Worker name of the caller.
+  string owner = 2;
+
+  // Seconds the reservation lasts when it is not released, 1 hour when 0.
+  int32 ttl_seconds = 3;
+}
+
+// The result of a reservation.
+message SyncLockResponse {
+  // Whether the job is reserved for the caller.
+  bool granted = 1;
+
+  // Who holds the reservation when it was not granted.
+  string holder = 2;
+}
+
+// Hands a job definition to a peer.
+message PushJobRequest {
+  // The job as the owner has it. The receiver turns it into its mirror: its own path1, path2 pointing back at the
+  // owner, no schedule.
+  JobDefinition definition = 1;
+
+  // Worker name of the caller, the owner of the job.
+  string owner = 2;
+}

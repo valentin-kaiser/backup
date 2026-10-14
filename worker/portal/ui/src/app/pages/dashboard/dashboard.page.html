@@ -1,0 +1,52 @@
+@if (control.error()) {
+  <div class="banner error" role="alert"><app-icon name="warning" /> {{ control.error() }}</div>
+}
+
+@if (control.status(); as status) {
+  @if (!status.healthy) {
+    <div class="banner warn" role="alert">
+      <app-icon name="warning" />
+      <div>
+        <strong>The daemon reports problems</strong>
+        <ul>
+          @for (problem of status.problems; track problem) {
+            <li>{{ problem }}</li>
+          }
+        </ul>
+      </div>
+    </div>
+  }
+
+  <section>
+    <div class="section-header">
+      <h2>Jobs</h2>
+    </div>
+    @if (control.definedJobs().length) {
+      <div class="cards">
+        @for (job of control.definedJobs(); track job.name) {
+          <app-job-card [job]="job" />
+        }
+      </div>
+    } @else {
+      <div class="empty-state">
+        <app-icon name="checklist" />
+        <h3>No jobs yet</h3>
+        <p>Create a backup job to start protecting a directory.</p>
+        <a class="button primary" routerLink="/jobs/new"><app-icon name="add" /> Create a job</a>
+      </div>
+    }
+  </section>
+
+  <section>
+    <div class="section-header">
+      <h2>Live output</h2>
+      <label class="muted append-toggle" title="Keep earlier output and append new runs below it">
+        <input type="checkbox" [checked]="control.appendOutput()" (change)="control.setAppendOutput($any($event.target).checked)" /> Append
+      </label>
+    </div>
+    <pre #output class="output" aria-live="polite">{{ control.liveLines().length ? control.liveLines().join('\n') : 'No output yet. Output of running jobs appears here.' }}</pre>
+  </section>
+
+} @else {
+  <div class="skeleton cards-skeleton"></div>
+}

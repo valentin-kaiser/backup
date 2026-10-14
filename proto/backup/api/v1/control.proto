@@ -1,0 +1,506 @@
+// Resources of the backup control daemon.
+syntax = "proto3";
+
+package backup.api.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Valentin-Kaiser/backup/pkg/proto/api/v1";
+
+option optimize_for = SPEED;
+
+// The state of a run.
+enum RunStatus {
+  RUN_STATUS_UNSPECIFIED = 0;
+  RUN_STATUS_QUEUED      = 1;
+  RUN_STATUS_RUNNING     = 2;
+  RUN_STATUS_SUCCESS     = 3;
+  RUN_STATUS_FAILED      = 4;
+  RUN_STATUS_CANCELLED   = 5;
+  RUN_STATUS_SKIPPED     = 6;
+}
+
+// One execution of a job.
+message Run {
+  // Unique identifier of the run.
+  string id = 1;
+
+  // Name of the job that was run, restore for restores.
+  string job = 2;
+
+  // What started the run: schedule, manual or init.
+  string trigger = 3;
+
+  // Current state of the run.
+  RunStatus status = 4;
+
+  // Time at which the run was queued.
+  google.protobuf.Timestamp queue_time = 5;
+
+  // Time at which restic was started, when it was.
+  google.protobuf.Timestamp start_time = 6;
+
+  // Time at which the run reached a final state, when it did.
+  google.protobuf.Timestamp finish_time = 7;
+
+  // Exit code of restic, 0 when it did not run.
+  int32 exit_code = 8;
+
+  // Human readable reason when the run did not succeed.
+  string error = 9;
+
+  // The last lines of output of restic. Not set in lists.
+  repeated string output = 10;
+}
+
+// The configuration of a job, as stored in control.yaml.
+message JobDefinition {
+  // Unique name: 1-32 characters of lower case letters, digits, - and _. restore is reserved.
+  string name = 1;
+
+  // What the job does: backup, forget, check or sync.
+  string type = 2;
+
+  // Whether the job is scheduled.
+  bool enabled = 3;
+
+  // Cron expression: minute hour day month weekday.
+  string schedule = 4;
+
+  // Additional restic arguments, split like a shell would without expanding anything.
+  string args = 5;
+
+  // Abort the run after this many minutes, 0 disables the timeout.
+  int32 timeout_minutes = 6;
+
+  // Unhealthy when no run succeeded within this many hours, 0 disables.
+  int32 max_age_hours = 7;
+
+  // Directory to back up, backup jobs only. The default source when empty.
+  string source = 8;
+
+  // Restic repository. The default repository when empty.
+  string repository = 9;
+
+  // File containing the repository password. The default password file when empty.
+  string password_file = 10;
+
+  // Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the
+  // default.
+  string password_secret = 12;
+
+  // Sync jobs only: first directory, always local.
+  string path1 = 13;
+
+  // Sync jobs only: second directory. A local directory, or peer:<name>[/subdirectory] on another worker.
+  string path2 = 14;
+
+  // Sync jobs only: which version wins when a file changed on both sides: newer, older, larger, smaller,
+  // path1, path2 or none (keep both). newer when empty.
+  string conflict = 15;
+
+  // Sync jobs only: what happens to the losing version: num, pathname or delete. num when empty.
+  string conflict_loser = 16;
+
+  // Sync jobs only: abort when a run would delete more than this percentage of the files, 50 when 0.
+  int32 max_delete_pct = 17;
+
+  // Sync jobs only: abort unless the file RCLONE_TEST exists on both sides.
+  bool check_access = 18;
+
+  // Sync jobs only: name of the peer that holds the schedule and the state of this job. When set this worker
+  // only mirrors the job: it shows its state and forwards starts and changes to the owner.
+  string owner = 19;
+
+  // Sync jobs only: do not abort when all files changed or too many would be deleted (rclone --force). For small
+  // directories, where every file changing is normal. Also turns off max_delete_pct.
+  bool force = 20;
+
+  // Sync jobs only: the program that syncs, rclone (bisync) when empty or unison.
+  string engine = 21;
+
+  // Name of a job that starts this job when it succeeds. Such a job has no schedule of its own.
+  string after = 22;
+}
+
+// Settings that jobs inherit when they do not set their own.
+message Defaults {
+  string source = 1;
+  string repository = 2;
+  string password_file = 3;
+
+  // Restores are only allowed below this directory.
+  string restore_root = 4;
+
+  // The stored secret that holds the default repository password, empty when the password file is used.
+  string password_secret = 6;
+}
+
+// A stored secret, a repository password. The value is never returned.
+message SecretInfo {
+  // Name of the secret.
+  string name = 1;
+
+  // Time at which the secret was created.
+  google.protobuf.Timestamp create_time = 2;
+
+  // Time at which the value was last set or changed.
+  google.protobuf.Timestamp update_time = 3;
+
+  // Names of the jobs that take their password from this secret.
+  repeated string jobs = 4;
+
+  // Whether the default password of the daemon is this secret.
+  bool default_password = 5;
+}
+
+// A job, its configuration and its state.
+message Job {
+  // Name of the job, restore for restore runs.
+  string name = 1;
+
+  // Whether the job is enabled in the configuration.
+  bool enabled = 2;
+
+  // Whether scheduling is paused. Manual runs still work.
+  bool paused = 3;
+
+  // Cron expression, empty for jobs that are not scheduled.
+  string schedule = 4;
+
+  // Next scheduled run, not set when the job is disabled or paused.
+  google.protobuf.Timestamp next_run_time = 5;
+
+  // The queued or running run, when there is one.
+  Run active = 6;
+
+  // The most recent finished run.
+  Run last = 7;
+
+  // Finish time of the most recent successful run.
+  google.protobuf.Timestamp last_success_time = 8;
+
+  // What the job does: backup, forget, check or sync. Empty for restore.
+  string type = 9;
+
+  // The configuration of the job, not set for restore.
+  JobDefinition definition = 10;
+}
+
+// The state of the daemon.
+message ControlStatus {
+  // Version of the daemon.
+  string version = 1;
+
+  // Whether the Docker health check passes.
+  bool healthy = 2;
+
+  // Reasons why the daemon is not healthy.
+  repeated string problems = 3;
+
+  // All jobs.
+  repeated Job jobs = 4;
+
+  // What jobs inherit when they do not set their own.
+  Defaults defaults = 5;
+
+  // Name of this worker. Peers refer to it by this name, see Peer.
+  string worker_name = 6;
+}
+
+// A restic snapshot.
+message Snapshot {
+  // Full snapshot id.
+  string id = 1;
+
+  // Abbreviated snapshot id.
+  string short_id = 2;
+
+  // Time at which the snapshot was taken.
+  google.protobuf.Timestamp time = 3;
+
+  // Host that created the snapshot.
+  string hostname = 4;
+
+  // User that created the snapshot.
+  string username = 5;
+
+  // Backed up paths.
+  repeated string paths = 6;
+
+  // Tags of the snapshot.
+  repeated string tags = 7;
+}
+
+// The kind of an entry in a snapshot.
+enum FileType {
+  FILE_TYPE_UNSPECIFIED = 0;
+  FILE_TYPE_FILE        = 1;
+  FILE_TYPE_DIRECTORY   = 2;
+  FILE_TYPE_SYMLINK     = 3;
+  FILE_TYPE_OTHER       = 4;
+}
+
+// A file, directory or link inside a snapshot.
+message FileNode {
+  // Name without the directory.
+  string name = 1;
+
+  // Absolute path inside the snapshot.
+  string path = 2;
+
+  // What the entry is.
+  FileType type = 3;
+
+  // Size in bytes, 0 for directories.
+  uint64 size = 4;
+
+  // Time of the last modification.
+  google.protobuf.Timestamp modify_time = 5;
+
+  // Permissions in the form of ls -l, e.g. -rw-r--r--.
+  string permissions = 6;
+}
+
+// Statistics of the restic repository.
+message RepositoryStats {
+  // Size of the stored data in bytes.
+  uint64 total_size = 1;
+
+  // Size of the data before compression in bytes.
+  uint64 uncompressed_size = 2;
+
+  // Ratio between uncompressed and stored size.
+  double compression_ratio = 3;
+
+  // Number of blobs in the repository.
+  uint64 blob_count = 4;
+
+  // Number of snapshots in the repository.
+  uint64 snapshot_count = 5;
+}
+
+// The kind of an event.
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_STATUS      = 1;
+  EVENT_TYPE_LINE        = 2;
+}
+
+// Published whenever a run changes its state or prints a line.
+message Event {
+  // Kind of the event.
+  EventType type = 1;
+
+  // Identifier of the run.
+  string run = 2;
+
+  // Name of the job.
+  string job = 3;
+
+  // New state of the run, set for status events.
+  RunStatus status = 4;
+
+  // Line printed by restic, set for line events.
+  string line = 5;
+
+  // Time at which the event happened.
+  google.protobuf.Timestamp time = 6;
+}
+
+// Another worker that sync jobs can use as their second path.
+message Peer {
+  // Name, 1-32 characters of lower case letters, digits and _. It is the name the peer has as worker name.
+  string name = 1;
+
+  // WebDAV URL of the sync server of the peer, e.g. https://east:9081.
+  string url = 2;
+
+  // User name of the sync server of the peer.
+  string username = 3;
+
+  // File with the password of the sync server of the peer.
+  string password_file = 4;
+
+  // Name of the stored secret that holds the password of the sync server of the peer. Replaces password_file.
+  string password_secret = 5;
+
+  // CA file that signed the certificate of the sync server of the peer, the system roots when empty.
+  string ca_file = 6;
+
+  // URL of the control API of the peer, e.g. https://east:9080. Needed to manage the jobs from both sides, to
+  // lock a pair of directories while it syncs and to start jobs on the peer. Empty uses the data connection only.
+  string api_url = 7;
+
+  // File with the password of the control API of the peer.
+  string api_password_file = 8;
+
+  // Name of the stored secret that holds the password of the control API of the peer. Replaces api_password_file.
+  string api_password_secret = 9;
+
+  // CA file that signed the certificate of the control API of the peer, the system roots when empty.
+  string api_ca_file = 10;
+}
+
+// How this worker exports a directory to its peers.
+message SyncServe {
+  // Whether the directory is served.
+  bool enabled = 1;
+
+  // Directory to export.
+  string path = 2;
+
+  // Address to bind to.
+  string address = 3;
+
+  // Port to bind to.
+  int32 port = 4;
+
+  // User name the peers have to use.
+  string username = 5;
+
+  // File with the password the peers have to use.
+  string password_file = 6;
+
+  // Name of the stored secret that holds the password the peers have to use. Replaces password_file.
+  string password_secret = 7;
+
+  // TLS certificate file, plain HTTP when empty.
+  string certificate_file = 8;
+
+  // TLS key file.
+  string key_file = 9;
+
+  // Whether peers may run unison against the exported directory through the control API.
+  bool tunnel = 10;
+}
+
+// The result of a connection test to a peer.
+message PeerStatus {
+  // Name of the peer.
+  string name = 1;
+
+  // Whether the sync server answered with the given credentials.
+  bool data_ok = 2;
+
+  // Whether the control API answered with the given credentials. False when the peer has no API URL.
+  bool api_ok = 3;
+
+  // Round trip time to the control API in milliseconds, 0 when it was not tested.
+  int64 latency_ms = 4;
+
+  // Why a test failed.
+  string error = 5;
+
+  // Worker name the peer reports, to check that it is the worker the peer entry is named after.
+  string worker_name = 6;
+}
+
+// Which mails this worker sends and how. In portal mode the SMTP server is part of this message and shared by the daemon
+// and the portal, in standalone mode it is part of the configuration file and only reported here.
+message Notifications {
+  reserved 12, 13;
+
+  // Whether mails are sent at all.
+  bool enabled = 1;
+
+  // Addresses that receive the mails.
+  repeated string recipients = 2;
+
+  // Prefix of the subject of every mail.
+  string subject_prefix = 3;
+
+  // Minimum minutes between two mails about the same job or address, 0 for no limit.
+  int32 cooldown_minutes = 4;
+
+  // Mail failed runs.
+  bool on_failure = 5;
+
+  // Mail successful runs.
+  bool on_success = 6;
+
+  // Mail skipped and cancelled runs.
+  bool on_skipped = 7;
+
+  // Mail jobs without a successful run within their max age.
+  bool on_stale = 8;
+
+  // Mail wrong passwords at the control API.
+  bool on_security = 9;
+
+  // Mail the start and stop of the daemon.
+  bool on_lifecycle = 10;
+
+  // Read only: whether an SMTP server and a sender address are configured.
+  bool transport_configured = 11;
+
+  // Read only: whether the SMTP server can be changed through the API, which is the case in portal mode. Otherwise the
+  // smtp fields only report the configuration file and a request must not change them.
+  bool transport_editable = 14;
+
+  // SMTP server host.
+  string smtp_host = 15;
+
+  // SMTP server port.
+  int32 smtp_port = 16;
+
+  // Sender address.
+  string smtp_from = 17;
+
+  // NONE, STARTTLS or TLS.
+  string smtp_encryption = 18;
+
+  // Whether the server wants a login.
+  bool smtp_auth = 19;
+
+  // PLAIN, LOGIN or CRAMMD5.
+  string smtp_auth_method = 20;
+
+  // Login name.
+  string smtp_username = 21;
+
+  // Accept any certificate of the server.
+  bool smtp_skip_verify = 22;
+
+  // Host name announced in the HELO, empty for the name of the machine.
+  string smtp_fqdn = 23;
+
+  // Write only: the new password. Empty keeps the stored one. It is stored as a secret and never returned.
+  string smtp_password = 24;
+
+  // Write only: remove the stored password.
+  bool clear_smtp_password = 25;
+
+  // Read only: whether a password is stored or configured.
+  bool smtp_password_set = 26;
+}
+
+// An event of another process, mailed by the daemon with its settings.
+message NotificationEvent {
+  // Short headline and subject.
+  string title = 1;
+
+  // failure, warning, success or info.
+  string severity = 2;
+
+  // Tells events apart for the cooldown.
+  string key = 3;
+
+  // Labelled values.
+  repeated NotificationField fields = 4;
+
+  // Preformatted text such as an error.
+  string detail = 5;
+}
+
+// One labelled value of a mail.
+message NotificationField {
+  string label = 1;
+  string value = 2;
+}
+
+// The result of a test mail.
+message TestNotificationsResponse {
+  // Addresses the test mail was sent to.
+  repeated string recipients = 1;
+}

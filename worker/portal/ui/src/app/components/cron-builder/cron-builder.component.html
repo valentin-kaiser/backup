@@ -1,0 +1,174 @@
+<div class="input-row">
+  <input
+    #input
+    class="mono"
+    id="schedule"
+    [value]="value()"
+    autocomplete="off"
+    spellcheck="false"
+    placeholder="0 2 * * *"
+    aria-label="Cron expression"
+    [attr.aria-invalid]="problem() ? true : null"
+    (input)="value.set(input.value)"
+  />
+  <button type="button" class="secondary" [attr.aria-expanded]="open()" (click)="toggle()">
+    <app-icon name="schedule" /> {{ open() ? 'Hide builder' : 'Builder' }}
+  </button>
+</div>
+
+@if (problem()) {
+  <span class="field-error">{{ problem() }}</span>
+} @else if (description()) {
+  <span class="summary"><app-icon name="schedule" /> {{ description() }}</span>
+}
+
+@if (open()) {
+  <div class="builder">
+    <div class="seg" role="radiogroup" aria-label="Builder mode">
+      <button type="button" role="radio" [attr.aria-checked]="builderMode() === 'presets'" (click)="builderMode.set('presets')">Presets</button>
+      <button type="button" role="radio" [attr.aria-checked]="builderMode() === 'custom'" (click)="builderMode.set('custom')">Custom</button>
+    </div>
+
+    @if (builderMode() === 'presets') {
+      <div class="presets">
+        @for (preset of presets; track preset.expression) {
+          <button type="button" class="preset" [class.active]="activePreset() === preset.expression" (click)="selectPreset(preset.expression)">
+            <strong>{{ preset.label }}</strong>
+            <span>{{ preset.description }}</span>
+            <code>{{ preset.expression }}</code>
+          </button>
+        }
+      </div>
+    } @else {
+      <div class="fields">
+        @for (type of types; track type; let index = $index) {
+          <section class="field-card">
+            <header>
+              <h4>{{ label(type) }}</h4>
+              <code>{{ fields()[index] || '*' }}</code>
+            </header>
+
+            <div class="seg small" role="radiogroup" [attr.aria-label]="label(type) + ' mode'">
+              @for (mode of modes; track mode.value) {
+                <button type="button" role="radio" [attr.aria-checked]="config(type).mode === mode.value" (click)="setMode(type, mode.value)">
+                  {{ mode.label }}
+                </button>
+              }
+            </div>
+
+            @switch (config(type).mode) {
+              @case ('every') {
+                <p class="hint">Every {{ singular(type) }}.</p>
+              }
+              @case ('specific') {
+                @if (named(type)) {
+                  <select #specific [attr.aria-label]="label(type)" (change)="setNumber(type, 'value', specific.value)">
+                    @for (option of options(type); track option.value) {
+                      <option [value]="option.value" [selected]="option.value === config(type).value">{{ option.label }}</option>
+                    }
+                  </select>
+                } @else {
+                  <input
+                    #specificNumber
+                    type="number"
+                    [attr.aria-label]="label(type)"
+                    [min]="range(type).min"
+                    [max]="range(type).max"
+                    [value]="config(type).value ?? range(type).min"
+                    (input)="setNumber(type, 'value', specificNumber.value)"
+                  />
+                }
+              }
+              @case ('range') {
+                <div class="pair">
+                  @if (named(type)) {
+                    <select #from aria-label="From" (change)="setNumber(type, 'start', from.value)">
+                      @for (option of options(type); track option.value) {
+                        <option [value]="option.value" [selected]="option.value === config(type).start">{{ option.label }}</option>
+                      }
+                    </select>
+                    <span>to</span>
+                    <select #to aria-label="To" (change)="setNumber(type, 'end', to.value)">
+                      @for (option of options(type); track option.value) {
+                        <option [value]="option.value" [selected]="option.value === config(type).end">{{ option.label }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <input #fromNumber type="number" aria-label="From" [min]="range(type).min" [max]="range(type).max" [value]="config(type).start ?? range(type).min" (input)="setNumber(type, 'start', fromNumber.value)" />
+                    <span>to</span>
+                    <input #toNumber type="number" aria-label="To" [min]="range(type).min" [max]="range(type).max" [value]="config(type).end ?? range(type).max" (input)="setNumber(type, 'end', toNumber.value)" />
+                  }
+                </div>
+              }
+              @case ('interval') {
+                <div class="pair">
+                  <span>every</span>
+                  <input #step type="number" aria-label="Interval" min="1" [value]="config(type).step ?? 1" (input)="setNumber(type, 'step', step.value)" />
+                  <span>{{ unit(type) }} from</span>
+                  <input
+                    #base
+                    type="number"
+                    aria-label="Starting at"
+                    placeholder="first"
+                    [min]="range(type).min"
+                    [max]="range(type).max"
+                    [value]="config(type).base ?? ''"
+                    (input)="setNumber(type, 'base', base.value)"
+                  />
+                </div>
+              }
+              @case ('list') {
+                @if (named(type)) {
+                  <div class="toggles">
+                    @for (option of options(type); track option.value) {
+                      <button
+                        type="button"
+                        class="toggle"
+                        [attr.aria-pressed]="config(type).list?.includes(option.value) ?? false"
+                        (click)="toggleListValue(type, option.value)"
+                      >
+                        {{ option.label }}
+                      </button>
+                    }
+                  </div>
+                } @else {
+                  <div class="pair">
+                    <input
+                      #item
+                      type="number"
+                      aria-label="Value to add"
+                      [min]="range(type).min"
+                      [max]="range(type).max"
+                      (keydown.enter)="$event.preventDefault(); addToList(type, item)"
+                    />
+                    <button type="button" class="secondary small" (click)="addToList(type, item)">Add</button>
+                  </div>
+                  <div class="chips">
+                    @for (entry of config(type).list ?? []; track entry) {
+                      <span class="tag">
+                        {{ entry }}
+                        <button type="button" class="x" [attr.aria-label]="'Remove ' + entry" (click)="removeFromList(type, entry)">×</button>
+                      </span>
+                    }
+                  </div>
+                }
+              }
+            }
+          </section>
+        }
+      </div>
+    }
+  </div>
+}
+
+@if (upcoming().length) {
+  <div class="next">
+    <span class="label">Next runs</span>
+    <ol>
+      @for (run of upcoming(); track run.getTime()) {
+        <li>{{ format(run) }}</li>
+      }
+    </ol>
+    <span class="hint">In the time zone of this browser, the daemon uses its own.</span>
+  </div>
+}

@@ -1,0 +1,14 @@
+.git
+.github
+bin
+data
+source
+backup
+log
+restore
+backup_password
+*.exe
+**/node_modules
+**/.angular
+worker/portal/pkg/web/static
+docs

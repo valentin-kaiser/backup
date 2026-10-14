@@ -1,0 +1,17 @@
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ignore temporary files
+*.tmp
+*.swp
+*.bak
+*.backup
+
+# Ignore cache directories
+cache/
+**/cache/
+node_modules/
+
+# Example to exclude specific paths

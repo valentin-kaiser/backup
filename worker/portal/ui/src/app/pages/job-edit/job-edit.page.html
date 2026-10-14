@@ -1,0 +1,414 @@
+
+<header class="page-header">
+  <div>
+    <h1>{{ isNew() ? 'New job' : draft().name }}</h1>
+    <p class="muted">
+      {{ isNew() ? 'Define what runs and when. The job is scheduled as soon as you save it.' : 'Changes apply to the next run.' }}
+    </p>
+  </div>
+</header>
+
+@if (notFound()) {
+  <div class="empty-state">
+    <app-icon name="warning" />
+    <h3>This job does not exist</h3>
+    <p>It may have been deleted.</p>
+    <a class="button secondary" routerLink="/">Back to the overview</a>
+  </div>
+} @else {
+  <form class="form" (submit)="$event.preventDefault(); save()" novalidate>
+    @if (error()) {
+      <div class="banner error" role="alert"><app-icon name="warning" /> {{ error() }}</div>
+    }
+
+    <section class="card">
+      <h2>General</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="name">Name</label>
+          <input
+            #name
+            id="name"
+            [value]="draft().name"
+            [disabled]="!isNew()"
+            maxlength="32"
+            autocomplete="off"
+            placeholder="photos"
+            [attr.aria-invalid]="submitted() && errors().name ? true : null"
+            (input)="set('name', name.value)"
+          />
+          @if (submitted() && errors().name) {
+            <span class="field-error">{{ errors().name }}</span>
+          } @else {
+            <span class="hint">{{ isNew() ? 'Cannot be changed later.' : 'The name cannot be changed.' }}</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="type">Type</label>
+          <select #type id="type" [value]="draft().type" [disabled]="!isNew()" (change)="setType(type.value)">
+            @for (t of types; track t.value) {
+              <option [value]="t.value" [selected]="t.value === draft().type">{{ t.label }}</option>
+            }
+          </select>
+          <span class="hint">{{ typeHint() }}</span>
+        </div>
+      </div>
+
+      @if (!draft().after) {
+        <label class="check">
+          <input #enabled type="checkbox" [checked]="draft().enabled" (change)="set('enabled', enabled.checked)" />
+          <span>
+            <strong>Scheduled</strong>
+            <span class="hint">When off, the job only runs when you start it.</span>
+          </span>
+        </label>
+      }
+    </section>
+
+    <section class="card">
+      <h2>Schedule</h2>
+      @if (!mirrored()) {
+        <div class="field">
+          <label for="after">Starts</label>
+          <select #after id="after" [value]="draft().after" (change)="setAfter(after.value)">
+            <option value="" [selected]="!draft().after">On a schedule</option>
+            @for (j of afterChoices(); track j) {
+              <option [value]="j" [selected]="j === draft().after">After {{ j }} succeeded</option>
+            }
+          </select>
+          <span class="hint">A job that follows another one only starts when that run succeeded, e.g. forget after backup.</span>
+        </div>
+      }
+      @if (!draft().after) {
+        <div class="field">
+          <label for="schedule">When it runs</label>
+          <app-cron-builder [value]="draft().schedule" (valueChange)="set('schedule', $event)" [error]="errors().schedule ?? ''" />
+        </div>
+      }
+    </section>
+    @if (isSync()) {
+      <section class="card">
+        <h2>Directories</h2>
+        @if (mirrored()) {
+          <div class="banner warn" role="status">
+            <app-icon name="link" />
+            <div>
+              This job belongs to <strong>{{ draft().owner }}</strong>, which holds its schedule and state. Starting, pausing and
+              the settings below are forwarded to it. The directories can only be changed there.
+            </div>
+          </div>
+        }
+        <div class="field">
+          <label for="engine">Sync with</label>
+          <select #engine id="engine" [disabled]="mirrored() || !isNew()" (change)="setEngine(engine.value)">
+            <option value="unison" [selected]="draft().engine === 'unison'">Unison (mature, recommended)</option>
+            <option value="rclone" [selected]="draft().engine !== 'unison'">rclone bisync (beta upstream)</option>
+          </select>
+          <span class="hint">
+            @if (isUnison()) {
+              Unison remembers the last synchronised state of both sides. With a peer it runs through the control API of the peer,
+              which needs its API URL and the tunnel switched on there.
+            } @else {
+              rclone bisync is still marked as beta by its authors. With a peer it uses the WebDAV directory the peer serves.
+            }
+          </span>
+        </div>
+        <div class="grid">
+          <div class="field">
+            <label for="path1">First directory (this worker)</label>
+            <input
+              #path1
+              id="path1"
+              class="mono"
+              [value]="draft().path1"
+              [disabled]="mirrored()"
+              autocomplete="off"
+              placeholder="/sync/a"
+              [attr.aria-invalid]="submitted() && errors().path1 ? true : null"
+              (input)="set('path1', path1.value)"
+            />
+            @if (submitted() && errors().path1) {
+              <span class="field-error">{{ errors().path1 }}</span>
+            }
+          </div>
+
+          <div class="field">
+            <label for="where">Second directory is on</label>
+            <select #where id="where" [disabled]="mirrored()" (change)="set('peer', where.value)">
+              <option value="" [selected]="!draft().peer">This worker</option>
+              @for (p of control.peers(); track p.name) {
+                <option [value]="p.name" [selected]="p.name === draft().peer">Peer {{ p.name }}</option>
+              }
+              @if (draft().peer && !peerKnown()) {
+                <option [value]="draft().peer" selected>{{ draft().peer }} (unknown)</option>
+              }
+            </select>
+            <span class="hint">Peers are managed under <a routerLink="/peers">Sync</a>.</span>
+          </div>
+
+          @if (draft().peer) {
+            <div class="field">
+              <label for="peerdir">Directory on the peer</label>
+              <input
+                #peerdir
+                id="peerdir"
+                class="mono"
+                [value]="draft().peerDir"
+                [disabled]="mirrored()"
+                autocomplete="off"
+                placeholder="(the whole export)"
+                (input)="set('peerDir', peerdir.value)"
+              />
+              <span class="hint">Below the directory the peer exports. Empty syncs all of it.</span>
+            </div>
+          } @else {
+            <div class="field">
+              <label for="path2">Second directory</label>
+              <input
+                #path2
+                id="path2"
+                class="mono"
+                [value]="draft().path2"
+                [disabled]="mirrored()"
+                autocomplete="off"
+                placeholder="/sync/b"
+                [attr.aria-invalid]="submitted() && errors().path2 ? true : null"
+                (input)="set('path2', path2.value)"
+              />
+              @if (submitted() && errors().path2) {
+                <span class="field-error">{{ errors().path2 }}</span>
+              }
+            </div>
+          }
+          @if (draft().peer && submitted() && errors().path2) {
+            <span class="field-error">{{ errors().path2 }}</span>
+          }
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Conflicts and safety</h2>
+        <div class="grid">
+          <div class="field">
+            <label for="conflict">When a file changed on both sides</label>
+            <select #conflict id="conflict" (change)="set('conflict', conflict.value)">
+              <option value="newer" [selected]="draft().conflict === 'newer'">The newer version wins</option>
+              <option value="older" [selected]="draft().conflict === 'older'">The older version wins</option>
+              @if (!isUnison()) {
+                <option value="larger" [selected]="draft().conflict === 'larger'">The larger version wins</option>
+                <option value="smaller" [selected]="draft().conflict === 'smaller'">The smaller version wins</option>
+              }
+              <option value="path1" [selected]="draft().conflict === 'path1'">The first directory wins</option>
+              <option value="path2" [selected]="draft().conflict === 'path2'">The second directory wins</option>
+              <option value="none" [selected]="draft().conflict === 'none'">{{ isUnison() ? 'Skip it and report the run as failed' : 'Keep both, rename them' }}</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="loser">What happens to the losing version</label>
+            <select #loser id="loser" [disabled]="draft().conflict === 'none'" (change)="set('conflictLoser', loser.value)">
+              <option value="num" [selected]="draft().conflictLoser === 'num'">Keep it as file.conflict1</option>
+              <option value="pathname" [selected]="draft().conflictLoser === 'pathname'">Keep it as file.path1 or file.path2</option>
+              <option value="delete" [selected]="draft().conflictLoser === 'delete'">Delete it</option>
+            </select>
+          </div>
+
+          @if (!isUnison()) {
+          <div class="field">
+            <label for="maxdelete">Stop when more than this share would be deleted (%)</label>
+            <input
+              #maxDelete
+              id="maxdelete"
+              type="number"
+              min="1"
+              max="100"
+              step="1"
+              [value]="draft().maxDeletePct"
+              [attr.aria-invalid]="errors().maxDelete ? true : null"
+              (input)="setNumber('maxDeletePct', maxDelete.value)"
+            />
+            @if (errors().maxDelete) {
+              <span class="field-error">{{ errors().maxDelete }}</span>
+            } @else {
+              <span class="hint">Protects against an empty or unmounted directory.</span>
+            }
+          </div>
+          }
+        </div>
+
+        <label class="check">
+          <input #access type="checkbox" [checked]="draft().checkAccess" (change)="set('checkAccess', access.checked)" />
+          <span>
+            <strong>Require the file RCLONE_TEST on both sides</strong>
+            <span class="hint">
+              The run stops when one side lacks it, create the file in both directories first.
+              @if (isUnison()) {
+                Unison also refuses to empty a whole side on its own.
+              }
+            </span>
+          </span>
+        </label>
+
+        @if (!isUnison()) {
+        <label class="check">
+          <input #force type="checkbox" [checked]="draft().force" (change)="set('force', force.checked)" />
+          <span>
+            <strong>Do not stop when all files changed</strong>
+            <span class="hint">
+              rclone refuses to sync when every file it knew changed, which happens all the time in a directory with only a few
+              files. This also turns off the limit on deletions above, so use it with the required file RCLONE_TEST.
+            </span>
+          </span>
+        </label>
+        }
+
+        <div class="field">
+          <label for="syncargs">Additional {{ isUnison() ? 'unison' : 'rclone' }} arguments</label>
+          <input
+            #syncargs
+            id="syncargs"
+            class="mono"
+            [value]="draft().args"
+            autocomplete="off"
+            [placeholder]="isUnison() ? '-ignore Name*.tmp' : '--exclude *.tmp'"
+            (input)="set('args', syncargs.value)"
+          />
+          <span class="hint">Passed to <code>{{ isUnison() ? 'unison' : 'rclone bisync' }}</code>, for example filters.</span>
+        </div>
+      </section>
+    } @else {
+    <section class="card">
+      <h2>What it does</h2>
+
+      @if (draft().type === 'backup') {
+        <div class="field">
+          <label for="source">Source directory</label>
+          <input
+            #source
+            id="source"
+            class="mono"
+            [value]="draft().source"
+            autocomplete="off"
+            [placeholder]="control.defaults()?.source || '/source'"
+            (input)="set('source', source.value)"
+          />
+          <span class="hint">
+            The directory to back up. Empty uses the default{{ control.defaults()?.source ? ': ' + control.defaults()?.source : '' }}.
+          </span>
+        </div>
+      }
+
+      <div class="field">
+        <span class="label">Options</span>
+        <app-restic-args-builder [type]="jobType()" [args]="draft().args" (argsChange)="set('args', $event)" />
+      </div>    </section>
+    }
+
+    <details class="card" [open]="advancedOpen()">
+      <summary><h2>Advanced</h2></summary>
+      <div class="grid">
+        @if (!isSync()) {
+        <div class="field">
+          <label for="repository">Repository</label>
+          <input
+            #repository
+            id="repository"
+            class="mono"
+            [value]="draft().repository"
+            autocomplete="off"
+            [placeholder]="control.defaults()?.repository || '/backup'"
+            (input)="set('repository', repository.value)"
+          />
+          <span class="hint">Where the snapshots are stored. Empty uses the default repository.</span>
+        </div>
+
+        <div class="field">
+          <label for="secret">Stored password</label>
+          <select #secret id="secret" (change)="set('passwordSecret', secret.value)">
+            <option value="" [selected]="!draft().passwordSecret">None, use the password file</option>
+            @for (s of control.secrets(); track s.name) {
+              <option [value]="s.name" [selected]="s.name === draft().passwordSecret">{{ s.name }}</option>
+            }
+            @if (draft().passwordSecret && !secretKnown()) {
+              <option [value]="draft().passwordSecret" selected>{{ draft().passwordSecret }} (unknown)</option>
+            }
+          </select>
+          <span class="hint">
+            A password kept encrypted on the daemon, managed under Secrets. It replaces the password file.
+          </span>
+        </div>
+
+        <div class="field">
+          <label for="password">Password file</label>
+          <input
+            #password
+            id="password"
+            class="mono"
+            [value]="draft().passwordFile"
+            [disabled]="!!draft().passwordSecret"
+            autocomplete="off"
+            [placeholder]="control.defaults()?.passwordFile || '/run/secrets/backup_password'"
+            (input)="set('passwordFile', password.value)"
+          />
+          <span class="hint">File with the password of the repository. Empty uses the default.</span>
+        </div>
+        }
+
+        <div class="field">
+          <label for="timeout">Timeout in minutes</label>
+          <input
+            #timeout
+            id="timeout"
+            type="number"
+            min="0"
+            step="1"
+            [value]="draft().timeoutMinutes"
+            [attr.aria-invalid]="errors().timeout ? true : null"
+            (input)="setNumber('timeoutMinutes', timeout.value)"
+          />
+          @if (errors().timeout) {
+            <span class="field-error">{{ errors().timeout }}</span>
+          } @else {
+            <span class="hint">Aborts a run that takes longer. 0 means no limit.</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="maxage">Unhealthy after hours without success</label>
+          <input
+            #maxAge
+            id="maxage"
+            type="number"
+            min="0"
+            step="1"
+            [value]="draft().maxAgeHours"
+            [attr.aria-invalid]="errors().maxAge ? true : null"
+            (input)="setNumber('maxAgeHours', maxAge.value)"
+          />
+          @if (errors().maxAge) {
+            <span class="field-error">{{ errors().maxAge }}</span>
+          } @else {
+            <span class="hint">Fails the health check when no run succeeded for this long. 0 disables it.</span>
+          }
+        </div>
+      </div>
+    </details>
+
+    <footer class="form-actions">
+      @if (!isNew()) {
+        <button type="button" class="danger-outline" [disabled]="running()" (click)="remove()">
+          <app-icon name="delete" /> Delete job
+        </button>
+        @if (running()) {
+          <span class="hint">Cancel the running job before you delete it.</span>
+        }
+      }
+      <span class="spacer"></span>
+      <a class="button secondary" routerLink="/">Cancel</a>
+      <button type="submit" class="primary" [disabled]="saving()">
+        {{ saving() ? 'Saving…' : isNew() ? 'Create job' : 'Save changes' }}
+      </button>
+    </footer>
+  </form>
+}
