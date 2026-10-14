@@ -147,16 +147,3 @@ func (r Runner) unisonCommand(ctx context.Context, c config.Config, args []strin
 	return cmd, nil
 }
 
-// unisonHasState reports whether a unison job has an archive.
-func unisonHasState(dir string) bool {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), "ar") || strings.HasPrefix(e.Name(), "fp") {
-			return true
-		}
-	}
-	return false
-}
