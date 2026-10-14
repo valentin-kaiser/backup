@@ -32,10 +32,10 @@ RUN CGO_ENABLED=0 go build -trimpath \
     -o /out/control-portal ./worker/portal/cmd
 
 FROM alpine:3.24.2
-ARG RESTIC_VERSION=~0.17
+ARG RESTIC_VERSION=~0.18
 # bisync with --conflict-resolve needs rclone 1.66 or newer
-ARG RCLONE_VERSION=~1.68
-ARG UNISON_VERSION=~2.53
+ARG RCLONE_VERSION=~1.74
+ARG UNISON_VERSION=~2.54
 RUN apk add --no-cache restic=$RESTIC_VERSION rclone=$RCLONE_VERSION unison=$UNISON_VERSION ca-certificates tzdata su-exec \
     && mkdir -p /var/lib/control /var/lib/portal /var/cache/restic /restore \
     && chown 1000:1000 /var/lib/portal \
