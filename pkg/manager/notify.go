@@ -16,8 +16,8 @@ const (
 	staleInterval = 15 * time.Minute
 	// staleRemind repeats the mail about a job that is still stale.
 	staleRemind = 24 * time.Hour
-	// mailOutputLines is the number of output lines that go into a failure mail.
-	mailOutputLines = 20
+	// mailOutputLines is the number of console lines that go into a job mail.
+	mailOutputLines = 100
 )
 
 // notifyRun mails the result of a finished run according to the notification settings.
@@ -51,7 +51,7 @@ func (m *Manager) notifyRun(r store.Run) {
 		f = append(f, notify.Field{Label: "Exit code", Value: strconv.Itoa(r.ExitCode)})
 	}
 	detail := r.Error
-	if sev == notify.SeverityFailure && len(r.Output) > 0 {
+	if len(r.Output) > 0 {
 		out := r.Output
 		if len(out) > mailOutputLines {
 			out = out[len(out)-mailOutputLines:]
@@ -59,7 +59,11 @@ func (m *Manager) notifyRun(r store.Run) {
 		if detail != "" {
 			detail += "\n\n"
 		}
-		detail += "Last output:\n" + strings.Join(out, "\n")
+		heading := "Console log:"
+		if len(out) < len(r.Output) {
+			heading = fmt.Sprintf("Console log (last %d of %d lines):", len(out), len(r.Output))
+		}
+		detail += heading + "\n" + strings.Join(out, "\n")
 	}
 	notify.Send(notify.Event{
 		Kind:     notify.KindJob,
