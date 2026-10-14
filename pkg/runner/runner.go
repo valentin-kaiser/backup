@@ -285,6 +285,21 @@ func (r Runner) finishCommand(cmd *exec.Cmd) {
 	cmd.WaitDelay = 15 * time.Second
 }
 
+// lastRewrite returns what a terminal would show of a line that was redrawn with carriage returns, like the progress
+// bar of unison: the last non-empty part.
+func lastRewrite(l string) string {
+	if !strings.Contains(l, "\r") {
+		return l
+	}
+	parts := strings.Split(l, "\r")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if strings.TrimSpace(parts[i]) != "" {
+			return parts[i]
+		}
+	}
+	return ""
+}
+
 // Exec runs restic with args and calls onLine for every line of stdout and stderr.
 // A non-zero exit code is reported in the result together with an error.
 func (r Runner) Exec(ctx context.Context, c config.Config, onLine func(string), args ...string) (Result, error) {
@@ -305,7 +320,7 @@ func (r Runner) Exec(ctx context.Context, c config.Config, onLine func(string), 
 		sc.Buffer(make([]byte, 64*1024), 1024*1024)
 		for sc.Scan() {
 			if onLine != nil {
-				onLine(sc.Text())
+				onLine(lastRewrite(sc.Text()))
 			}
 		}
 		_, _ = io.Copy(io.Discard, pr)

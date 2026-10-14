@@ -407,3 +407,16 @@ func TestUnisonHelper(t *testing.T) {
 	}
 	os.Exit(0)
 }
+
+func TestLastRewrite(t *testing.T) {
+	for in, want := range map[string]string{
+		"plain":                        "plain",
+		"Starting...\r      \r[BGN] x": "[BGN] x",
+		"50%\r     \r100% done\r    ":  "100% done",
+		"\r   \r":                      "",
+	} {
+		if got := lastRewrite(in); got != want {
+			t.Errorf("lastRewrite(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

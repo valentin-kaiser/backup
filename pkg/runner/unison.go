@@ -60,7 +60,8 @@ func unisonArgs(c config.Config, job config.Job) ([]string, error) {
 	args := []string{
 		UnisonCommand, SyncStateDir(c, job.Name), r1, r2,
 		// No questions: conflicts that are not resolved by a preference are skipped and reported by the exit code.
-		"-batch", "-terse",
+		// The transfers and the summary stay in the output, the run page shows what was synchronized.
+		"-batch",
 		// The runs of a pair never overlap (see the manager), so a lock left behind by a killed run is stale.
 		"-ignorelocks",
 		// Failed transfers are tried again before the run is reported as failed.
