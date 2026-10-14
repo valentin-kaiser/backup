@@ -93,6 +93,19 @@ service Control {
   // Changes how this worker exports a directory to its peers.
   rpc SetSyncServe(SyncServe) returns (SyncServe);
 
+  // Returns which mails this worker sends.
+  rpc GetNotifications(GetNotificationsRequest) returns (Notifications);
+
+  // Changes which mails this worker sends. The SMTP server is changed in portal mode only, otherwise it stays as
+  // configured in the file.
+  rpc SetNotifications(Notifications) returns (Notifications);
+
+  // Called by the portal: mails a security event of the portal with the settings of this worker.
+  rpc SendNotification(NotificationEvent) returns (google.protobuf.Empty);
+
+  // Sends a test mail to the recipients, with the settings that are saved.
+  rpc TestNotifications(TestNotificationsRequest) returns (TestNotificationsResponse);
+
   // Called by a peer: reserves a sync job for the caller so this worker does not run it at the same time.
   rpc AcquireSyncLock(SyncLockRequest) returns (SyncLockResponse);
 
@@ -269,6 +282,12 @@ message PeerRequest {
 
 // Requests the export settings.
 message GetSyncServeRequest {}
+
+// Requests the notification settings.
+message GetNotificationsRequest {}
+
+// Requests a test mail.
+message TestNotificationsRequest {}
 
 // Reserves or releases a sync job.
 message SyncLockRequest {

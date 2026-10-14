@@ -395,3 +395,112 @@ message PeerStatus {
   // Worker name the peer reports, to check that it is the worker the peer entry is named after.
   string worker_name = 6;
 }
+
+// Which mails this worker sends and how. In portal mode the SMTP server is part of this message and shared by the daemon
+// and the portal, in standalone mode it is part of the configuration file and only reported here.
+message Notifications {
+  reserved 12, 13;
+
+  // Whether mails are sent at all.
+  bool enabled = 1;
+
+  // Addresses that receive the mails.
+  repeated string recipients = 2;
+
+  // Prefix of the subject of every mail.
+  string subject_prefix = 3;
+
+  // Minimum minutes between two mails about the same job or address, 0 for no limit.
+  int32 cooldown_minutes = 4;
+
+  // Mail failed runs.
+  bool on_failure = 5;
+
+  // Mail successful runs.
+  bool on_success = 6;
+
+  // Mail skipped and cancelled runs.
+  bool on_skipped = 7;
+
+  // Mail jobs without a successful run within their max age.
+  bool on_stale = 8;
+
+  // Mail wrong passwords at the control API.
+  bool on_security = 9;
+
+  // Mail the start and stop of the daemon.
+  bool on_lifecycle = 10;
+
+  // Read only: whether an SMTP server and a sender address are configured.
+  bool transport_configured = 11;
+
+  // Read only: whether the SMTP server can be changed through the API, which is the case in portal mode. Otherwise the
+  // smtp fields only report the configuration file and a request must not change them.
+  bool transport_editable = 14;
+
+  // SMTP server host.
+  string smtp_host = 15;
+
+  // SMTP server port.
+  int32 smtp_port = 16;
+
+  // Sender address.
+  string smtp_from = 17;
+
+  // NONE, STARTTLS or TLS.
+  string smtp_encryption = 18;
+
+  // Whether the server wants a login.
+  bool smtp_auth = 19;
+
+  // PLAIN, LOGIN or CRAMMD5.
+  string smtp_auth_method = 20;
+
+  // Login name.
+  string smtp_username = 21;
+
+  // Accept any certificate of the server.
+  bool smtp_skip_verify = 22;
+
+  // Host name announced in the HELO, empty for the name of the machine.
+  string smtp_fqdn = 23;
+
+  // Write only: the new password. Empty keeps the stored one. It is stored as a secret and never returned.
+  string smtp_password = 24;
+
+  // Write only: remove the stored password.
+  bool clear_smtp_password = 25;
+
+  // Read only: whether a password is stored or configured.
+  bool smtp_password_set = 26;
+}
+
+// An event of another process, mailed by the daemon with its settings.
+message NotificationEvent {
+  // Short headline and subject.
+  string title = 1;
+
+  // failure, warning, success or info.
+  string severity = 2;
+
+  // Tells events apart for the cooldown.
+  string key = 3;
+
+  // Labelled values.
+  repeated NotificationField fields = 4;
+
+  // Preformatted text such as an error.
+  string detail = 5;
+}
+
+// One labelled value of a mail.
+message NotificationField {
+  string label = 1;
+  string value = 2;
+}
+
+// The result of a test mail.
+message TestNotificationsResponse {
+  // Addresses the test mail was sent to.
+  repeated string recipients = 1;
+}
