@@ -1,4 +1,4 @@
-FROM node:24-alpine AS ui
+FROM node:26-alpine AS ui
 # The Angular build writes to ../pkg/web/static, which control-portal embeds.
 WORKDIR /src/worker/portal/ui
 COPY worker/portal/ui/package.json worker/portal/ui/package-lock.json ./
