@@ -47,10 +47,13 @@ export CONTROL_MODE="$MODE"
 if [ "$(id -u)" = "0" ]; then
 	PUID="${PUID:-1000}"
 	PGID="${PGID:-1000}"
-	mkdir -p "$DATA" "$CACHE" /restore
+	mkdir -p "$DATA" "$CACHE"
 	# chmod needs CAP_FOWNER once the directory belongs to PUID, which the container drops, so it is best effort.
 	chmod 0750 "$DATA" 2>/dev/null || true
-	chown "$PUID:$PGID" "$DATA" "$CACHE" /restore
+	chown "$PUID:$PGID" "$DATA" "$CACHE"
+	# Only restores need it. On a read-only root file system without a volume at /restore (the sync example) it cannot be
+	# created, which is not an error.
+	mkdir -p /restore 2>/dev/null && chown "$PUID:$PGID" /restore 2>/dev/null || true
 	prepare_secret_dir "${CONTROL_API_PASSWORDFILE:-}"
 	# The tokens and history are owned by the unprivileged user, the healthcheck runs as root.
 	chown -R "$PUID:$PGID" "$DATA" 2>/dev/null || true
