@@ -233,16 +233,17 @@ func (m *Manager) initRepositories() {
 	m.initMu.Lock()
 	defer m.initMu.Unlock()
 	c := m.cfg()
-	if err := m.ex(c).Preflight(m.ctx, c); err != nil {
-		log.Warn().Err(err).Msg("repository is not available, initialisation postponed")
-		return
-	}
 	done := map[string]bool{}
 	for _, j := range c.Jobs {
 		if j.Type == config.TypeSync {
 			continue // no repository
 		}
 		jc := c.ForJob(j)
+		// The mount guard of the job, a volume of it may be unmounted while another one is mounted.
+		if err := m.ex(jc).Preflight(m.ctx, jc); err != nil {
+			log.Warn().Err(err).Msgf("repository of job %s is not available, initialisation postponed", j.Name)
+			continue
+		}
 		if done[jc.Repository] {
 			continue
 		}
@@ -345,7 +346,9 @@ func (m *Manager) syncPreflight(j config.Job) error {
 			return apperror.NewErrorf("sync path %s is not a directory", p)
 		}
 	}
-	return nil
+	// The mount guards of the job, the volume a sync path lives on may be unmounted while the directory is
+	// still there, and syncing against an empty volume would empty the other side too.
+	return runner.CheckMounts(m.cfg().ForJob(j))
 }
 
 // Restore starts a restore run from the repository of job, or from the global repository when job is empty.
@@ -910,6 +913,8 @@ func normalize(j config.Job) config.Job {
 	j.Repository = strings.TrimSpace(j.Repository)
 	j.PasswordFile = strings.TrimSpace(j.PasswordFile)
 	j.PasswordSecret = strings.TrimSpace(j.PasswordSecret)
+	j.MountPath = strings.TrimSpace(j.MountPath)
+	j.MountMarker = strings.TrimSpace(j.MountMarker)
 	return j
 }
 

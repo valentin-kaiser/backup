@@ -85,24 +85,30 @@ type Executor interface {
 
 var _ Executor = Runner{}
 
-// Preflight verifies the repository mount guard, it fails while the repository is not mounted.
-func (r Runner) Preflight(_ context.Context, c config.Config) error {
-	if c.MountCheck.Path == "" {
-		return nil
-	}
-	if _, err := os.Stat(c.MountCheck.Path); err != nil {
-		return apperror.NewErrorf("repository path %s is not available", c.MountCheck.Path).AddError(err)
-	}
-	if c.MountCheck.MarkerFile != "" {
-		marker := c.MountCheck.MarkerFile
+// CheckMounts verifies every mount guard of the configuration, it fails while one of the volumes is not
+// mounted. It is a plain check on the file system, no executor and no password are needed for it.
+func CheckMounts(c config.Config) error {
+	for _, guard := range c.MountGuards() {
+		if _, err := os.Stat(guard.Path); err != nil {
+			return apperror.NewErrorf("mount path %s is not available", guard.Path).AddError(err)
+		}
+		if guard.MarkerFile == "" {
+			continue
+		}
+		marker := guard.MarkerFile
 		if !filepath.IsAbs(marker) {
-			marker = filepath.Join(c.MountCheck.Path, marker)
+			marker = filepath.Join(guard.Path, marker)
 		}
 		if _, err := os.Stat(marker); err != nil {
-			return apperror.NewErrorf("mount marker %s not found, is the repository mounted?", marker).AddError(err)
+			return apperror.NewErrorf("mount marker %s not found, is the volume mounted?", marker).AddError(err)
 		}
 	}
 	return nil
+}
+
+// Preflight verifies every repository mount guard, it fails while one of the volumes is not mounted.
+func (r Runner) Preflight(_ context.Context, c config.Config) error {
+	return CheckMounts(c)
 }
 
 // Runner starts restic processes.

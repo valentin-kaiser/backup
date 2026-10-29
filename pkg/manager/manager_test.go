@@ -121,6 +121,35 @@ func TestMountCheckSkipsRun(t *testing.T) {
 	}
 }
 
+func TestMountChecksRunPerVolume(t *testing.T) {
+	m := newManager(t, "ok")
+	usb := t.TempDir()
+	if err := os.WriteFile(filepath.Join(usb, ".mounted"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	storage := t.TempDir() // exists, but not mounted, no marker
+	c := m.cfg()
+	c.Jobs = []config.Job{
+		{Name: "usb", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: "/repo/usb", MountPath: usb, MountMarker: ".mounted"},
+		{Name: "storage", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: "/repo/storage", MountPath: storage, MountMarker: ".mounted"},
+	}
+	m.cfg = func() config.Config { return c }
+	run, err := m.Trigger("usb", "manual", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != store.StatusSuccess {
+		t.Fatalf("status of the mounted volume = %s", run.Status)
+	}
+	run, err = m.Trigger("storage", "manual", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != store.StatusSkipped {
+		t.Fatalf("status of the unmounted volume = %s", run.Status)
+	}
+}
+
 func TestRestoreTargetMustBeBelowRoot(t *testing.T) {
 	m := newManager(t, "ok")
 	c := m.cfg()

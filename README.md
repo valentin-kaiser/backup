@@ -195,6 +195,30 @@ CONTROL_MOUNTCHECK_MARKERFILE=.mounted
 
 Runs are then `skipped` (and the health check keeps its last good state) while the marker is missing.
 
+When the jobs live on different volumes, guard every volume on its own. Additional guards go into `control.yaml`, all of them must pass before any job runs:
+
+```yaml
+mountcheck:
+  path: /backup/usb
+  markerfile: .mounted
+mountchecks:
+  - path: /backup/storage
+    markerfile: .mounted
+```
+
+A job that backs up to (or syncs with) another volume replaces the global guards with its own — only its own marker proves that its repository is mounted:
+
+```yaml
+jobs:
+  - name: vaultwarden
+    type: backup
+    repository: /backup/usb/vaultwarden
+    mountpath: /backup/usb
+    mountmarker: .mounted
+```
+
+`mountpath` is checked for sync jobs too, where an unmounted volume would empty the other side of the sync. `mountchecks`, `mountpath` and `mountmarker` are set in `control.yaml` (jobs edited through the portal API keep their own settings, but not these fields yet).
+
 ### Notifications
 
 Set `CONTROL_WEBHOOK_URL` to a [healthchecks.io](https://healthchecks.io) compatible URL. It is called with `/start` and `/fail` suffixes, and without a suffix on success.

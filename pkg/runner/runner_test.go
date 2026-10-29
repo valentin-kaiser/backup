@@ -420,3 +420,34 @@ func TestLastRewrite(t *testing.T) {
 		}
 	}
 }
+
+func TestPreflightChecksEveryMount(t *testing.T) {
+	mounted := t.TempDir()
+	if err := os.WriteFile(filepath.Join(mounted, ".mounted"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	unmounted := t.TempDir()
+
+	r := Runner{}
+	if err := r.Preflight(context.Background(), config.Config{}); err != nil {
+		t.Errorf("no guard checked: %v", err)
+	}
+	ok := config.Config{MountCheck: config.MountCheck{Path: mounted, MarkerFile: ".mounted"}}
+	if err := r.Preflight(context.Background(), ok); err != nil {
+		t.Errorf("mounted repository refused: %v", err)
+	}
+	// One of the additional volumes is unmounted, nothing may be written anywhere.
+	ok.MountChecks = []config.MountCheck{{Path: unmounted, MarkerFile: ".mounted"}, {Path: mounted}}
+	if err := r.Preflight(context.Background(), ok); err == nil {
+		t.Error("unmounted additional volume accepted")
+	}
+	// The guard of a job replaces the guards of the global settings.
+	jc := ok.ForJob(config.Job{MountPath: mounted, MountMarker: ".mounted"})
+	if err := r.Preflight(context.Background(), jc); err != nil {
+		t.Errorf("guard of the job refused: %v", err)
+	}
+	jc = ok.ForJob(config.Job{MountPath: unmounted, MountMarker: ".mounted"})
+	if err := r.Preflight(context.Background(), jc); err == nil {
+		t.Error("unmounted repository of the job accepted")
+	}
+}

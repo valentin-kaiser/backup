@@ -83,6 +83,9 @@ type Job struct {
 	PasswordFile   string `usage:"file containing the repository password, defaults to the global password file"`
 	PasswordSecret string `usage:"name of the stored secret that holds the repository password, replaces the password file"`
 
+	MountPath   string `usage:"mount guard of this job: directory that must exist before the job runs, replaces the global mount guards"`
+	MountMarker string `usage:"mount guard of this job: file that must exist inside the mount path (e.g. .mounted), empty only checks the path"`
+
 	Path1         string `usage:"sync jobs only: first directory, always local"`
 	Path2         string `usage:"sync jobs only: second directory, a local directory or peer:<name>[/subdirectory] on another worker"`
 	Conflict      string `usage:"sync jobs only: which version wins when a file changed on both sides (newer, older, larger, smaller, path1, path2, none = keep both), default newer"`
@@ -174,7 +177,8 @@ type Config struct {
 	RestoreRoot     string          `usage:"restores are only allowed below this directory"`
 	WebhookURL      string          `usage:"URL pinged with /start, /fail or no suffix on success (healthchecks.io compatible)"`
 	Jobs            []Job           `usage:"jobs, a list of name, type, schedule, ..."`
-	MountCheck      MountCheck      `usage:"repository mount guard"`
+	MountCheck      MountCheck      `usage:"repository mount guard, the guard of the default repository"`
+	MountChecks     []MountCheck    `usage:"additional repository mount guards, one entry per mounted volume (control.yaml only)"`
 	SyncDir         string          `usage:"directory for the state of sync jobs (rclone bisync listings), keep it on a volume"`
 	Peers           []Peer          `usage:"other workers that sync jobs can use as second path"`
 	SyncServe       SyncServe       `usage:"export a directory to peers"`
@@ -671,7 +675,7 @@ func (c Config) Job(name string) (Job, bool) {
 // Portal reports whether the management API and the stored secrets are used. Anything but portal is standalone.
 func (c Config) Portal() bool { return c.Mode == ModePortal }
 
-// ForJob returns the configuration with the repository, password and source of the job applied.
+// ForJob returns the configuration with the repository, password, source and mount guard of the job applied.
 func (c Config) ForJob(j Job) Config {
 	if j.Repository != "" {
 		c.Repository = j.Repository
@@ -683,7 +687,28 @@ func (c Config) ForJob(j Job) Config {
 	if j.Source != "" {
 		c.Source = j.Source
 	}
+	// A mount guard of the job replaces the guards of the global settings, the repository of the job is a
+	// different volume and only its own marker proves that it is mounted.
+	if j.MountPath != "" || j.MountMarker != "" {
+		c.MountCheck = MountCheck{Path: j.MountPath, MarkerFile: j.MountMarker}
+		c.MountChecks = nil
+	}
 	return c
+}
+
+// MountGuards returns every mount guard that has to pass before a job runs, the global one first and then the
+// additional ones, without the entries that check nothing.
+func (c Config) MountGuards() []MountCheck {
+	guards := make([]MountCheck, 0, len(c.MountChecks)+1)
+	if c.MountCheck.Path != "" {
+		guards = append(guards, c.MountCheck)
+	}
+	for _, mc := range c.MountChecks {
+		if mc.Path != "" {
+			guards = append(guards, mc)
+		}
+	}
+	return guards
 }
 
 // RepositoryKey identifies the repository a job works on, jobs with the same key never run at the same time.
