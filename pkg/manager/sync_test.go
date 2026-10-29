@@ -123,7 +123,15 @@ func peerManager(t *testing.T, fp *fakePeer) (*Manager, *config.Config) {
 	m, j := syncManager(t, "ok")
 	c := m.cfg()
 	c.WorkerName = "west"
-	c.Mode, c.PasswordFile, c.API.PasswordFile = config.ModePortal, "", "/run/secrets/portal_password"
+	jobs := slices.Clone(c.Jobs)
+	c = portalOf(c, config.Repository{Name: "main", Path: "/repo/main", PasswordSecret: "main"})
+	c.API.PasswordFile = "/run/secrets/portal_password"
+	for i := range jobs {
+		if jobs[i].Type == config.TypeBackup {
+			jobs[i].Repository, jobs[i].Source = "main", "/src"
+		}
+	}
+	c.Jobs = jobs
 	c.SyncServe.Path = t.TempDir()
 	pwFile := filepath.Join(t.TempDir(), "pw")
 	if err := os.WriteFile(pwFile, []byte("secret"), 0o600); err != nil {

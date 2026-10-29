@@ -441,13 +441,13 @@ func TestPreflightChecksEveryMount(t *testing.T) {
 	if err := r.Preflight(context.Background(), ok); err == nil {
 		t.Error("unmounted additional volume accepted")
 	}
-	// The guard of a job replaces the guards of the global settings.
-	jc := ok.ForJob(config.Job{MountPath: mounted, MountMarker: ".mounted"})
+	// A sync job brings its own guards, the global ones do not apply.
+	jc := ok.ForJob(config.Job{Type: config.TypeSync, Mounts: []config.MountCheck{{Path: mounted, MarkerFile: ".mounted"}}})
 	if err := r.Preflight(context.Background(), jc); err != nil {
-		t.Errorf("guard of the job refused: %v", err)
+		t.Errorf("guards of the job refused: %v", err)
 	}
-	jc = ok.ForJob(config.Job{MountPath: unmounted, MountMarker: ".mounted"})
+	jc = ok.ForJob(config.Job{Type: config.TypeSync, Mounts: []config.MountCheck{{Path: unmounted, MarkerFile: ".mounted"}}})
 	if err := r.Preflight(context.Background(), jc); err == nil {
-		t.Error("unmounted repository of the job accepted")
+		t.Error("unmounted volume of the job accepted")
 	}
 }

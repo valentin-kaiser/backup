@@ -25,7 +25,7 @@ import (
 var Commands = map[string]bool{
 	"status": true, "runs": true, "run": true, "cancel": true, "unlock": true, "pause": true, "resume": true,
 	"snapshots": true, "restore": true, "logs": true, "health": true, "version": true, "secret": true,
-	"peer": true, "resync": true,
+	"peer": true, "resync": true, "repo": true,
 }
 
 const usage = `usage: control <command> [options]
@@ -40,8 +40,11 @@ const usage = `usage: control <command> [options]
   peer list                   the peers sync jobs can use
   peer add NAME -url URL [-user U] [-password-file F|-password-secret S] [-api-url URL] ...
   peer test|delete NAME
-  snapshots [-job NAME]       list restic snapshots, of the repository of a job
-  restore [-job NAME] [-snapshot ID] -target DIR [-include PATH]...
+  repo list                   the repositories and the jobs that work on them
+  repo set NAME -path P -secret S [-mount-path D] [-mount-marker F] [-restore-root D]
+  repo delete NAME            remove a repository that no job uses (its data stays)
+  snapshots [-repo NAME|-job NAME]   list restic snapshots (the only repository when neither is given)
+  restore [-repo NAME|-job NAME] [-snapshot ID] -target DIR [-include PATH]...
   logs [-f]                   print or follow live output
   health                      exit 0 when healthy (Docker HEALTHCHECK)
   secret list                 the stored secrets (repository passwords), never their values
@@ -163,6 +166,8 @@ func (c *client) dispatch(cmd string, args []string) error {
 		return c.secret(args)
 	case "peer":
 		return c.peer(args)
+	case "repo":
+		return c.repo(args)
 	case "resync":
 		return c.resync(args)
 	case "health":
@@ -256,11 +261,12 @@ func (c *client) dispatch(cmd string, args []string) error {
 		}
 		return err
 	case "snapshots":
-		job := fs.String("job", "", "list the repository of this job instead of the global one")
+		job := fs.String("job", "", "list the repository of this job")
+		repo := fs.String("repo", "", "list this repository")
 		if err := fs.Parse(args); err != nil {
 			return err
 		}
-		res, err := c.control.ListSnapshots(ctx, &pb.ListSnapshotsRequest{Job: *job})
+		res, err := c.control.ListSnapshots(ctx, &pb.ListSnapshotsRequest{Job: *job, Repository: *repo})
 		if err != nil {
 			return err
 		}
@@ -273,7 +279,8 @@ func (c *client) dispatch(cmd string, args []string) error {
 	case "restore":
 		snap := fs.String("snapshot", "latest", "snapshot id")
 		target := fs.String("target", "", "target directory")
-		job := fs.String("job", "", "restore from the repository of this job instead of the global one")
+		job := fs.String("job", "", "restore from the repository of this job")
+		repo := fs.String("repo", "", "restore from this repository")
 		var include multi
 		fs.Var(&include, "include", "path to restore, may be repeated")
 		if err := fs.Parse(args); err != nil {
@@ -282,7 +289,7 @@ func (c *client) dispatch(cmd string, args []string) error {
 		if *target == "" {
 			return apperror.NewErrorf("-target is required")
 		}
-		r, err := c.control.Restore(ctx, &pb.RestoreRequest{Job: *job, Snapshot: *snap, Target: *target, Include: include})
+		r, err := c.control.Restore(ctx, &pb.RestoreRequest{Job: *job, Repository: *repo, Snapshot: *snap, Target: *target, Include: include})
 		if err != nil {
 			return err
 		}

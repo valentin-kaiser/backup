@@ -128,11 +128,14 @@ func TestMountChecksRunPerVolume(t *testing.T) {
 		t.Fatal(err)
 	}
 	storage := t.TempDir() // exists, but not mounted, no marker
-	c := m.cfg()
+	c := portalOf(m.cfg(),
+		config.Repository{Name: "usb", Path: "/repo/usb", PasswordSecret: "s", Mount: config.MountCheck{Path: usb, MarkerFile: ".mounted"}},
+		config.Repository{Name: "storage", Path: "/repo/storage", PasswordSecret: "s", Mount: config.MountCheck{Path: storage, MarkerFile: ".mounted"}})
 	c.Jobs = []config.Job{
-		{Name: "usb", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: "/repo/usb", MountPath: usb, MountMarker: ".mounted"},
-		{Name: "storage", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: "/repo/storage", MountPath: storage, MountMarker: ".mounted"},
+		{Name: "usb", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: "usb", Source: "/src"},
+		{Name: "storage", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: "storage", Source: "/src"},
 	}
+	m.SetSecrets(secretMap{"s": "pw"})
 	m.cfg = func() config.Config { return c }
 	run, err := m.Trigger("usb", "manual", true)
 	if err != nil {
@@ -155,25 +158,28 @@ func TestRestoreTargetMustBeBelowRoot(t *testing.T) {
 	c := m.cfg()
 	c.RestoreRoot = t.TempDir()
 	m.cfg = func() config.Config { return c }
-	if _, err := m.Restore("", "latest", filepath.Join(c.RestoreRoot, "..", "evil"), nil); err == nil {
+	if _, err := m.Restore("", "", "latest", filepath.Join(c.RestoreRoot, "..", "evil"), nil); err == nil {
 		t.Error("expected restore outside the root to be refused")
 	}
-	if _, err := m.Restore("", "-x", filepath.Join(c.RestoreRoot, "ok"), nil); err == nil {
+	if _, err := m.Restore("", "", "-x", filepath.Join(c.RestoreRoot, "ok"), nil); err == nil {
 		t.Error("expected option-like snapshot to be refused")
 	}
-	if _, err := m.Restore("", "latest", filepath.Join(c.RestoreRoot, "ok"), nil); err != nil {
+	if _, err := m.Restore("", "", "latest", filepath.Join(c.RestoreRoot, "ok"), nil); err != nil {
 		t.Errorf("valid restore refused: %v", err)
 	}
 }
 
 func TestMultipleJobsUseTheirOwnRepository(t *testing.T) {
 	m := newManager(t, "ok")
-	c := m.cfg()
+	c := portalOf(m.cfg(),
+		config.Repository{Name: "photos", Path: "/repo/photos", PasswordSecret: "s"},
+		config.Repository{Name: "docs", Path: "/repo/docs", PasswordSecret: "s"})
 	c.Jobs = []config.Job{
-		{Name: "photos", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Source: "/photos", Repository: "/repo/photos"},
-		{Name: "docs", Type: config.TypeBackup, Enabled: true, Schedule: "0 1 * * *", Source: "/docs", Repository: "/repo/docs"},
-		{Name: "docs-prune", Type: config.TypeForget, Enabled: false, Schedule: "0 2 * * *", Repository: "/repo/docs"},
+		{Name: "photos", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Source: "/photos", Repository: "photos"},
+		{Name: "docs", Type: config.TypeBackup, Enabled: true, Schedule: "0 1 * * *", Source: "/docs", Repository: "docs"},
+		{Name: "docs-prune", Type: config.TypeForget, Enabled: false, Schedule: "0 2 * * *", Repository: "docs"},
 	}
+	m.SetSecrets(secretMap{"s": "pw"})
 	m.cfg = func() config.Config { return c }
 	if err := m.Reload(); err != nil {
 		t.Fatal(err)
@@ -216,7 +222,7 @@ func TestMultipleJobsUseTheirOwnRepository(t *testing.T) {
 
 func TestSnapshotsOfUnknownJobFail(t *testing.T) {
 	m := newManager(t, "ok")
-	if _, err := m.Snapshots(t.Context(), "nope"); err == nil {
+	if _, err := m.Snapshots(t.Context(), "", "nope"); err == nil {
 		t.Error("expected an error for an unknown job")
 	}
 }
@@ -321,5 +327,94 @@ func TestSyncJobsDoNotInitialiseARepository(t *testing.T) {
 	m.initRepositories()
 	if len(m.Runs("", 10)) != 0 {
 		t.Error("no run expected")
+	}
+}
+
+// portalOf turns a configuration into a portal mode one with the given repositories and no jobs.
+func portalOf(c config.Config, repos ...config.Repository) config.Config {
+	c.Mode = config.ModePortal
+	c.Repository, c.PasswordFile, c.PasswordSecret, c.Source, c.RestoreRoot = "", "", "", "", ""
+	c.MountCheck, c.MountChecks = config.MountCheck{}, nil
+	c.Repositories, c.Jobs = repos, nil
+	return c
+}
+
+func TestRestoreRootIsPerRepository(t *testing.T) {
+	m := newManager(t, "ok")
+	a, b := t.TempDir(), t.TempDir()
+	c := portalOf(m.cfg(),
+		config.Repository{Name: "a", Path: "/repo/a", PasswordSecret: "s", RestoreRoot: a},
+		config.Repository{Name: "b", Path: "/repo/b", PasswordSecret: "s", RestoreRoot: b})
+	c.Jobs = []config.Job{{Name: "job-b", Type: config.TypeBackup, Repository: "b", Source: "/src"}}
+	m.cfg = func() config.Config { return c }
+
+	if _, err := m.Restore("a", "", "latest", filepath.Join(b, "x"), nil); err == nil {
+		t.Error("the restore root of repository a must not allow the directory of b")
+	}
+	if _, err := m.Restore("a", "", "latest", filepath.Join(a, "x"), nil); err != nil {
+		t.Errorf("restore into the root of a refused: %v", err)
+	}
+	m.wg.Wait()
+	// A job selects the repository it works on.
+	if _, err := m.Restore("", "job-b", "latest", filepath.Join(b, "x"), nil); err != nil {
+		t.Errorf("restore through a job refused: %v", err)
+	}
+	m.wg.Wait()
+	// Two repositories: one has to be named.
+	if _, err := m.Restore("", "", "latest", filepath.Join(a, "x"), nil); err == nil {
+		t.Error("without a name the repository is ambiguous")
+	}
+	if _, err := m.Snapshots(t.Context(), "nope", ""); err == nil {
+		t.Error("an unknown repository must be refused")
+	}
+}
+
+func TestRepositoriesCanOnlyBeManagedInPortalMode(t *testing.T) {
+	m := newManager(t, "ok")
+	if err := m.SetRepository(config.Repository{Name: "a", Path: "/a", PasswordSecret: "s"}); !errors.Is(err, ErrNoRepositories) {
+		t.Errorf("err = %v", err)
+	}
+	if err := m.DeleteRepository("a"); !errors.Is(err, ErrNoRepositories) {
+		t.Errorf("err = %v", err)
+	}
+	if repos := m.Repositories(); len(repos) != 1 || repos[0].Name != config.DefaultRepository {
+		t.Errorf("standalone has the implicit repository: %+v", repos)
+	}
+}
+
+func TestRepositoryCRUD(t *testing.T) {
+	m := newManager(t, "ok")
+	c := portalOf(m.cfg())
+	m.cfg = func() config.Config { return c }
+	m.update = func(f func(*config.Config) error) error {
+		n := c
+		n.Repositories, n.Jobs = slices.Clone(c.Repositories), slices.Clone(c.Jobs)
+		if err := f(&n); err != nil {
+			return err
+		}
+		c = n
+		return nil
+	}
+	a := config.Repository{Name: "a", Path: "/repo/a", PasswordSecret: "s"}
+	if err := m.SetRepository(a); err != nil {
+		t.Fatal(err)
+	}
+	a.Path = "/repo/moved"
+	if err := m.SetRepository(a); err != nil {
+		t.Fatal(err)
+	}
+	if repos := m.Repositories(); len(repos) != 1 || repos[0].Path != "/repo/moved" {
+		t.Errorf("a repository is replaced by name: %+v", repos)
+	}
+	c.Jobs = []config.Job{{Name: "j", Type: config.TypeBackup, Repository: "a", Source: "/src"}}
+	if err := m.DeleteRepository("a"); err == nil {
+		t.Error("a repository in use must not be deleted")
+	}
+	c.Jobs = nil
+	if err := m.DeleteRepository("a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.DeleteRepository("a"); err == nil {
+		t.Error("deleting an unknown repository must fail")
 	}
 }

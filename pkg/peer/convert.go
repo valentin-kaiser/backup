@@ -116,8 +116,6 @@ func DefinitionToProto(j config.Job) *pb.JobDefinition {
 		MaxAgeHours:    int32(j.MaxAgeHours),    //nolint:gosec // validated to be small
 		Source:         j.Source,
 		Repository:     j.Repository,
-		PasswordFile:   j.PasswordFile,
-		PasswordSecret: j.PasswordSecret,
 		Path1:          j.Path1,
 		Path2:          j.Path2,
 		Conflict:       j.Conflict,
@@ -143,8 +141,6 @@ func DefinitionFromProto(d *pb.JobDefinition) config.Job {
 		MaxAgeHours:    int(d.GetMaxAgeHours()),
 		Source:         d.GetSource(),
 		Repository:     d.GetRepository(),
-		PasswordFile:   d.GetPasswordFile(),
-		PasswordSecret: d.GetPasswordSecret(),
 		Path1:          d.GetPath1(),
 		Path2:          d.GetPath2(),
 		Conflict:       d.GetConflict(),
@@ -194,5 +190,23 @@ func SyncServeFromProto(s *pb.SyncServe) config.SyncServe {
 		Port: int(s.GetPort()), Username: s.GetUsername(), PasswordFile: strings.TrimSpace(s.GetPasswordFile()),
 		PasswordSecret: strings.TrimSpace(s.GetPasswordSecret()), CertificateFile: strings.TrimSpace(s.GetCertificateFile()),
 		KeyFile: strings.TrimSpace(s.GetKeyFile()), Tunnel: s.GetTunnel(),
+	}
+}
+
+// RepositoryToProto converts a repository.
+func RepositoryToProto(r config.Repository) *pb.Repository {
+	return &pb.Repository{
+		Name: r.Name, Path: r.Path, PasswordSecret: r.PasswordSecret, MountPath: r.Mount.Path,
+		MountMarker: r.Mount.MarkerFile, RestoreRoot: r.RestoreRoot,
+	}
+}
+
+// RepositoryFromProto converts a repository.
+func RepositoryFromProto(r *pb.Repository) config.Repository {
+	return config.Repository{
+		Name: strings.TrimSpace(r.GetName()), Path: strings.TrimSpace(r.GetPath()),
+		PasswordSecret: strings.TrimSpace(r.GetPasswordSecret()),
+		Mount:          config.MountCheck{Path: strings.TrimSpace(r.GetMountPath()), MarkerFile: strings.TrimSpace(r.GetMountMarker())},
+		RestoreRoot:    strings.TrimSpace(r.GetRestoreRoot()),
 	}
 }

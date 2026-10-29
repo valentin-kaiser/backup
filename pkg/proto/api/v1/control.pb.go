@@ -336,15 +336,11 @@ type JobDefinition struct {
 	TimeoutMinutes int32 `protobuf:"varint,6,opt,name=timeout_minutes,json=timeoutMinutes,proto3" json:"timeout_minutes,omitempty"`
 	// Unhealthy when no run succeeded within this many hours, 0 disables.
 	MaxAgeHours int32 `protobuf:"varint,7,opt,name=max_age_hours,json=maxAgeHours,proto3" json:"max_age_hours,omitempty"`
-	// Directory to back up, backup jobs only. The default source when empty.
+	// Directory to back up, backup jobs only. Required in portal mode.
 	Source string `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`
-	// Restic repository. The default repository when empty.
+	// Name of the repository the job works on, see Repository. Backup, forget and check jobs only; standalone mode
+	// has one implicit repository and leaves it empty.
 	Repository string `protobuf:"bytes,9,opt,name=repository,proto3" json:"repository,omitempty"`
-	// File containing the repository password. The default password file when empty.
-	PasswordFile string `protobuf:"bytes,10,opt,name=password_file,json=passwordFile,proto3" json:"password_file,omitempty"`
-	// Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the
-	// default.
-	PasswordSecret string `protobuf:"bytes,12,opt,name=password_secret,json=passwordSecret,proto3" json:"password_secret,omitempty"`
 	// Sync jobs only: first directory, always local.
 	Path1 string `protobuf:"bytes,13,opt,name=path1,proto3" json:"path1,omitempty"`
 	// Sync jobs only: second directory. A local directory, or peer:<name>[/subdirectory] on another worker.
@@ -465,20 +461,6 @@ func (x *JobDefinition) GetRepository() string {
 	return ""
 }
 
-func (x *JobDefinition) GetPasswordFile() string {
-	if x != nil {
-		return x.PasswordFile
-	}
-	return ""
-}
-
-func (x *JobDefinition) GetPasswordSecret() string {
-	if x != nil {
-		return x.PasswordSecret
-	}
-	return ""
-}
-
 func (x *JobDefinition) GetPath1() string {
 	if x != nil {
 		return x.Path1
@@ -549,34 +531,41 @@ func (x *JobDefinition) GetAfter() string {
 	return ""
 }
 
-// Settings that jobs inherit when they do not set their own.
-type Defaults struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	Source       string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	Repository   string                 `protobuf:"bytes,2,opt,name=repository,proto3" json:"repository,omitempty"`
-	PasswordFile string                 `protobuf:"bytes,3,opt,name=password_file,json=passwordFile,proto3" json:"password_file,omitempty"`
-	// Restores are only allowed below this directory.
-	RestoreRoot string `protobuf:"bytes,4,opt,name=restore_root,json=restoreRoot,proto3" json:"restore_root,omitempty"`
-	// The stored secret that holds the default repository password, empty when the password file is used.
-	PasswordSecret string `protobuf:"bytes,6,opt,name=password_secret,json=passwordSecret,proto3" json:"password_secret,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+// A restic repository. Jobs refer to it by name and share its password, its mount guard and its restore directory.
+type Repository struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Unique name: 1-32 characters of lower case letters, digits, - and _.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The restic repository: a directory or any other restic repository address.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Name of the stored secret that holds the repository password.
+	PasswordSecret string `protobuf:"bytes,3,opt,name=password_secret,json=passwordSecret,proto3" json:"password_secret,omitempty"`
+	// Mount guard: directory that must exist before any job works on the repository, empty disables the check.
+	MountPath string `protobuf:"bytes,4,opt,name=mount_path,json=mountPath,proto3" json:"mount_path,omitempty"`
+	// Mount guard: file that must exist inside mount_path (e.g. .mounted), empty only checks the path.
+	MountMarker string `protobuf:"bytes,5,opt,name=mount_marker,json=mountMarker,proto3" json:"mount_marker,omitempty"`
+	// Restores of this repository are only allowed below this directory. /restore when empty.
+	RestoreRoot string `protobuf:"bytes,6,opt,name=restore_root,json=restoreRoot,proto3" json:"restore_root,omitempty"`
+	// Read only: names of the jobs that work on the repository.
+	Jobs          []string `protobuf:"bytes,7,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Defaults) Reset() {
-	*x = Defaults{}
+func (x *Repository) Reset() {
+	*x = Repository{}
 	mi := &file_backup_api_v1_control_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Defaults) String() string {
+func (x *Repository) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Defaults) ProtoMessage() {}
+func (*Repository) ProtoMessage() {}
 
-func (x *Defaults) ProtoReflect() protoreflect.Message {
+func (x *Repository) ProtoReflect() protoreflect.Message {
 	mi := &file_backup_api_v1_control_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -588,44 +577,58 @@ func (x *Defaults) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Defaults.ProtoReflect.Descriptor instead.
-func (*Defaults) Descriptor() ([]byte, []int) {
+// Deprecated: Use Repository.ProtoReflect.Descriptor instead.
+func (*Repository) Descriptor() ([]byte, []int) {
 	return file_backup_api_v1_control_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Defaults) GetSource() string {
+func (x *Repository) GetName() string {
 	if x != nil {
-		return x.Source
+		return x.Name
 	}
 	return ""
 }
 
-func (x *Defaults) GetRepository() string {
+func (x *Repository) GetPath() string {
 	if x != nil {
-		return x.Repository
+		return x.Path
 	}
 	return ""
 }
 
-func (x *Defaults) GetPasswordFile() string {
+func (x *Repository) GetPasswordSecret() string {
 	if x != nil {
-		return x.PasswordFile
+		return x.PasswordSecret
 	}
 	return ""
 }
 
-func (x *Defaults) GetRestoreRoot() string {
+func (x *Repository) GetMountPath() string {
+	if x != nil {
+		return x.MountPath
+	}
+	return ""
+}
+
+func (x *Repository) GetMountMarker() string {
+	if x != nil {
+		return x.MountMarker
+	}
+	return ""
+}
+
+func (x *Repository) GetRestoreRoot() string {
 	if x != nil {
 		return x.RestoreRoot
 	}
 	return ""
 }
 
-func (x *Defaults) GetPasswordSecret() string {
+func (x *Repository) GetJobs() []string {
 	if x != nil {
-		return x.PasswordSecret
+		return x.Jobs
 	}
-	return ""
+	return nil
 }
 
 // A stored secret, a repository password. The value is never returned.
@@ -637,12 +640,12 @@ type SecretInfo struct {
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// Time at which the value was last set or changed.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
-	// Names of the jobs that take their password from this secret.
-	Jobs []string `protobuf:"bytes,4,rep,name=jobs,proto3" json:"jobs,omitempty"`
-	// Whether the default password of the daemon is this secret.
-	DefaultPassword bool `protobuf:"varint,5,opt,name=default_password,json=defaultPassword,proto3" json:"default_password,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Names of the repositories that use this secret as their password.
+	Repositories []string `protobuf:"bytes,6,rep,name=repositories,proto3" json:"repositories,omitempty"`
+	// Other users of the secret: peer:<name> and syncserve.
+	OtherUsers    []string `protobuf:"bytes,7,rep,name=other_users,json=otherUsers,proto3" json:"other_users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SecretInfo) Reset() {
@@ -696,18 +699,18 @@ func (x *SecretInfo) GetUpdateTime() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *SecretInfo) GetJobs() []string {
+func (x *SecretInfo) GetRepositories() []string {
 	if x != nil {
-		return x.Jobs
+		return x.Repositories
 	}
 	return nil
 }
 
-func (x *SecretInfo) GetDefaultPassword() bool {
+func (x *SecretInfo) GetOtherUsers() []string {
 	if x != nil {
-		return x.DefaultPassword
+		return x.OtherUsers
 	}
-	return false
+	return nil
 }
 
 // A job, its configuration and its state.
@@ -848,10 +851,10 @@ type ControlStatus struct {
 	Problems []string `protobuf:"bytes,3,rep,name=problems,proto3" json:"problems,omitempty"`
 	// All jobs.
 	Jobs []*Job `protobuf:"bytes,4,rep,name=jobs,proto3" json:"jobs,omitempty"`
-	// What jobs inherit when they do not set their own.
-	Defaults *Defaults `protobuf:"bytes,5,opt,name=defaults,proto3" json:"defaults,omitempty"`
 	// Name of this worker. Peers refer to it by this name, see Peer.
-	WorkerName    string `protobuf:"bytes,6,opt,name=worker_name,json=workerName,proto3" json:"worker_name,omitempty"`
+	WorkerName string `protobuf:"bytes,6,opt,name=worker_name,json=workerName,proto3" json:"worker_name,omitempty"`
+	// All repositories. Standalone mode has the one implicit repository, named default.
+	Repositories  []*Repository `protobuf:"bytes,7,rep,name=repositories,proto3" json:"repositories,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -914,18 +917,18 @@ func (x *ControlStatus) GetJobs() []*Job {
 	return nil
 }
 
-func (x *ControlStatus) GetDefaults() *Defaults {
-	if x != nil {
-		return x.Defaults
-	}
-	return nil
-}
-
 func (x *ControlStatus) GetWorkerName() string {
 	if x != nil {
 		return x.WorkerName
 	}
 	return ""
+}
+
+func (x *ControlStatus) GetRepositories() []*Repository {
+	if x != nil {
+		return x.Repositories
+	}
+	return nil
 }
 
 // A restic snapshot.
@@ -2093,7 +2096,7 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\texit_code\x18\b \x01(\x05R\bexitCode\x12\x14\n" +
 	"\x05error\x18\t \x01(\tR\x05error\x12\x16\n" +
 	"\x06output\x18\n" +
-	" \x03(\tR\x06output\"\xe6\x04\n" +
+	" \x03(\tR\x06output\"\xc4\x04\n" +
 	"\rJobDefinition\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x18\n" +
@@ -2105,10 +2108,7 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\x06source\x18\b \x01(\tR\x06source\x12\x1e\n" +
 	"\n" +
 	"repository\x18\t \x01(\tR\n" +
-	"repository\x12#\n" +
-	"\rpassword_file\x18\n" +
-	" \x01(\tR\fpasswordFile\x12'\n" +
-	"\x0fpassword_secret\x18\f \x01(\tR\x0epasswordSecret\x12\x14\n" +
+	"repository\x12\x14\n" +
 	"\x05path1\x18\r \x01(\tR\x05path1\x12\x14\n" +
 	"\x05path2\x18\x0e \x01(\tR\x05path2\x12\x1a\n" +
 	"\bconflict\x18\x0f \x01(\tR\bconflict\x12%\n" +
@@ -2118,24 +2118,28 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\x05owner\x18\x13 \x01(\tR\x05owner\x12\x14\n" +
 	"\x05force\x18\x14 \x01(\bR\x05force\x12\x16\n" +
 	"\x06engine\x18\x15 \x01(\tR\x06engine\x12\x14\n" +
-	"\x05after\x18\x16 \x01(\tR\x05after\"\xb3\x01\n" +
-	"\bDefaults\x12\x16\n" +
-	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1e\n" +
+	"\x05after\x18\x16 \x01(\tR\x05afterJ\x04\b\n" +
+	"\x10\vJ\x04\b\f\x10\rR\rpassword_fileR\x0fpassword_secret\"\xd6\x01\n" +
 	"\n" +
-	"repository\x18\x02 \x01(\tR\n" +
-	"repository\x12#\n" +
-	"\rpassword_file\x18\x03 \x01(\tR\fpasswordFile\x12!\n" +
-	"\frestore_root\x18\x04 \x01(\tR\vrestoreRoot\x12'\n" +
-	"\x0fpassword_secret\x18\x06 \x01(\tR\x0epasswordSecret\"\xd9\x01\n" +
+	"Repository\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12'\n" +
+	"\x0fpassword_secret\x18\x03 \x01(\tR\x0epasswordSecret\x12\x1d\n" +
+	"\n" +
+	"mount_path\x18\x04 \x01(\tR\tmountPath\x12!\n" +
+	"\fmount_marker\x18\x05 \x01(\tR\vmountMarker\x12!\n" +
+	"\frestore_root\x18\x06 \x01(\tR\vrestoreRoot\x12\x12\n" +
+	"\x04jobs\x18\a \x03(\tR\x04jobs\"\x83\x02\n" +
 	"\n" +
 	"SecretInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12;\n" +
 	"\vcreate_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12;\n" +
 	"\vupdate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"updateTime\x12\x12\n" +
-	"\x04jobs\x18\x04 \x03(\tR\x04jobs\x12)\n" +
-	"\x10default_password\x18\x05 \x01(\bR\x0fdefaultPassword\"\x95\x03\n" +
+	"updateTime\x12\"\n" +
+	"\frepositories\x18\x06 \x03(\tR\frepositories\x12\x1f\n" +
+	"\vother_users\x18\a \x03(\tR\n" +
+	"otherUsersJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\x04jobsR\x10default_password\"\x95\x03\n" +
 	"\x03Job\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\x12\x16\n" +
@@ -2149,15 +2153,15 @@ const file_backup_api_v1_control_proto_rawDesc = "" +
 	"\n" +
 	"definition\x18\n" +
 	" \x01(\v2\x1c.backup.api.v1.JobDefinitionR\n" +
-	"definition\"\xdd\x01\n" +
+	"definition\"\xf7\x01\n" +
 	"\rControlStatus\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x18\n" +
 	"\ahealthy\x18\x02 \x01(\bR\ahealthy\x12\x1a\n" +
 	"\bproblems\x18\x03 \x03(\tR\bproblems\x12&\n" +
-	"\x04jobs\x18\x04 \x03(\v2\x12.backup.api.v1.JobR\x04jobs\x123\n" +
-	"\bdefaults\x18\x05 \x01(\v2\x17.backup.api.v1.DefaultsR\bdefaults\x12\x1f\n" +
+	"\x04jobs\x18\x04 \x03(\v2\x12.backup.api.v1.JobR\x04jobs\x12\x1f\n" +
 	"\vworker_name\x18\x06 \x01(\tR\n" +
-	"workerName\"\xc7\x01\n" +
+	"workerName\x12=\n" +
+	"\frepositories\x18\a \x03(\v2\x19.backup.api.v1.RepositoryR\frepositoriesJ\x04\b\x05\x10\x06R\bdefaults\"\xc7\x01\n" +
 	"\bSnapshot\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bshort_id\x18\x02 \x01(\tR\ashortId\x12.\n" +
@@ -2307,7 +2311,7 @@ var file_backup_api_v1_control_proto_goTypes = []any{
 	(EventType)(0),                    // 2: backup.api.v1.EventType
 	(*Run)(nil),                       // 3: backup.api.v1.Run
 	(*JobDefinition)(nil),             // 4: backup.api.v1.JobDefinition
-	(*Defaults)(nil),                  // 5: backup.api.v1.Defaults
+	(*Repository)(nil),                // 5: backup.api.v1.Repository
 	(*SecretInfo)(nil),                // 6: backup.api.v1.SecretInfo
 	(*Job)(nil),                       // 7: backup.api.v1.Job
 	(*ControlStatus)(nil),             // 8: backup.api.v1.ControlStatus
@@ -2337,7 +2341,7 @@ var file_backup_api_v1_control_proto_depIdxs = []int32{
 	20, // 9: backup.api.v1.Job.last_success_time:type_name -> google.protobuf.Timestamp
 	4,  // 10: backup.api.v1.Job.definition:type_name -> backup.api.v1.JobDefinition
 	7,  // 11: backup.api.v1.ControlStatus.jobs:type_name -> backup.api.v1.Job
-	5,  // 12: backup.api.v1.ControlStatus.defaults:type_name -> backup.api.v1.Defaults
+	5,  // 12: backup.api.v1.ControlStatus.repositories:type_name -> backup.api.v1.Repository
 	20, // 13: backup.api.v1.Snapshot.time:type_name -> google.protobuf.Timestamp
 	1,  // 14: backup.api.v1.FileNode.type:type_name -> backup.api.v1.FileType
 	20, // 15: backup.api.v1.FileNode.modify_time:type_name -> google.protobuf.Timestamp

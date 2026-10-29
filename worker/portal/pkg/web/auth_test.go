@@ -387,7 +387,7 @@ func TestEveryMethodOfTheAPIIsKnown(t *testing.T) {
 	for _, m := range []string{
 		"GetStatus", "ListRuns", "GetRun", "ListSnapshots", "ListFiles", "GetStats", "Watch", "ListSecrets",
 		"StartJob", "CancelJob", "PauseJob", "ResumeJob", "Restore", "CreateJob", "UpdateJob", "DeleteJob",
-		"SetSecret", "ChangeRepositoryPassword", "DeleteSecret",
+		"SetSecret", "ChangeRepositoryPassword", "DeleteSecret", "ListRepositories", "SetRepository", "DeleteRepository",
 	} {
 		for _, prefix := range prefixes {
 			if _, ok := known(prefix + m); !ok {
@@ -520,9 +520,11 @@ func TestSecretsNeverReachTheAuditLog(t *testing.T) {
 	_, _ = p.do(t, "POST", apiPath, rpc(1, "SetSecret", `{"1":"photos","2":"hunter2-the-value"}`))
 	_, _ = p.do(t, "POST", apiPath, rpc(2, "SetSecret", `{"1":"fresh","3":true}`))
 	_, _ = p.do(t, "POST", apiPath, rpc(3, "ChangeRepositoryPassword", `{"1":"photos","2":"another-secret-value"}`))
-	// A job with credentials in the repository address and in the restic arguments.
-	_, _ = p.do(t, "POST", apiPath, rpc(4, "CreateJob",
-		`{"1":"offsite","2":"backup","4":"0 2 * * *","5":"-o s3.secret=ARGS-SECRET","9":"rest:https://backup:REPO-SECRET@host/repo","12":"photos"}`))
+	// A repository with credentials in its address and a job with credentials in the restic arguments.
+	_, _ = p.do(t, "POST", apiPath, rpc(4, "SetRepository",
+		`{"1":"offsite","2":"rest:https://backup:REPO-SECRET@host/repo","3":"photos"}`))
+	_, _ = p.do(t, "POST", apiPath, rpc(5, "CreateJob",
+		`{"1":"offsite","2":"backup","4":"0 2 * * *","5":"-o s3.secret=ARGS-SECRET","9":"offsite"}`))
 
 	var all strings.Builder
 	for _, e := range p.entries(t) {
@@ -536,8 +538,12 @@ func TestSecretsNeverReachTheAuditLog(t *testing.T) {
 	if e := p.entry(t, "set_secret"); e.Target == "" {
 		t.Errorf("the name of the secret belongs in the log: %+v", e)
 	}
+	repo := p.entry(t, "set_repository")
+	if repo.Target != "offsite" || !strings.Contains(repo.Detail, "rest:https://***@host/repo") || !strings.Contains(repo.Detail, "password secret=photos") {
+		t.Errorf("set_repository: %+v", repo)
+	}
 	create := p.entry(t, "create_job")
-	if create.Target != "offsite" || !strings.Contains(create.Detail, "rest:https://***@host/repo") || !strings.Contains(create.Detail, "password secret=photos") {
+	if create.Target != "offsite" || !strings.Contains(create.Detail, "repository=offsite") {
 		t.Errorf("create_job: %+v", create)
 	}
 }

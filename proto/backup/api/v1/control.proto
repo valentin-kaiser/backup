@@ -76,18 +76,15 @@ message JobDefinition {
   // Unhealthy when no run succeeded within this many hours, 0 disables.
   int32 max_age_hours = 7;
 
-  // Directory to back up, backup jobs only. The default source when empty.
+  // Directory to back up, backup jobs only. Required in portal mode.
   string source = 8;
 
-  // Restic repository. The default repository when empty.
+  // Name of the repository the job works on, see Repository. Backup, forget and check jobs only; standalone mode
+  // has one implicit repository and leaves it empty.
   string repository = 9;
 
-  // File containing the repository password. The default password file when empty.
-  string password_file = 10;
-
-  // Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the
-  // default.
-  string password_secret = 12;
+  reserved 10, 12;
+  reserved "password_file", "password_secret";
 
   // Sync jobs only: first directory, always local.
   string path1 = 13;
@@ -123,17 +120,28 @@ message JobDefinition {
   string after = 22;
 }
 
-// Settings that jobs inherit when they do not set their own.
-message Defaults {
-  string source = 1;
-  string repository = 2;
-  string password_file = 3;
+// A restic repository. Jobs refer to it by name and share its password, its mount guard and its restore directory.
+message Repository {
+  // Unique name: 1-32 characters of lower case letters, digits, - and _.
+  string name = 1;
 
-  // Restores are only allowed below this directory.
-  string restore_root = 4;
+  // The restic repository: a directory or any other restic repository address.
+  string path = 2;
 
-  // The stored secret that holds the default repository password, empty when the password file is used.
-  string password_secret = 6;
+  // Name of the stored secret that holds the repository password.
+  string password_secret = 3;
+
+  // Mount guard: directory that must exist before any job works on the repository, empty disables the check.
+  string mount_path = 4;
+
+  // Mount guard: file that must exist inside mount_path (e.g. .mounted), empty only checks the path.
+  string mount_marker = 5;
+
+  // Restores of this repository are only allowed below this directory. /restore when empty.
+  string restore_root = 6;
+
+  // Read only: names of the jobs that work on the repository.
+  repeated string jobs = 7;
 }
 
 // A stored secret, a repository password. The value is never returned.
@@ -147,11 +155,14 @@ message SecretInfo {
   // Time at which the value was last set or changed.
   google.protobuf.Timestamp update_time = 3;
 
-  // Names of the jobs that take their password from this secret.
-  repeated string jobs = 4;
+  reserved 4, 5;
+  reserved "jobs", "default_password";
 
-  // Whether the default password of the daemon is this secret.
-  bool default_password = 5;
+  // Names of the repositories that use this secret as their password.
+  repeated string repositories = 6;
+
+  // Other users of the secret: peer:<name> and syncserve.
+  repeated string other_users = 7;
 }
 
 // A job, its configuration and its state.
@@ -201,11 +212,14 @@ message ControlStatus {
   // All jobs.
   repeated Job jobs = 4;
 
-  // What jobs inherit when they do not set their own.
-  Defaults defaults = 5;
+  reserved 5;
+  reserved "defaults";
 
   // Name of this worker. Peers refer to it by this name, see Peer.
   string worker_name = 6;
+
+  // All repositories. Standalone mode has the one implicit repository, named default.
+  repeated Repository repositories = 7;
 }
 
 // A restic snapshot.

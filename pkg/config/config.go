@@ -67,8 +67,8 @@ var jobName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
 // peerName is stricter than jobName, it becomes part of an rclone remote name and of environment variable names.
 var peerName = regexp.MustCompile(`^[a-z0-9][a-z0-9_]{0,31}$`)
 
-// Job describes one scheduled restic job. Repository, password file and source default to the global
-// settings, so jobs can back up different directories to different repositories.
+// Job describes one scheduled job. In portal mode a restic job names the repository it works on, see Repository,
+// and a backup job its source. Standalone mode has one implicit repository and one source for everything.
 type Job struct {
 	Name           string `usage:"unique name of the job, lower case letters, digits, - and _"`
 	Type           string `usage:"what the job does: backup, forget or check"`
@@ -78,13 +78,10 @@ type Job struct {
 	Args           string `usage:"additional restic arguments, split like a shell would"`
 	TimeoutMinutes int    `usage:"abort the run after this many minutes, 0 disables the timeout"`
 	MaxAgeHours    int    `usage:"health check fails when no run succeeded within this many hours, 0 disables"`
-	Source         string `usage:"directory to back up, backup jobs only, defaults to the global source"`
-	Repository     string `usage:"restic repository, defaults to the global repository"`
-	PasswordFile   string `usage:"file containing the repository password, defaults to the global password file"`
-	PasswordSecret string `usage:"name of the stored secret that holds the repository password, replaces the password file"`
+	Source         string `usage:"directory to back up, backup jobs only, required in portal mode"`
+	Repository     string `usage:"name of the repository the job works on (portal mode, see repositories), restic jobs only"`
 
-	MountPath   string `usage:"mount guard of this job: directory that must exist before the job runs, replaces the global mount guards"`
-	MountMarker string `usage:"mount guard of this job: file that must exist inside the mount path (e.g. .mounted), empty only checks the path"`
+	Mounts []MountCheck `usage:"sync jobs only: volumes that must be mounted before the job runs (control.yaml only)"`
 
 	Path1         string `usage:"sync jobs only: first directory, always local"`
 	Path2         string `usage:"sync jobs only: second directory, a local directory or peer:<name>[/subdirectory] on another worker"`
@@ -125,10 +122,34 @@ type SyncServe struct {
 	Tunnel          bool   `usage:"let peers run unison against the path through the control API (needs the API, no sshd), a peer with the password of the API can then read and write everything this worker can"`
 }
 
-// MountCheck guards against writing into an unmounted repository directory.
+// MountCheck guards against writing into an unmounted directory.
 type MountCheck struct {
-	Path       string `usage:"local repository directory that must exist before any job runs, empty disables the check"`
+	Path       string `usage:"local directory that must exist before the job runs, empty disables the check"`
 	MarkerFile string `usage:"file that must exist inside the path (e.g. .mounted), empty only checks the path"`
+}
+
+// DefaultRestoreRoot is the directory restores are allowed below when a repository does not name one.
+const DefaultRestoreRoot = "/restore"
+
+// DefaultRepository is the name of the one implicit repository of standalone mode.
+const DefaultRepository = "default"
+
+// Repository is a restic repository of portal mode. The jobs that work on it refer to it by name and share its
+// password, its mount guard and the directory restores go to.
+type Repository struct {
+	Name           string     `usage:"unique name of the repository, lower case letters, digits, - and _"`
+	Path           string     `usage:"restic repository (a directory or any other restic repository address)"`
+	PasswordSecret string     `usage:"name of the stored secret that holds the repository password"`
+	Mount          MountCheck `usage:"mount guard: the volume of the repository that must be mounted before any job works on it"`
+	RestoreRoot    string     `usage:"restores of this repository are only allowed below this directory, /restore when empty"`
+}
+
+// Root returns the directory restores of the repository are limited to.
+func (r Repository) Root() string {
+	if r.RestoreRoot != "" {
+		return r.RestoreRoot
+	}
+	return DefaultRestoreRoot
 }
 
 // API configures the management API. Calls need the password as bearer credential. Without authentication bind it to loopback.
@@ -160,11 +181,12 @@ type Config struct {
 	LogLevel        int             `usage:"(-1 = trace, 0 = debug, 1 = info, 2 = warn, 3 = error)"`
 	WorkerName      string          `usage:"name of this worker, the name its peers use for it (lower case letters, digits and _), defaults to the host name"`
 	Mode            string          `usage:"standalone (one source, one repository, one job per type, password file, no API) or ui (management API for the portal, many jobs, stored secrets)"`
-	Repository      string          `usage:"restic repository"`
-	PasswordFile    string          `usage:"file containing the repository password"`
-	PasswordSecret  string          `usage:"name of the stored secret that holds the repository password, replaces the password file"`
+	Repositories    []Repository    `usage:"restic repositories, portal mode only (standalone mode has the one repository below)"`
+	Repository      string          `usage:"standalone mode only: restic repository"`
+	PasswordFile    string          `usage:"standalone mode only: file containing the repository password"`
+	PasswordSecret  string          `usage:"set while a job is resolved, not a setting"`
 	MasterKeyFile   string          `usage:"file with the key that encrypts the stored secrets (base64, 32 bytes), created in the data directory when empty"`
-	Source          string          `usage:"directory to back up"`
+	Source          string          `usage:"standalone mode only: directory to back up"`
 	Compression     string          `usage:"restic compression mode (auto, off, max)"`
 	CacheDir        string          `usage:"restic cache directory"`
 	Nice            int             `usage:"niceness of restic processes (0-19)"`
@@ -174,11 +196,11 @@ type Config struct {
 	LockRetry       string          `usage:"how long restic waits for a repository lock"`
 	StopGraceSecs   int             `usage:"seconds a running job may finish after a shutdown signal"`
 	HistoryLimit    int             `usage:"number of runs kept in the history"`
-	RestoreRoot     string          `usage:"restores are only allowed below this directory"`
+	RestoreRoot     string          `usage:"standalone mode only: restores are only allowed below this directory"`
 	WebhookURL      string          `usage:"URL pinged with /start, /fail or no suffix on success (healthchecks.io compatible)"`
 	Jobs            []Job           `usage:"jobs, a list of name, type, schedule, ..."`
-	MountCheck      MountCheck      `usage:"repository mount guard, the guard of the default repository"`
-	MountChecks     []MountCheck    `usage:"additional repository mount guards, one entry per mounted volume (control.yaml only)"`
+	MountCheck      MountCheck      `usage:"standalone mode only: mount guard of the repository"`
+	MountChecks     []MountCheck    `usage:"standalone mode only: additional mount guards, one entry per mounted volume (control.yaml only)"`
 	SyncDir         string          `usage:"directory for the state of sync jobs (rclone bisync listings), keep it on a volume"`
 	Peers           []Peer          `usage:"other workers that sync jobs can use as second path"`
 	SyncServe       SyncServe       `usage:"export a directory to peers"`
@@ -189,8 +211,8 @@ type Config struct {
 // Default returns the default configuration. The run mode is the one setting read from the environment here, because
 // the defaults of the jobs and the password depend on it.
 //
-// Portal mode has the same three default jobs. It takes the repository password from the stored secret "backup"
-// instead of a password file: create that secret in the portal, or point passwordSecret at another one.
+// Portal mode starts without repositories and jobs: create repositories (each with a stored password secret) and the
+// jobs that work on them in the portal, or in control.yaml.
 func Default() *Config {
 	c := &Config{
 		LogLevel:        1,
@@ -244,18 +266,33 @@ func Default() *Config {
 		Notify: notify.Defaults(),
 	}
 	if c.Portal() {
-		c.PasswordFile, c.PasswordSecret, c.API.PasswordFile = "", "backup", "/run/secrets/portal_password"
+		// Everything below is per repository and per job in portal mode.
+		c.Repository, c.PasswordFile, c.Source, c.RestoreRoot, c.Jobs = "", "", "", "", nil
+		c.API.PasswordFile = "/run/secrets/portal_password"
 	}
 	return c
 }
 
 // Validate implements the go-core config interface.
 func (c *Config) Validate() error {
-	if strings.TrimSpace(c.Repository) == "" {
-		return apperror.NewError("repository must not be empty")
-	}
-	if strings.TrimSpace(c.Source) == "" {
-		return apperror.NewError("source must not be empty")
+	if c.Portal() {
+		if c.Repository != "" || c.PasswordFile != "" || c.PasswordSecret != "" || c.Source != "" || c.RestoreRoot != "" ||
+			c.MountCheck != (MountCheck{}) || len(c.MountChecks) > 0 {
+			return apperror.NewError("repository, passwordFile, source, restoreRoot, mountCheck and mountChecks are not used in portal mode: define the repository under repositories and let the jobs name it")
+		}
+	} else {
+		if len(c.Repositories) > 0 {
+			return apperror.NewError("repositories need mode portal, standalone mode has the one repository of the repository setting")
+		}
+		if strings.TrimSpace(c.Repository) == "" {
+			return apperror.NewError("repository must not be empty")
+		}
+		if strings.TrimSpace(c.Source) == "" {
+			return apperror.NewError("source must not be empty")
+		}
+		if c.PasswordSecret != "" {
+			return apperror.NewError("passwordSecret needs mode portal, standalone mode takes the password from passwordFile")
+		}
 	}
 	if c.Nice < 0 || c.Nice > 19 {
 		return apperror.NewError("nice must be between 0 and 19")
@@ -266,16 +303,13 @@ func (c *Config) Validate() error {
 	if c.HistoryLimit < 10 {
 		return apperror.NewError("historyLimit must be at least 10")
 	}
-	if c.PasswordSecret != "" && !jobName.MatchString(c.PasswordSecret) {
-		return apperror.NewErrorf("passwordSecret %q must be 1-32 lower case letters, digits, - or _", c.PasswordSecret)
-	}
 	switch c.Mode {
 	case "", ModeStandalone, ModePortal:
 	default:
 		return apperror.NewErrorf("mode %q must be %s or %s", c.Mode, ModeStandalone, ModePortal)
 	}
-	if !c.Portal() && c.PasswordSecret != "" {
-		return apperror.NewError("passwordSecret needs mode portal, standalone mode takes the password from passwordFile")
+	if err := c.validateRepositories(); err != nil {
+		return err
 	}
 	if c.StopGraceSecs < 0 {
 		return apperror.NewError("stopGraceSecs must not be negative")
@@ -325,12 +359,6 @@ func (c *Config) Validate() error {
 		if j.TimeoutMinutes < 0 || j.MaxAgeHours < 0 {
 			return apperror.NewErrorf("job %s: timeoutMinutes and maxAgeHours must not be negative", j.Name)
 		}
-		if j.PasswordSecret != "" && !jobName.MatchString(j.PasswordSecret) {
-			return apperror.NewErrorf("job %s: passwordSecret %q must be 1-32 lower case letters, digits, - or _", j.Name, j.PasswordSecret)
-		}
-		if j.PasswordSecret != "" && j.PasswordFile != "" {
-			return apperror.NewErrorf("job %s: set either passwordFile or passwordSecret, not both", j.Name)
-		}
 		if j.Source != "" && j.Type != TypeBackup {
 			return apperror.NewErrorf("job %s: source is only valid for backup jobs", j.Name)
 		}
@@ -341,28 +369,29 @@ func (c *Config) Validate() error {
 			}
 			continue
 		}
+		if len(j.Mounts) > 0 {
+			return apperror.NewErrorf("job %s: mounts are only valid for sync jobs, the mount guard of a restic job belongs to its repository", j.Name)
+		}
 		if j.Owner != "" || j.Path1 != "" || j.Path2 != "" || j.Conflict != "" || j.ConflictLoser != "" || j.MaxDeletePct != 0 || j.CheckAccess || j.Force || j.Engine != "" {
 			return apperror.NewErrorf("job %s: path1, path2, engine, conflict, conflictLoser, maxDeletePct, force and checkAccess are only valid for sync jobs", j.Name)
 		}
 		if c.Portal() {
-			if jc := c.ForJob(j); jc.PasswordFile != "" {
-				return apperror.NewErrorf("job %s: password files are not used in portal mode, create a secret in the portal and set passwordSecret (or run in standalone mode)", j.Name)
-			} else if jc.PasswordSecret == "" {
-				return apperror.NewErrorf("job %s: passwordSecret is required in portal mode", j.Name)
+			if _, ok := c.Repo(j.Repository); !ok {
+				return apperror.NewErrorf("job %s: repository %q does not exist, set repository to one of the repositories", j.Name, j.Repository)
+			}
+			if j.Type == TypeBackup && !isAbs(j.Source) {
+				return apperror.NewErrorf("job %s: source %q must be an absolute path", j.Name, j.Source)
 			}
 			continue
 		}
 		// Standalone: one source and one repository for everything, one job per type.
-		if j.Repository != "" || j.Source != "" || j.PasswordFile != "" || j.PasswordSecret != "" {
-			return apperror.NewErrorf("job %s: repository, source and password are global in standalone mode, use mode portal for per job settings", j.Name)
+		if j.Repository != "" || j.Source != "" {
+			return apperror.NewErrorf("job %s: repository and source are global in standalone mode, use mode portal for per job settings", j.Name)
 		}
 		if types[j.Type] {
 			return apperror.NewErrorf("job %s: standalone mode allows one %s job, use mode portal for more", j.Name, j.Type)
 		}
 		types[j.Type] = true
-	}
-	if c.Portal() && c.PasswordFile != "" {
-		return apperror.NewError("passwordFile is not used in portal mode, create a secret in the portal and set passwordSecret (or run in standalone mode)")
 	}
 	if c.API.Enabled {
 		if c.API.Port < 1 || c.API.Port > 65535 {
@@ -472,8 +501,13 @@ func (c *Config) validatePeers() error {
 
 // validateSync checks a sync job.
 func (c *Config) validateSync(j Job) error {
-	if j.Repository != "" || j.Source != "" || j.PasswordFile != "" || j.PasswordSecret != "" {
-		return apperror.NewErrorf("job %s: repository, source and password are not used by sync jobs", j.Name)
+	if j.Repository != "" || j.Source != "" {
+		return apperror.NewErrorf("job %s: repository and source are not used by sync jobs", j.Name)
+	}
+	for i, mc := range j.Mounts {
+		if err := validateMount(mc); err != nil {
+			return apperror.NewErrorf("job %s: mounts[%d]: %v", j.Name, i, err)
+		}
 	}
 	if !filepath.IsAbs(j.Path1) {
 		return apperror.NewErrorf("job %s: path1 %q must be an absolute local path", j.Name, j.Path1)
@@ -675,23 +709,122 @@ func (c Config) Job(name string) (Job, bool) {
 // Portal reports whether the management API and the stored secrets are used. Anything but portal is standalone.
 func (c Config) Portal() bool { return c.Mode == ModePortal }
 
-// ForJob returns the configuration with the repository, password, source and mount guard of the job applied.
-func (c Config) ForJob(j Job) Config {
-	if j.Repository != "" {
-		c.Repository = j.Repository
+// validateMount checks a mount guard.
+func validateMount(mc MountCheck) error {
+	if mc.Path == "" {
+		if mc.MarkerFile != "" {
+			return apperror.NewError("a marker file needs a path")
+		}
+		return nil
 	}
-	// A password of the job replaces the one of the global settings, whichever way it is given.
-	if j.PasswordFile != "" || j.PasswordSecret != "" {
-		c.PasswordFile, c.PasswordSecret = j.PasswordFile, j.PasswordSecret
+	if !isAbs(mc.Path) {
+		return apperror.NewErrorf("path %q must be absolute", mc.Path)
+	}
+	return nil
+}
+
+// validateRepositories checks the repositories of portal mode.
+func (c *Config) validateRepositories() error {
+	names, paths := map[string]bool{}, map[string]string{}
+	for i, r := range c.Repositories {
+		if !jobName.MatchString(r.Name) {
+			return apperror.NewErrorf("repositories[%d].name %q must be 1-32 lower case letters, digits, - or _", i, r.Name)
+		}
+		if names[r.Name] {
+			return apperror.NewErrorf("repository name %q is used twice", r.Name)
+		}
+		names[r.Name] = true
+		if strings.TrimSpace(r.Path) == "" {
+			return apperror.NewErrorf("repository %s: path must not be empty", r.Name)
+		}
+		// Two names for one repository would defeat the one-job-at-a-time lock of the repository.
+		if other, ok := paths[r.Path]; ok {
+			return apperror.NewErrorf("repository %s: path %q is already used by repository %s", r.Name, r.Path, other)
+		}
+		paths[r.Path] = r.Name
+		if !jobName.MatchString(r.PasswordSecret) {
+			return apperror.NewErrorf("repository %s: passwordSecret %q must be 1-32 lower case letters, digits, - or _", r.Name, r.PasswordSecret)
+		}
+		if err := validateMount(r.Mount); err != nil {
+			return apperror.NewErrorf("repository %s: mount: %v", r.Name, err)
+		}
+		if r.RestoreRoot != "" && !isAbs(r.RestoreRoot) {
+			return apperror.NewErrorf("repository %s: restoreRoot %q must be an absolute path", r.Name, r.RestoreRoot)
+		}
+	}
+	return nil
+}
+
+// Repo returns the repository with the given name. Standalone mode has one implicit repository, DefaultRepository.
+func (c Config) Repo(name string) (Repository, bool) {
+	if !c.Portal() {
+		if name == "" || name == DefaultRepository {
+			return c.implicit(), true
+		}
+		return Repository{}, false
+	}
+	for _, r := range c.Repositories {
+		if r.Name == name {
+			return r, true
+		}
+	}
+	return Repository{}, false
+}
+
+// Repos returns the repositories: the configured ones in portal mode, the implicit one in standalone mode.
+func (c Config) Repos() []Repository {
+	if !c.Portal() {
+		return []Repository{c.implicit()}
+	}
+	return c.Repositories
+}
+
+// implicit is the one repository of standalone mode, described by the top level settings.
+func (c Config) implicit() Repository {
+	return Repository{Name: DefaultRepository, Path: c.Repository, Mount: c.MountCheck, RestoreRoot: c.RestoreRoot}
+}
+
+// JobsOf returns the names of the restic jobs that work on the repository.
+func (c Config) JobsOf(repository string) []string {
+	var out []string
+	for _, j := range c.Jobs {
+		if j.Type == TypeSync {
+			continue
+		}
+		if r, ok := c.Repo(j.Repository); ok && r.Name == repository {
+			out = append(out, j.Name)
+		}
+	}
+	return out
+}
+
+// UsedByJobs reports whether a restic job works on the repository.
+func (c Config) UsedByJobs(repository string) bool { return len(c.JobsOf(repository)) > 0 }
+
+// ForRepository returns the configuration with the repository applied. In standalone mode that is the
+// configuration itself.
+func (c Config) ForRepository(r Repository) Config {
+	if !c.Portal() {
+		return c
+	}
+	c.Repository, c.PasswordFile, c.PasswordSecret = r.Path, "", r.PasswordSecret
+	c.MountCheck, c.MountChecks = r.Mount, nil
+	c.RestoreRoot = r.Root()
+	return c
+}
+
+// ForJob returns the configuration with the repository, password, source and mount guards of the job applied. A
+// restic job gets the repository it names, a sync job its own mounts.
+func (c Config) ForJob(j Job) Config {
+	if j.Type == TypeSync {
+		c.MountCheck, c.MountChecks = MountCheck{}, j.Mounts
+		return c
+	}
+	if r, ok := c.Repo(j.Repository); ok {
+		c = c.ForRepository(r)
 	}
 	if j.Source != "" {
 		c.Source = j.Source
-	}
-	// A mount guard of the job replaces the guards of the global settings, the repository of the job is a
-	// different volume and only its own marker proves that it is mounted.
-	if j.MountPath != "" || j.MountMarker != "" {
-		c.MountCheck = MountCheck{Path: j.MountPath, MarkerFile: j.MountMarker}
-		c.MountChecks = nil
 	}
 	return c
 }
@@ -726,3 +859,7 @@ func mode() string {
 	}
 	return ModeStandalone
 }
+
+// isAbs reports whether p is an absolute path. The paths of a configuration are paths inside the container, so a
+// leading slash counts on every platform.
+func isAbs(p string) bool { return filepath.IsAbs(p) || strings.HasPrefix(p, "/") }

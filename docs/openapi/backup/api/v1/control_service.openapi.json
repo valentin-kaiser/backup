@@ -47,10 +47,6 @@
       "backup.api.v1.ControlStatus": {
         "description": "The state of the daemon.",
         "properties": {
-          "defaults": {
-            "$ref": "#/components/schemas/backup.api.v1.Defaults",
-            "description": "What jobs inherit when they do not set their own."
-          },
           "healthy": {
             "description": "Whether the Docker health check passes.",
             "type": "boolean"
@@ -69,35 +65,19 @@
             },
             "type": "array"
           },
+          "repositories": {
+            "description": "All repositories. Standalone mode has the one implicit repository, named default.",
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.Repository"
+            },
+            "type": "array"
+          },
           "version": {
             "description": "Version of the daemon.",
             "type": "string"
           },
           "workerName": {
             "description": "Name of this worker. Peers refer to it by this name, see Peer.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "backup.api.v1.Defaults": {
-        "description": "Settings that jobs inherit when they do not set their own.",
-        "properties": {
-          "passwordFile": {
-            "type": "string"
-          },
-          "passwordSecret": {
-            "description": "The stored secret that holds the default repository password, empty when the password file is used.",
-            "type": "string"
-          },
-          "repository": {
-            "type": "string"
-          },
-          "restoreRoot": {
-            "description": "Restores are only allowed below this directory.",
-            "type": "string"
-          },
-          "source": {
             "type": "string"
           }
         },
@@ -225,7 +205,11 @@
         "description": "Requests the repository statistics.",
         "properties": {
           "job": {
-            "description": "Name of a job, the statistics of its repository are returned. The global repository when empty.",
+            "description": "Name of a job, the statistics of its repository are returned. Ignored when repository is set.",
+            "type": "string"
+          },
+          "repository": {
+            "description": "Name of the repository. With job empty too, the only repository, if there is just one.",
             "type": "string"
           }
         },
@@ -340,14 +324,6 @@
             "description": "Sync jobs only: name of the peer that holds the schedule and the state of this job. When set this worker\nonly mirrors the job: it shows its state and forwards starts and changes to the owner.",
             "type": "string"
           },
-          "passwordFile": {
-            "description": "File containing the repository password. The default password file when empty.",
-            "type": "string"
-          },
-          "passwordSecret": {
-            "description": "Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the\ndefault.",
-            "type": "string"
-          },
           "path1": {
             "description": "Sync jobs only: first directory, always local.",
             "type": "string"
@@ -357,7 +333,7 @@
             "type": "string"
           },
           "repository": {
-            "description": "Restic repository. The default repository when empty.",
+            "description": "Name of the repository the job works on, see Repository. Backup, forget and check jobs only; standalone mode\nhas one implicit repository and leaves it empty.",
             "type": "string"
           },
           "schedule": {
@@ -365,7 +341,7 @@
             "type": "string"
           },
           "source": {
-            "description": "Directory to back up, backup jobs only. The default source when empty.",
+            "description": "Directory to back up, backup jobs only. Required in portal mode.",
             "type": "string"
           },
           "timeoutMinutes": {
@@ -394,11 +370,15 @@
         "description": "Requests the content of a directory in a snapshot.",
         "properties": {
           "job": {
-            "description": "Name of a job, the snapshot is read from its repository. The global repository when empty.",
+            "description": "Name of a job, the snapshot is read from its repository. Ignored when repository is set.",
             "type": "string"
           },
           "path": {
             "description": "Absolute directory inside the snapshot, / when empty.",
+            "type": "string"
+          },
+          "repository": {
+            "description": "Name of the repository to read. With job empty too, the only repository, if there is just one.",
             "type": "string"
           },
           "snapshot": {
@@ -441,6 +421,23 @@
           "workerName": {
             "description": "Name of this worker.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.ListRepositoriesRequest": {
+        "description": "Requests the repositories.",
+        "properties": {},
+        "type": "object"
+      },
+      "backup.api.v1.ListRepositoriesResponse": {
+        "description": "The repositories sorted by name.",
+        "properties": {
+          "repositories": {
+            "items": {
+              "$ref": "#/components/schemas/backup.api.v1.Repository"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -493,7 +490,11 @@
         "description": "Requests the snapshot list.",
         "properties": {
           "job": {
-            "description": "Name of a job, its repository is listed. The global repository when empty.",
+            "description": "Name of a job, its repository is listed. Ignored when repository is set.",
+            "type": "string"
+          },
+          "repository": {
+            "description": "Name of the repository to list. With job empty too, the only repository, if there is just one.",
             "type": "string"
           }
         },
@@ -759,6 +760,52 @@
         },
         "type": "object"
       },
+      "backup.api.v1.Repository": {
+        "description": "A restic repository. Jobs refer to it by name and share its password, its mount guard and its restore directory.",
+        "properties": {
+          "jobs": {
+            "description": "Read only: names of the jobs that work on the repository.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mountMarker": {
+            "description": "Mount guard: file that must exist inside mount_path (e.g. .mounted), empty only checks the path.",
+            "type": "string"
+          },
+          "mountPath": {
+            "description": "Mount guard: directory that must exist before any job works on the repository, empty disables the check.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Unique name: 1-32 characters of lower case letters, digits, - and _.",
+            "type": "string"
+          },
+          "passwordSecret": {
+            "description": "Name of the stored secret that holds the repository password.",
+            "type": "string"
+          },
+          "path": {
+            "description": "The restic repository: a directory or any other restic repository address.",
+            "type": "string"
+          },
+          "restoreRoot": {
+            "description": "Restores of this repository are only allowed below this directory. /restore when empty.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "backup.api.v1.RepositoryRequest": {
+        "description": "Addresses a repository.",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "backup.api.v1.RepositoryStats": {
         "description": "Statistics of the restic repository.",
         "properties": {
@@ -805,7 +852,11 @@
             "type": "array"
           },
           "job": {
-            "description": "Name of a job, the snapshot is restored from its repository. The global repository when empty.",
+            "description": "Name of a job, the snapshot is restored from its repository. Ignored when repository is set.",
+            "type": "string"
+          },
+          "repository": {
+            "description": "Name of the repository to restore from. With job empty too, the only repository, if there is just one.",
             "type": "string"
           },
           "snapshot": {
@@ -894,20 +945,23 @@
             "$ref": "#/components/schemas/google.protobuf.Timestamp",
             "description": "Time at which the secret was created."
           },
-          "defaultPassword": {
-            "description": "Whether the default password of the daemon is this secret.",
-            "type": "boolean"
+          "name": {
+            "description": "Name of the secret.",
+            "type": "string"
           },
-          "jobs": {
-            "description": "Names of the jobs that take their password from this secret.",
+          "otherUsers": {
+            "description": "Other users of the secret: peer:\u003cname\u003e and syncserve.",
             "items": {
               "type": "string"
             },
             "type": "array"
           },
-          "name": {
-            "description": "Name of the secret.",
-            "type": "string"
+          "repositories": {
+            "description": "Names of the repositories that use this secret as their password.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "updateTime": {
             "$ref": "#/components/schemas/google.protobuf.Timestamp",
@@ -1644,9 +1698,94 @@
         ]
       }
     },
+    "/Control/DeleteRepository": {
+      "post": {
+        "description": "Removes a repository from the configuration. Fails while a job uses it. The data stays where it is.\n\nJSON-RPC 2.0 call of `Control.DeleteRepository`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.DeleteRepository",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.DeleteRepository",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.DeleteRepository"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.RepositoryRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/google.protobuf.Empty"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Removes a repository from the configuration.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
     "/Control/DeleteSecret": {
       "post": {
-        "description": "Deletes a secret that no job uses.\n\nJSON-RPC 2.0 call of `Control.DeleteSecret`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "description": "Deletes a secret that no repository uses.\n\nJSON-RPC 2.0 call of `Control.DeleteSecret`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
         "operationId": "backup.api.v1.Control.DeleteSecret",
         "requestBody": {
           "content": {
@@ -1723,7 +1862,7 @@
             "description": "Error"
           }
         },
-        "summary": "Deletes a secret that no job uses.",
+        "summary": "Deletes a secret that no repository uses.",
         "tags": [
           "Control"
         ]
@@ -2404,6 +2543,91 @@
           }
         },
         "summary": "Lists the peers and the name of this worker.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/ListRepositories": {
+      "post": {
+        "description": "Lists the repositories with the jobs that work on them.\n\nJSON-RPC 2.0 call of `Control.ListRepositories`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.ListRepositories",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.ListRepositories",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.ListRepositories"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.ListRepositoriesRequest"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.ListRepositoriesResponse"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Lists the repositories with the jobs that work on them.",
         "tags": [
           "Control"
         ]
@@ -3424,6 +3648,91 @@
           }
         },
         "summary": "Creates a peer or replaces it.",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/Control/SetRepository": {
+      "post": {
+        "description": "Creates a repository or replaces its settings. The data of the repository itself is not touched.\n\nJSON-RPC 2.0 call of `Control.SetRepository`. The URL path only identifies the operation; the method is taken from the `method` member of the request body.",
+        "operationId": "backup.api.v1.Control.SetRepository",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Control.SetRepository",
+                "params": {}
+              },
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "method": {
+                    "const": "Control.SetRepository"
+                  },
+                  "params": {
+                    "$ref": "#/components/schemas/backup.api.v1.Repository"
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/xrpc.Error"
+                    },
+                    "id": {
+                      "description": "Correlates the response with the request. A request without id is a notification and gets no response.",
+                      "type": [
+                        "string",
+                        "integer"
+                      ]
+                    },
+                    "jsonrpc": {
+                      "const": "2.0"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/backup.api.v1.Repository"
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response with either `result` or `error`."
+          },
+          "default": {
+            "description": "Error"
+          }
+        },
+        "summary": "Creates a repository or replaces its settings.",
         "tags": [
           "Control"
         ]

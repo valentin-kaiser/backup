@@ -15,7 +15,7 @@ var prefixes = []string{"Control.", "Control/", "backup.api.v1.Control.", "backu
 // reads are the methods of the control API that only look at things. They are not recorded in the audit log.
 var reads = map[string]bool{
 	"GetStatus": true, "ListRuns": true, "GetRun": true, "ListSnapshots": true, "ListFiles": true, "GetStats": true,
-	"Watch": true, "ListSecrets": true, "ListPeers": true, "GetSyncServe": true, "TestPeer": true, "GetNotifications": true,
+	"Watch": true, "ListSecrets": true, "ListRepositories": true, "ListPeers": true, "GetSyncServe": true, "TestPeer": true, "GetNotifications": true,
 }
 
 // field names a parameter of a call by its protobuf field number, which is how the parameters travel.
@@ -38,14 +38,17 @@ var changes = map[string]spec{
 	"DeleteJob": {"delete_job", []field{{"1", "job"}}},
 	"CreateJob": {"create_job", jobFields},
 	"UpdateJob": {"update_job", jobFields},
-	// RestoreRequest: snapshot 1, target 2, include 3, job 4.
-	"Restore": {"restore", []field{{"4", "job"}, {"1", "snapshot"}, {"2", "to"}, {"3", "paths"}}},
+	// RestoreRequest: snapshot 1, target 2, include 3, job 4, repository 5.
+	"Restore": {"restore", []field{{"4", "job"}, {"5", "repository"}, {"1", "snapshot"}, {"2", "to"}, {"3", "paths"}}},
 	// The value (field 2) of a secret is never read. Field 3 only says whether it was generated.
 	"SetSecret":                {"set_secret", []field{{"1", "secret"}, {"3", "generated"}}},
 	"ChangeRepositoryPassword": {"change_repository_password", []field{{"1", "secret"}, {"3", "generated"}}},
 	"DeleteSecret":             {"delete_secret", []field{{"1", "secret"}}},
 	"ResyncJob":                {"resync_job", []field{{"1", "job"}}},
 	"DeletePeer":               {"delete_peer", []field{{"1", "peer"}}},
+	// Repository: name 1, path 2 (credentials in it are removed), password secret 3, mount path 4, mount marker 5, restore root 6.
+	"SetRepository":    {"set_repository", []field{{"1", "repository"}, {"2", "path"}, {"3", "password secret"}, {"4", "mount path"}, {"5", "mount marker"}, {"6", "restore root"}}},
+	"DeleteRepository": {"delete_repository", []field{{"1", "repository"}}},
 	// Peer: name 1, url 2, username 3, password secret 5, api url 7, api password secret 9. Password files are left out.
 	"SetPeer": {"set_peer", []field{{"1", "peer"}, {"2", "url"}, {"3", "username"}, {"5", "password secret"}, {"7", "api url"}, {"9", "api password secret"}}},
 	// SyncServe: enabled 1, path 2, address 3, port 4, username 5, password secret 7.
@@ -59,10 +62,9 @@ var changes = map[string]spec{
 }
 
 // jobFields are the fields of a JobDefinition worth recording: name 1, type 2, enabled 3, schedule 4, source 8,
-// repository 9 (credentials in its address are removed), password file 10, worker 11, password secret 12. The arguments
-// (5) are left out, they can hold credentials.
+// repository 9 (the name of the repository). The arguments (5) are left out, they can hold credentials.
 var jobFields = []field{{"1", "name"}, {"2", "type"}, {"3", "enabled"}, {"4", "schedule"}, {"8", "source"},
-	{"9", "repository"}, {"10", "password file"}, {"11", "worker"}, {"12", "password secret"}, {"13", "path1"}, {"14", "path2"},
+	{"9", "repository"}, {"13", "path1"}, {"14", "path2"},
 	{"15", "conflict"}, {"16", "conflict loser"}, {"17", "max delete pct"}, {"18", "check access"}, {"19", "owner"}, {"20", "force"}, {"21", "engine"}}
 
 // Known reports whether the method belongs to the control API. The exact spelling is required: anything else the

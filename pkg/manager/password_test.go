@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -119,14 +120,33 @@ func (s secretMap) Get(name string) (string, error) {
 	return "", errors.New("secret not found: " + name)
 }
 
-func secretJob(name, repo, secret string) config.Job {
-	return config.Job{Name: name, Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: repo, PasswordSecret: secret}
+// jobSpec is a job together with the repository it works on.
+type jobSpec struct {
+	job  config.Job
+	repo config.Repository
 }
 
-func secretManager(t *testing.T, f *fakeRestic, secrets Secrets, jobs ...config.Job) *Manager {
+// secretJob is a backup job on the repository at path repo, which takes its password from the secret.
+func secretJob(name, repo, secret string) jobSpec {
+	repoName := strings.ReplaceAll(strings.Trim(repo, "/"), "/", "-")
+	return jobSpec{
+		job:  config.Job{Name: name, Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: repoName, Source: "/src"},
+		repo: config.Repository{Name: repoName, Path: repo, PasswordSecret: secret},
+	}
+}
+
+func secretManager(t *testing.T, f *fakeRestic, secrets Secrets, specs ...jobSpec) *Manager {
 	t.Helper()
 	m := newManager(t, "fail")
-	c := m.cfg()
+	var repos []config.Repository
+	var jobs []config.Job
+	for _, s := range specs {
+		jobs = append(jobs, s.job)
+		if !slices.ContainsFunc(repos, func(r config.Repository) bool { return r.Name == s.repo.Name }) {
+			repos = append(repos, s.repo)
+		}
+	}
+	c := portalOf(m.cfg(), repos...)
 	c.Jobs = jobs
 	m.cfg = func() config.Config { return c }
 	m.local = f
@@ -171,15 +191,16 @@ func TestWithoutASecretStoreASecretJobFails(t *testing.T) {
 
 func TestSecretUsers(t *testing.T) {
 	m := secretManager(t, newFakeRestic(nil), secretMap{}, secretJob("a", "/r1", "s"), secretJob("b", "/r2", "s"), secretJob("c", "/r3", "other"))
-	jobs, global := m.SecretUsers("s")
-	if len(jobs) != 2 || jobs[0] != "a" || jobs[1] != "b" || global {
-		t.Errorf("users = %v, %v", jobs, global)
+	repos, others := m.SecretUsers("s")
+	if len(repos) != 2 || repos[0] != "r1" || repos[1] != "r2" || len(others) != 0 {
+		t.Errorf("users = %v, %v", repos, others)
 	}
 	c := m.cfg()
-	c.PasswordSecret = "s"
+	c.Peers = []config.Peer{{Name: "west", PasswordSecret: "s"}}
+	c.SyncServe.PasswordSecret = "s"
 	m.cfg = func() config.Config { return c }
-	if _, global := m.SecretUsers("s"); !global {
-		t.Error("the global secret must be reported")
+	if _, others := m.SecretUsers("s"); len(others) != 2 || others[0] != "peer:west" || others[1] != "syncserve" {
+		t.Errorf("peers and the sync server must be reported: %v", others)
 	}
 }
 

@@ -100,10 +100,7 @@ func (c *client) secret(args []string) error {
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "NAME\tUPDATED\tUSED BY")
 		for _, s := range res.Secrets {
-			users := strings.Join(s.Jobs, ", ")
-			if s.DefaultPassword {
-				users = strings.TrimPrefix(users+", (default)", ", ")
-			}
+			users := strings.Join(append(s.Repositories, s.OtherUsers...), ", ")
 			if users == "" {
 				users = "-"
 			}

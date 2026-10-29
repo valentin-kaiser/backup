@@ -27,6 +27,9 @@ type ControlServer interface {
 	UnlockJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	PauseJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	ResumeJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
+	ListRepositories(ctx context.Context, in *ListRepositoriesRequest) (*ListRepositoriesResponse, error)
+	SetRepository(ctx context.Context, in *Repository) (*Repository, error)
+	DeleteRepository(ctx context.Context, in *RepositoryRequest) (*emptypb.Empty, error)
 	ListSnapshots(ctx context.Context, in *ListSnapshotsRequest) (*ListSnapshotsResponse, error)
 	ListFiles(ctx context.Context, in *ListFilesRequest) (*ListFilesResponse, error)
 	GetStats(ctx context.Context, in *GetStatsRequest) (*RepositoryStats, error)
@@ -101,6 +104,18 @@ func (UnimplementedControlServer) PauseJob(ctx context.Context, in *JobRequest) 
 
 func (UnimplementedControlServer) ResumeJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error) {
 	return nil, errors.New("method Control.ResumeJob not implemented")
+}
+
+func (UnimplementedControlServer) ListRepositories(ctx context.Context, in *ListRepositoriesRequest) (*ListRepositoriesResponse, error) {
+	return nil, errors.New("method Control.ListRepositories not implemented")
+}
+
+func (UnimplementedControlServer) SetRepository(ctx context.Context, in *Repository) (*Repository, error) {
+	return nil, errors.New("method Control.SetRepository not implemented")
+}
+
+func (UnimplementedControlServer) DeleteRepository(ctx context.Context, in *RepositoryRequest) (*emptypb.Empty, error) {
+	return nil, errors.New("method Control.DeleteRepository not implemented")
 }
 
 func (UnimplementedControlServer) ListSnapshots(ctx context.Context, in *ListSnapshotsRequest) (*ListSnapshotsResponse, error) {
@@ -221,6 +236,9 @@ type ControlClientDefinition interface {
 	UnlockJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	PauseJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
 	ResumeJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error)
+	ListRepositories(ctx context.Context, in *ListRepositoriesRequest) (*ListRepositoriesResponse, error)
+	SetRepository(ctx context.Context, in *Repository) (*Repository, error)
+	DeleteRepository(ctx context.Context, in *RepositoryRequest) (*emptypb.Empty, error)
 	ListSnapshots(ctx context.Context, in *ListSnapshotsRequest) (*ListSnapshotsResponse, error)
 	ListFiles(ctx context.Context, in *ListFilesRequest) (*ListFilesResponse, error)
 	GetStats(ctx context.Context, in *GetStatsRequest) (*RepositoryStats, error)
@@ -359,6 +377,33 @@ func (c *ControlClient) PauseJob(ctx context.Context, in *JobRequest) (*emptypb.
 func (c *ControlClient) ResumeJob(ctx context.Context, in *JobRequest) (*emptypb.Empty, error) {
 	out := &emptypb.Empty{}
 	err := c.client.Call(ctx, "backup.api.v1.Control/ResumeJob", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) ListRepositories(ctx context.Context, in *ListRepositoriesRequest) (*ListRepositoriesResponse, error) {
+	out := &ListRepositoriesResponse{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/ListRepositories", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) SetRepository(ctx context.Context, in *Repository) (*Repository, error) {
+	out := &Repository{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/SetRepository", in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ControlClient) DeleteRepository(ctx context.Context, in *RepositoryRequest) (*emptypb.Empty, error) {
+	out := &emptypb.Empty{}
+	err := c.client.Call(ctx, "backup.api.v1.Control/DeleteRepository", in, out)
 	if err != nil {
 		return nil, err
 	}

@@ -91,10 +91,11 @@ func secretService(t *testing.T, repo *repoRestic) (*Service, *secrets.Store) {
 		t.Fatal(err)
 	}
 	c := *config.Default()
-	c.Mode, c.PasswordFile = config.ModePortal, ""
+	c.Mode = config.ModePortal
+	c.Repository, c.PasswordFile, c.Source, c.RestoreRoot = "", "", "", ""
+	c.Repositories = []config.Repository{{Name: "photos", Path: "/repo", PasswordSecret: "photos"}}
 	c.API.PasswordFile = "/run/secrets/portal_password"
-	c.Source = "/src"
-	c.Jobs = []config.Job{{Name: "photos", Type: config.TypeBackup, Enabled: true, Schedule: "0 1 * * *", Repository: "/repo", PasswordSecret: "photos"}}
+	c.Jobs = []config.Job{{Name: "photos", Type: config.TypeBackup, Enabled: true, Schedule: "0 1 * * *", Repository: "photos", Source: "/src"}}
 	var mu sync.Mutex
 	m := manager.New(func() config.Config { mu.Lock(); defer mu.Unlock(); return c }, repo, st)
 	m.SetUpdater(func(change func(*config.Config) error) error {
@@ -148,7 +149,7 @@ func TestSettingAndListingSecrets(t *testing.T) {
 		t.Errorf("stored %q", v)
 	}
 	list, err := s.ListSecrets(ctx, &pb.ListSecretsRequest{})
-	if err != nil || len(list.Secrets) != 1 || len(list.Secrets[0].Jobs) != 1 || list.Secrets[0].Jobs[0] != "photos" {
+	if err != nil || len(list.Secrets) != 1 || len(list.Secrets[0].Repositories) != 1 || list.Secrets[0].Repositories[0] != "photos" {
 		t.Fatalf("list = %v, %v", list, err)
 	}
 	for name, value := range map[string]string{"Bad Name": "x", "ok": "", "ok2": "two\nlines"} {
@@ -192,18 +193,18 @@ func TestASecretInUseCannotBeDeleted(t *testing.T) {
 	}
 }
 
-func TestJobsCanOnlyUseSecretsThatExist(t *testing.T) {
+func TestRepositoriesCanOnlyUseSecretsThatExist(t *testing.T) {
 	s, store := secretService(t, &repoRestic{})
-	def := &pb.JobDefinition{Name: "docs", Type: "backup", Enabled: true, Schedule: "0 3 * * *", PasswordSecret: "docs"}
-	if _, err := s.CreateJob(context.Background(), def); err == nil || !strings.Contains(err.Error(), "does not exist") {
+	repo := &pb.Repository{Name: "docs", Path: "/repo/docs", PasswordSecret: "docs"}
+	if _, err := s.SetRepository(context.Background(), repo); err == nil || !strings.Contains(err.Error(), "does not exist") {
 		t.Fatalf("err = %v", err)
 	}
 	_, _ = store.Set("docs", "pw")
-	if _, err := s.CreateJob(context.Background(), def); err != nil {
+	if _, err := s.SetRepository(context.Background(), repo); err != nil {
 		t.Fatalf("with the secret: %v", err)
 	}
-	def.PasswordSecret = "typo"
-	if _, err := s.UpdateJob(context.Background(), def); err == nil {
+	repo.PasswordSecret = "typo"
+	if _, err := s.SetRepository(context.Background(), repo); err == nil {
 		t.Error("an update with an unknown secret must fail")
 	}
 }

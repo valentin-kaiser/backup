@@ -13,7 +13,11 @@ func TestDefaultIsValid(t *testing.T) {
 
 func TestValidateJobs(t *testing.T) {
 	job := func(name, typ string) Job {
-		return Job{Name: name, Type: typ, Enabled: true, Schedule: "0 0 * * *"}
+		j := Job{Name: name, Type: typ, Enabled: true, Schedule: "0 0 * * *", Repository: "main"}
+		if typ == TypeBackup {
+			j.Source = "/src"
+		}
+		return j
 	}
 	tests := []struct {
 		name string
@@ -27,10 +31,15 @@ func TestValidateJobs(t *testing.T) {
 		{"bad name", []Job{job("My Job", TypeBackup)}, false},
 		{"empty name", []Job{job("", TypeBackup)}, false},
 		{"bad type", []Job{job("a", "mirror")}, false},
-		{"no schedule", []Job{{Name: "a", Type: TypeBackup, Enabled: true}}, false},
-		{"disabled without schedule", []Job{{Name: "a", Type: TypeBackup}}, true},
-		{"source on forget", []Job{{Name: "a", Type: TypeForget, Source: "/x"}}, false},
-		{"negative timeout", []Job{{Name: "a", Type: TypeBackup, TimeoutMinutes: -1}}, false},
+		{"no schedule", []Job{{Name: "a", Type: TypeBackup, Enabled: true, Repository: "main", Source: "/src"}}, false},
+		{"disabled without schedule", []Job{{Name: "a", Type: TypeBackup, Repository: "main", Source: "/src"}}, true},
+		{"source on forget", []Job{{Name: "a", Type: TypeForget, Repository: "main", Source: "/x"}}, false},
+		{"negative timeout", []Job{{Name: "a", Type: TypeBackup, Repository: "main", Source: "/src", TimeoutMinutes: -1}}, false},
+		{"no repository", []Job{{Name: "a", Type: TypeBackup, Source: "/src"}}, false},
+		{"unknown repository", []Job{{Name: "a", Type: TypeForget, Repository: "nope"}}, false},
+		{"backup without source", []Job{{Name: "a", Type: TypeBackup, Repository: "main"}}, false},
+		{"relative source", []Job{{Name: "a", Type: TypeBackup, Repository: "main", Source: "src"}}, false},
+		{"mounts on a backup job", []Job{{Name: "a", Type: TypeBackup, Repository: "main", Source: "/src", Mounts: []MountCheck{{Path: "/x"}}}}, false},
 	}
 	for _, tt := range tests {
 		c := portalConfig()
@@ -41,19 +50,49 @@ func TestValidateJobs(t *testing.T) {
 	}
 }
 
-func TestForJobAppliesOverrides(t *testing.T) {
-	c := Default()
-	c.Repository, c.PasswordFile, c.Source = "/repo", "/pw", "/src"
+func TestForJobResolvesTheRepository(t *testing.T) {
+	c := portalConfig()
+	c.Repositories = append(c.Repositories, Repository{
+		Name: "usb", Path: "/backup/usb/vw", PasswordSecret: "vw",
+		Mount: MountCheck{Path: "/backup/usb", MarkerFile: ".mounted"}, RestoreRoot: "/restore/vw",
+	})
 
-	got := c.ForJob(Job{Name: "photos", Type: TypeBackup, Repository: "/other", PasswordFile: "/pw2", Source: "/photos"})
-	if got.Repository != "/other" || got.PasswordFile != "/pw2" || got.Source != "/photos" {
-		t.Errorf("overrides not applied: %+v", got)
+	got := c.ForJob(Job{Name: "vw", Type: TypeBackup, Repository: "usb", Source: "/vw"})
+	if got.Repository != "/backup/usb/vw" || got.PasswordSecret != "vw" || got.Source != "/vw" || got.RestoreRoot != "/restore/vw" {
+		t.Errorf("repository not applied: %+v", got)
 	}
-	if got := c.ForJob(Job{Name: "x", Type: TypeCheck}); got.Repository != "/repo" || got.PasswordFile != "/pw" || got.Source != "/src" {
-		t.Errorf("defaults not kept: %+v", got)
+	if g := got.MountGuards(); len(g) != 1 || g[0].Path != "/backup/usb" || g[0].MarkerFile != ".mounted" {
+		t.Errorf("the mount guard of the repository must apply: %+v", g)
 	}
-	if c.Repository != "/repo" {
+	main := c.ForJob(Job{Name: "x", Type: TypeCheck, Repository: "main"})
+	if main.Repository != "/repo/main" || main.PasswordSecret != "main" || main.RestoreRoot != DefaultRestoreRoot || len(main.MountGuards()) != 0 {
+		t.Errorf("the repositories must not leak into each other: %+v", main)
+	}
+	if c.Repository != "" || c.PasswordSecret != "" {
 		t.Error("the original configuration must not change")
+	}
+}
+
+func TestForJobOfSyncUsesItsOwnMounts(t *testing.T) {
+	c := portalConfig()
+	got := c.ForJob(Job{Type: TypeSync, Mounts: []MountCheck{{Path: "/a"}, {Path: "/b", MarkerFile: ".m"}}})
+	if g := got.MountGuards(); len(g) != 2 || g[1].MarkerFile != ".m" {
+		t.Errorf("guards = %+v", g)
+	}
+}
+
+func TestStandaloneHasOneImplicitRepository(t *testing.T) {
+	c := *Default()
+	c.Repository, c.RestoreRoot = "/repo", "/restore"
+	repos := c.Repos()
+	if len(repos) != 1 || repos[0].Name != DefaultRepository || repos[0].Path != "/repo" {
+		t.Fatalf("repos = %+v", repos)
+	}
+	if got := c.ForJob(Job{Type: TypeBackup}); got.Repository != "/repo" || got.PasswordFile != c.PasswordFile {
+		t.Errorf("standalone jobs use the top level settings: %+v", got)
+	}
+	if got := c.JobsOf(DefaultRepository); len(got) != 3 {
+		t.Errorf("the three default jobs work on the implicit repository, got %v", got)
 	}
 }
 
@@ -67,46 +106,46 @@ func TestJobLookup(t *testing.T) {
 	}
 }
 
-func TestPasswordSecretPrecedence(t *testing.T) {
-	g := *Default()
-	g.PasswordFile = "/global/file"
-	g.PasswordSecret = "global-secret"
-
-	if c := g.ForJob(Job{}); c.PasswordSecret != "global-secret" || c.PasswordFile != "/global/file" {
-		t.Errorf("a job without its own password inherits both: %+v", c)
-	}
-	if c := g.ForJob(Job{PasswordSecret: "mine"}); c.PasswordSecret != "mine" || c.PasswordFile != "" {
-		t.Errorf("the secret of the job replaces the global password: %q %q", c.PasswordSecret, c.PasswordFile)
-	}
-	if c := g.ForJob(Job{PasswordFile: "/mine"}); c.PasswordFile != "/mine" || c.PasswordSecret != "" {
-		t.Errorf("the file of the job replaces the global secret: %q %q", c.PasswordFile, c.PasswordSecret)
-	}
-}
-
-func TestPasswordSecretValidation(t *testing.T) {
-	c := portalConfig()
-	c.Jobs = []Job{{Name: "a", Type: TypeBackup, PasswordSecret: "ok_name-1"}}
-	if err := c.Validate(); err != nil {
+func TestRepositoryValidation(t *testing.T) {
+	if err := func() error { c := portalConfig(); return c.Validate() }(); err != nil {
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*Config){
-		"bad job secret":    func(c *Config) { c.Jobs[0].PasswordSecret = "Bad Name" },
-		"file and secret":   func(c *Config) { c.Jobs[0].PasswordFile = "/f" },
-		"bad global secret": func(c *Config) { c.PasswordSecret = "../etc" },
+		"bad name":   func(c *Config) { c.Repositories[0].Name = "Bad Name" },
+		"empty name": func(c *Config) { c.Repositories[0].Name = "" },
+		"duplicate name": func(c *Config) {
+			c.Repositories = append(c.Repositories, Repository{Name: "main", Path: "/other", PasswordSecret: "x"})
+		},
+		"duplicate path": func(c *Config) {
+			c.Repositories = append(c.Repositories, Repository{Name: "two", Path: "/repo/main", PasswordSecret: "x"})
+		},
+		"no path":             func(c *Config) { c.Repositories[0].Path = " " },
+		"no secret":           func(c *Config) { c.Repositories[0].PasswordSecret = "" },
+		"bad secret":          func(c *Config) { c.Repositories[0].PasswordSecret = "../etc" },
+		"relative mount":      func(c *Config) { c.Repositories[0].Mount.Path = "mnt" },
+		"marker without path": func(c *Config) { c.Repositories[0].Mount.MarkerFile = ".mounted" },
+		"relative restore":    func(c *Config) { c.Repositories[0].RestoreRoot = "restore" },
+		"global repository":   func(c *Config) { c.Repository = "/repo" },
+		"global password":     func(c *Config) { c.PasswordFile = "/pw" },
+		"global source":       func(c *Config) { c.Source = "/src" },
+		"global mount":        func(c *Config) { c.MountCheck.Path = "/mnt" },
+		"global mounts":       func(c *Config) { c.MountChecks = []MountCheck{{Path: "/mnt"}} },
+		"global restore":      func(c *Config) { c.RestoreRoot = "/restore" },
 	} {
-		n := portalConfig()
-		n.Jobs = []Job{{Name: "a", Type: TypeBackup, PasswordSecret: "ok_name-1"}}
-		mutate(&n)
-		if n.Validate() == nil {
+		c := portalConfig()
+		mutate(&c)
+		if c.Validate() == nil {
 			t.Errorf("%s must be refused", name)
 		}
 	}
 }
 
-// portalConfig is a valid portal mode configuration whose jobs take their password from the secret "main".
+// portalConfig is a valid portal mode configuration with one repository, "main", that uses the secret "main".
 func portalConfig() Config {
 	c := *Default()
-	c.Mode, c.PasswordFile, c.PasswordSecret = ModePortal, "", "main"
+	c.Mode = ModePortal
+	c.Repository, c.PasswordFile, c.PasswordSecret, c.Source, c.RestoreRoot, c.Jobs = "", "", "", "", "", nil
+	c.Repositories = []Repository{{Name: "main", Path: "/repo/main", PasswordSecret: "main"}}
 	c.API.PasswordFile = "/run/secrets/portal_password"
 	return c
 }
@@ -121,20 +160,14 @@ func TestStandaloneIsTheDefaultMode(t *testing.T) {
 	}
 }
 
-func TestPortalDefaultHasTheDefaultJobsAndASecret(t *testing.T) {
-	standalone := Default()
+func TestPortalDefaultStartsEmpty(t *testing.T) {
 	t.Setenv("CONTROL_MODE", ModePortal)
 	c := Default()
-	if !c.Portal() || c.PasswordFile != "" || c.PasswordSecret != "backup" {
-		t.Errorf("portal mode takes its password from a secret: %+v", c)
+	if !c.Portal() || len(c.Jobs) != 0 || len(c.Repositories) != 0 {
+		t.Errorf("portal mode starts without repositories and jobs: %+v", c)
 	}
-	if len(c.Jobs) != 3 || len(c.Jobs) != len(standalone.Jobs) {
-		t.Fatalf("portal mode is seeded with the default jobs: %+v", c.Jobs)
-	}
-	for i, j := range c.Jobs {
-		if j != standalone.Jobs[i] {
-			t.Errorf("job %s differs from the standalone job: %+v", j.Name, j)
-		}
+	if c.Repository != "" || c.PasswordFile != "" || c.Source != "" || c.RestoreRoot != "" {
+		t.Errorf("nothing is global in portal mode: %+v", c)
 	}
 	if err := c.Validate(); err != nil {
 		t.Errorf("the default portal configuration must be valid: %v", err)
@@ -147,12 +180,10 @@ func TestStandaloneLimits(t *testing.T) {
 		jobs []Job
 		ok   bool
 	}{
-		"one per type":     {[]Job{job("a", TypeBackup), job("b", TypeForget), job("c", TypeCheck)}, true},
-		"two backups":      {[]Job{job("a", TypeBackup), job("b", TypeBackup)}, false},
-		"own repository":   {[]Job{{Name: "a", Type: TypeBackup, Repository: "/other"}}, false},
-		"own source":       {[]Job{{Name: "a", Type: TypeBackup, Source: "/other"}}, false},
-		"own password":     {[]Job{{Name: "a", Type: TypeBackup, PasswordFile: "/pw"}}, false},
-		"secret reference": {[]Job{{Name: "a", Type: TypeBackup, PasswordSecret: "s"}}, false},
+		"one per type":   {[]Job{job("a", TypeBackup), job("b", TypeForget), job("c", TypeCheck)}, true},
+		"two backups":    {[]Job{job("a", TypeBackup), job("b", TypeBackup)}, false},
+		"own repository": {[]Job{{Name: "a", Type: TypeBackup, Repository: "main"}}, false},
+		"own source":     {[]Job{{Name: "a", Type: TypeBackup, Source: "/other"}}, false},
 	} {
 		c := Default()
 		c.Jobs = tt.jobs
@@ -163,7 +194,12 @@ func TestStandaloneLimits(t *testing.T) {
 	c := Default()
 	c.PasswordSecret = "s"
 	if c.Validate() == nil {
-		t.Error("a global secret needs portal mode")
+		t.Error("a secret needs portal mode")
+	}
+	c = Default()
+	c.Repositories = []Repository{{Name: "a", Path: "/a", PasswordSecret: "s"}}
+	if c.Validate() == nil {
+		t.Error("repositories need portal mode")
 	}
 	c = Default()
 	c.Mode = "cluster"
@@ -172,21 +208,32 @@ func TestStandaloneLimits(t *testing.T) {
 	}
 }
 
-func TestPortalRequiresSecrets(t *testing.T) {
-	job := Job{Name: "a", Type: TypeBackup, Enabled: true, Schedule: "0 0 * * *"}
-	for name, mutate := range map[string]func(*Config){
-		"inherited secret": func(c *Config) { c.Jobs = []Job{job} },
-		"own secret":       func(c *Config) { c.PasswordSecret = ""; j := job; j.PasswordSecret = "own"; c.Jobs = []Job{j} },
-		"no secret":        func(c *Config) { c.PasswordSecret = ""; c.Jobs = []Job{job} },
-		"job file":         func(c *Config) { j := job; j.PasswordFile = "/pw"; c.Jobs = []Job{j} },
-		"global file":      func(c *Config) { c.PasswordFile = "/pw" },
-	} {
-		c := portalConfig()
-		mutate(&c)
-		wantOK := name == "inherited secret" || name == "own secret"
-		if err := c.Validate(); (err == nil) != wantOK {
-			t.Errorf("%s: err = %v", name, err)
-		}
+func TestPortalSyncJobMounts(t *testing.T) {
+	abs := func(p string) string { a, _ := filepath.Abs(p); return a }
+	c := portalConfig()
+	c.Jobs = []Job{{Name: "s", Type: TypeSync, Path1: abs("/a"), Path2: abs("/b"), Mounts: []MountCheck{{Path: abs("/a"), MarkerFile: ".m"}}}}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	c.Jobs[0].Mounts = []MountCheck{{Path: "rel"}}
+	if c.Validate() == nil {
+		t.Error("a relative mount path must be refused")
+	}
+}
+
+func TestJobsOf(t *testing.T) {
+	c := portalConfig()
+	c.Repositories = append(c.Repositories, Repository{Name: "other", Path: "/repo/other", PasswordSecret: "o"})
+	c.Jobs = []Job{
+		{Name: "a", Type: TypeBackup, Repository: "main", Source: "/s"},
+		{Name: "b", Type: TypeForget, Repository: "main"},
+		{Name: "s", Type: TypeSync, Path1: "/a", Path2: "/b"},
+	}
+	if got := c.JobsOf("main"); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("jobs of main = %v", got)
+	}
+	if c.UsedByJobs("other") {
+		t.Error("other has no jobs")
 	}
 }
 
@@ -220,7 +267,6 @@ func TestValidateSyncJobs(t *testing.T) {
 		{"force", sync(func(j *Job) { j.Force = true }), true},
 		{"force on a backup job", Job{Name: "x", Type: TypeBackup, Force: true}, false},
 		{"repository", sync(func(j *Job) { j.Repository = "/repo" }), false},
-		{"password secret", sync(func(j *Job) { j.PasswordSecret = "main" }), false},
 		{"paths on a backup job", Job{Name: "x", Type: TypeBackup, Path1: a}, false},
 	}
 	for _, mode := range []string{ModeStandalone, ModePortal} {

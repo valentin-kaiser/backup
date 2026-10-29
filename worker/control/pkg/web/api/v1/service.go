@@ -92,8 +92,7 @@ func (s *Service) GetStatus(context.Context, *pb.GetStatusRequest) (*pb.ControlS
 		jobs = append(jobs, jobToProto(j))
 	}
 	c := s.m.Config()
-	defaults := &pb.Defaults{Source: c.Source, Repository: c.Repository, PasswordFile: c.PasswordFile, RestoreRoot: c.RestoreRoot, PasswordSecret: c.PasswordSecret}
-	return &pb.ControlStatus{Version: version.String(), Healthy: ok, Problems: problems, Jobs: jobs, Defaults: defaults, WorkerName: c.Worker()}, nil
+	return &pb.ControlStatus{Version: version.String(), Healthy: ok, Problems: problems, Jobs: jobs, Repositories: s.repositories(), WorkerName: c.Worker()}, nil
 }
 
 // ListRuns lists the run history.
@@ -121,9 +120,6 @@ func (s *Service) GetRun(_ context.Context, in *pb.GetRunRequest) (*pb.Run, erro
 
 // CreateJob adds a job.
 func (s *Service) CreateJob(_ context.Context, in *pb.JobDefinition) (*pb.Job, error) {
-	if err := s.checkSecretRef(in.GetPasswordSecret()); err != nil {
-		return nil, err
-	}
 	st, err := s.m.CreateJob(definitionFromProto(in))
 	if err != nil {
 		return nil, fail(err)
@@ -133,9 +129,6 @@ func (s *Service) CreateJob(_ context.Context, in *pb.JobDefinition) (*pb.Job, e
 
 // UpdateJob changes a job.
 func (s *Service) UpdateJob(_ context.Context, in *pb.JobDefinition) (*pb.Job, error) {
-	if err := s.checkSecretRef(in.GetPasswordSecret()); err != nil {
-		return nil, err
-	}
 	st, err := s.m.UpdateJob(definitionFromProto(in))
 	if err != nil {
 		return nil, fail(err)
@@ -194,10 +187,10 @@ func (s *Service) ResumeJob(_ context.Context, in *pb.JobRequest) (*emptypb.Empt
 
 // ListSnapshots lists the restic snapshots, newest first.
 func (s *Service) ListSnapshots(ctx context.Context, in *pb.ListSnapshotsRequest) (*pb.ListSnapshotsResponse, error) {
-	if err := s.knownJob(in.GetJob()); err != nil {
+	if err := s.knownTarget(in.GetRepository(), in.GetJob()); err != nil {
 		return nil, err
 	}
-	raw, err := s.m.Snapshots(ctx, in.GetJob())
+	raw, err := s.m.Snapshots(ctx, in.GetRepository(), in.GetJob())
 	if err != nil {
 		return nil, repositoryError(err)
 	}
@@ -210,11 +203,11 @@ func (s *Service) ListSnapshots(ctx context.Context, in *pb.ListSnapshotsRequest
 
 // ListFiles lists the entries directly inside a directory of a snapshot.
 func (s *Service) ListFiles(ctx context.Context, in *pb.ListFilesRequest) (*pb.ListFilesResponse, error) {
-	if err := s.knownJob(in.GetJob()); err != nil {
+	if err := s.knownTarget(in.GetRepository(), in.GetJob()); err != nil {
 		return nil, err
 	}
 	dir := path.Clean("/" + in.GetPath())
-	raw, err := s.m.Listing(ctx, in.GetJob(), in.GetSnapshot(), dir)
+	raw, err := s.m.Listing(ctx, in.GetRepository(), in.GetJob(), in.GetSnapshot(), dir)
 	if err != nil {
 		return nil, repositoryError(err)
 	}
@@ -227,10 +220,10 @@ func (s *Service) ListFiles(ctx context.Context, in *pb.ListFilesRequest) (*pb.L
 
 // GetStats returns the repository statistics.
 func (s *Service) GetStats(ctx context.Context, in *pb.GetStatsRequest) (*pb.RepositoryStats, error) {
-	if err := s.knownJob(in.GetJob()); err != nil {
+	if err := s.knownTarget(in.GetRepository(), in.GetJob()); err != nil {
 		return nil, err
 	}
-	raw, err := s.m.Stats(ctx, in.GetJob())
+	raw, err := s.m.Stats(ctx, in.GetRepository(), in.GetJob())
 	if err != nil {
 		return nil, repositoryError(err)
 	}
@@ -241,8 +234,16 @@ func (s *Service) GetStats(ctx context.Context, in *pb.GetStatsRequest) (*pb.Rep
 	return stats, nil
 }
 
-// knownJob rejects job names that are not configured, an empty name selects the global repository.
-func (s *Service) knownJob(job string) error {
+// knownTarget rejects repository and job names that are not configured. Both empty selects the only repository.
+func (s *Service) knownTarget(repository, job string) error {
+	if repository != "" {
+		for _, r := range s.m.Repositories() {
+			if r.Name == repository {
+				return nil
+			}
+		}
+		return xrpc.NewError(xrpc.CodeInvalidParams, fmt.Sprintf("unknown repository %q", repository))
+	}
 	if job != "" && !s.m.HasJob(job) {
 		return xrpc.NewError(xrpc.CodeInvalidParams, fmt.Sprintf("unknown job %q", job))
 	}
@@ -257,7 +258,7 @@ func repositoryError(err error) error {
 
 // Restore starts a restore run.
 func (s *Service) Restore(_ context.Context, in *pb.RestoreRequest) (*pb.Run, error) {
-	r, err := s.m.Restore(in.GetJob(), in.GetSnapshot(), in.GetTarget(), in.GetInclude())
+	r, err := s.m.Restore(in.GetRepository(), in.GetJob(), in.GetSnapshot(), in.GetTarget(), in.GetInclude())
 	if err != nil {
 		return nil, fail(err)
 	}

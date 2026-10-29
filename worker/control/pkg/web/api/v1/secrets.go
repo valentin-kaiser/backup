@@ -41,12 +41,12 @@ func generatePassword() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// secretInfo describes a secret together with the jobs that use it.
+// secretInfo describes a secret together with the repositories and other users that use it.
 func (s *Service) secretInfo(m secrets.Meta) *pb.SecretInfo {
-	jobs, global := s.m.SecretUsers(m.Name)
+	repositories, others := s.m.SecretUsers(m.Name)
 	return &pb.SecretInfo{
 		Name: m.Name, CreateTime: timestamppb.New(m.Created), UpdateTime: timestamppb.New(m.Updated),
-		Jobs: jobs, DefaultPassword: global,
+		Repositories: repositories, OtherUsers: others,
 	}
 }
 
@@ -59,7 +59,7 @@ func (s *Service) metaOf(name string) (secrets.Meta, bool) {
 	return secrets.Meta{}, false
 }
 
-// checkSecretRef makes sure a job only refers to a secret that exists, so a typo is reported when saving and not
+// checkSecretRef makes sure a repository only refers to a secret that exists, so a typo is reported when saving and not
 // when the backup runs.
 func (s *Service) checkSecretRef(name string) error {
 	if name == "" {
@@ -173,12 +173,9 @@ func (s *Service) DeleteSecret(_ context.Context, in *pb.SecretRequest) (*emptyp
 	if err := s.secretsEnabled(); err != nil {
 		return nil, err
 	}
-	if jobs, global := s.m.SecretUsers(in.GetName()); len(jobs) > 0 || global {
-		users := strings.Join(jobs, ", ")
-		if global {
-			users = strings.TrimPrefix(users+", the default password", ", ")
-		}
-		return nil, xrpc.NewError(xrpc.CodeInvalidRequest, "the secret is still used by "+users+", move them to another password first")
+	if repositories, others := s.m.SecretUsers(in.GetName()); len(repositories) > 0 || len(others) > 0 {
+		users := strings.Join(append(repositories, others...), ", ")
+		return nil, xrpc.NewError(xrpc.CodeInvalidRequest, "the secret is still used by "+users+", move them to another secret first")
 	}
 	if err := s.secrets.Delete(in.GetName()); err != nil {
 		if errors.Is(err, secrets.ErrNotFound) {

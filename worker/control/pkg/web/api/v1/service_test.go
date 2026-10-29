@@ -56,14 +56,18 @@ func newService(t *testing.T) (*Service, *httptest.Server) {
 		t.Fatal(err)
 	}
 	c := *config.Default()
-	c.Mode, c.PasswordFile, c.PasswordSecret = config.ModePortal, "", "main"
+	c.Mode = config.ModePortal
+	c.Repository, c.PasswordFile, c.Source, c.RestoreRoot, c.Jobs = "", "", "", "", nil
+	c.Repositories = []config.Repository{
+		{Name: "main", Path: "/repo/main", PasswordSecret: "main"},
+		{Name: "photos", Path: "/repo/photos", PasswordSecret: "photos", RestoreRoot: "/restore/photos"},
+	}
 	c.API.PasswordFile = "/run/secrets/portal_password"
 	c.Nice = 0
-	c.Source = "/src"
 	c.SyncServe.Path, _ = filepath.Abs("/sync")
 	c.Jobs = []config.Job{
-		{Name: "backup", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *"},
-		{Name: "photos", Type: config.TypeBackup, Enabled: true, Schedule: "0 1 * * *", Repository: "/repo/photos"},
+		{Name: "backup", Type: config.TypeBackup, Enabled: true, Schedule: "0 0 * * *", Repository: "main", Source: "/src"},
+		{Name: "photos", Type: config.TypeBackup, Enabled: true, Schedule: "0 1 * * *", Repository: "photos", Source: "/src"},
 	}
 	var mu sync.Mutex
 	r := runner.Runner{Binary: os.Args[0], Prefix: []string{"-test.run=TestHelperProcess", "--"}}
@@ -144,14 +148,14 @@ func TestJobManagement(t *testing.T) {
 	c := newClient(t, srv)
 	ctx := context.Background()
 	def := func(name string) *pb.JobDefinition {
-		return &pb.JobDefinition{Name: name, Type: "backup", Enabled: true, Schedule: "15 2 * * *", Source: "/data", Repository: "/repo/data", Args: "--exclude-caches"}
+		return &pb.JobDefinition{Name: name, Type: "backup", Enabled: true, Schedule: "15 2 * * *", Source: "/data", Repository: "main", Args: "--exclude-caches"}
 	}
 
 	created, err := c.CreateJob(ctx, def("data"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created.Name != "data" || created.Definition.Repository != "/repo/data" || created.NextRunTime == nil {
+	if created.Name != "data" || created.Definition.Repository != "main" || created.NextRunTime == nil {
 		t.Errorf("created = %v", created)
 	}
 	st, _ := c.GetStatus(ctx, &pb.GetStatusRequest{})
@@ -162,8 +166,11 @@ func TestJobManagement(t *testing.T) {
 	if !slices.Equal(names, []string{"backup", "photos", "data", "restore"}) {
 		t.Errorf("jobs = %v", names)
 	}
-	if st.Defaults.Source != "/src" || st.Jobs[3].Definition != nil {
-		t.Errorf("defaults = %v, restore definition = %v", st.Defaults, st.Jobs[3].Definition)
+	if len(st.Repositories) != 2 || st.Repositories[0].Name != "main" || st.Repositories[1].RestoreRoot != "/restore/photos" || st.Jobs[3].Definition != nil {
+		t.Errorf("repositories = %v, restore definition = %v", st.Repositories, st.Jobs[3].Definition)
+	}
+	if jobs := st.Repositories[1].Jobs; len(jobs) != 1 || jobs[0] != "photos" {
+		t.Errorf("jobs of the photos repository = %v", jobs)
 	}
 
 	changed := def("data")
@@ -301,7 +308,7 @@ func TestSnapshotsAndStats(t *testing.T) {
 	_, srv := newService(t)
 	c := newClient(t, srv)
 
-	snaps, err := c.ListSnapshots(context.Background(), &pb.ListSnapshotsRequest{})
+	snaps, err := c.ListSnapshots(context.Background(), &pb.ListSnapshotsRequest{Repository: "main"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,8 +322,14 @@ func TestSnapshotsAndStats(t *testing.T) {
 	if _, err := c.ListSnapshots(context.Background(), &pb.ListSnapshotsRequest{Job: "nope"}); err == nil || !strings.Contains(err.Error(), "unknown job") {
 		t.Errorf("snapshots of an unknown job must say so, got %v", err)
 	}
+	if _, err := c.ListSnapshots(context.Background(), &pb.ListSnapshotsRequest{Repository: "nope"}); err == nil || !strings.Contains(err.Error(), "unknown repository") {
+		t.Errorf("snapshots of an unknown repository must say so, got %v", err)
+	}
+	if _, err := c.ListSnapshots(context.Background(), &pb.ListSnapshotsRequest{}); err == nil || !strings.Contains(err.Error(), "name one") {
+		t.Errorf("with two repositories one has to be named, got %v", err)
+	}
 
-	stats, err := c.GetStats(context.Background(), &pb.GetStatsRequest{})
+	stats, err := c.GetStats(context.Background(), &pb.GetStatsRequest{Repository: "main"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +341,7 @@ func TestSnapshotsAndStats(t *testing.T) {
 func TestRestoreRejectsTargetOutsideRoot(t *testing.T) {
 	_, srv := newService(t)
 	c := newClient(t, srv)
-	if _, err := c.Restore(context.Background(), &pb.RestoreRequest{Snapshot: "latest", Target: "/etc"}); err == nil {
+	if _, err := c.Restore(context.Background(), &pb.RestoreRequest{Repository: "main", Snapshot: "latest", Target: "/etc"}); err == nil {
 		t.Error("a restore outside of the restore root must fail")
 	}
 }
@@ -438,7 +451,7 @@ func TestListFilesRejectsBadInput(t *testing.T) {
 		}
 	}
 	// Paths are cleaned, a traversal cannot leave the snapshot and a missing slash is added.
-	if _, err := c.ListFiles(ctx, &pb.ListFilesRequest{Snapshot: "latest", Path: "../../etc"}); err != nil {
+	if _, err := c.ListFiles(ctx, &pb.ListFilesRequest{Repository: "main", Snapshot: "latest", Path: "../../etc"}); err != nil {
 		t.Errorf("a relative path is read as absolute: %v", err)
 	}
 }
@@ -553,5 +566,58 @@ func TestSyncJobsPeersAndMirrors(t *testing.T) {
 	// Resync of something that is not a sync job.
 	if _, err := c.ResyncJob(ctx, &pb.JobRequest{Job: "backup"}); err == nil {
 		t.Error("only sync jobs can be resynced")
+	}
+}
+
+func TestRepositoryManagement(t *testing.T) {
+	s, store := secretService(t, &repoRestic{})
+	_, _ = store.Set("vw", "pw")
+	_, _ = store.Set("s", "pw")
+	ctx := context.Background()
+
+	list, err := s.ListRepositories(ctx, &pb.ListRepositoriesRequest{})
+	if err != nil || len(list.Repositories) != 1 || len(list.Repositories[0].Jobs) != 1 {
+		t.Fatalf("list = %v, %v", list, err)
+	}
+	created, err := s.SetRepository(ctx, &pb.Repository{
+		Name: "usb", Path: "/backup/usb/vw", PasswordSecret: "vw", MountPath: "/backup/usb", MountMarker: ".mounted",
+	})
+	if err != nil || created.MountMarker != ".mounted" {
+		t.Fatalf("created = %v, %v", created, err)
+	}
+	list, _ = s.ListRepositories(ctx, &pb.ListRepositoriesRequest{})
+	if len(list.Repositories) != 2 || list.Repositories[1].Name != "usb" || list.Repositories[1].MountPath != "/backup/usb" {
+		t.Errorf("list = %v", list)
+	}
+
+	for name, repo := range map[string]*pb.Repository{
+		"bad name":       {Name: "My Repo", Path: "/x", PasswordSecret: "s"},
+		"no path":        {Name: "x", PasswordSecret: "s"},
+		"no secret":      {Name: "x", Path: "/x"},
+		"duplicate path": {Name: "x", Path: "/repo", PasswordSecret: "s"},
+	} {
+		if _, err := s.SetRepository(ctx, repo); err == nil {
+			t.Errorf("%s must be refused", name)
+		}
+	}
+
+	// A repository with jobs stays, an unused one can go.
+	if _, err := s.DeleteRepository(ctx, &pb.RepositoryRequest{Name: "photos"}); err == nil || !strings.Contains(err.Error(), "photos") {
+		t.Errorf("a repository in use must not be deleted: %v", err)
+	}
+	if _, err := s.DeleteRepository(ctx, &pb.RepositoryRequest{Name: "usb"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DeleteRepository(ctx, &pb.RepositoryRequest{Name: "usb"}); err == nil {
+		t.Error("deleting an unknown repository must fail")
+	}
+}
+
+func TestJobsMustNameAnExistingRepository(t *testing.T) {
+	_, srv := newService(t)
+	c := newClient(t, srv)
+	_, err := c.CreateJob(context.Background(), &pb.JobDefinition{Name: "x", Type: "backup", Schedule: "0 0 * * *", Source: "/x", Repository: "nope"})
+	if err == nil || !strings.Contains(err.Error(), "repository") {
+		t.Errorf("err = %v", err)
 	}
 }

@@ -255,8 +255,10 @@ func (x *JobRequest) GetJob() string {
 // Requests the snapshot list.
 type ListSnapshotsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name of a job, its repository is listed. The global repository when empty.
-	Job           string `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	// Name of a job, its repository is listed. Ignored when repository is set.
+	Job string `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	// Name of the repository to list. With job empty too, the only repository, if there is just one.
+	Repository    string `protobuf:"bytes,2,opt,name=repository,proto3" json:"repository,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -294,6 +296,13 @@ func (*ListSnapshotsRequest) Descriptor() ([]byte, []int) {
 func (x *ListSnapshotsRequest) GetJob() string {
 	if x != nil {
 		return x.Job
+	}
+	return ""
+}
+
+func (x *ListSnapshotsRequest) GetRepository() string {
+	if x != nil {
+		return x.Repository
 	}
 	return ""
 }
@@ -346,12 +355,14 @@ func (x *ListSnapshotsResponse) GetSnapshots() []*Snapshot {
 // Requests the content of a directory in a snapshot.
 type ListFilesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name of a job, the snapshot is read from its repository. The global repository when empty.
+	// Name of a job, the snapshot is read from its repository. Ignored when repository is set.
 	Job string `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
 	// Snapshot id.
 	Snapshot string `protobuf:"bytes,2,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
 	// Absolute directory inside the snapshot, / when empty.
-	Path          string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Path string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	// Name of the repository to read. With job empty too, the only repository, if there is just one.
+	Repository    string `protobuf:"bytes,4,opt,name=repository,proto3" json:"repository,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -403,6 +414,13 @@ func (x *ListFilesRequest) GetSnapshot() string {
 func (x *ListFilesRequest) GetPath() string {
 	if x != nil {
 		return x.Path
+	}
+	return ""
+}
+
+func (x *ListFilesRequest) GetRepository() string {
+	if x != nil {
+		return x.Repository
 	}
 	return ""
 }
@@ -464,8 +482,10 @@ func (x *ListFilesResponse) GetTruncated() bool {
 // Requests the repository statistics.
 type GetStatsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name of a job, the statistics of its repository are returned. The global repository when empty.
-	Job           string `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	// Name of a job, the statistics of its repository are returned. Ignored when repository is set.
+	Job string `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	// Name of the repository. With job empty too, the only repository, if there is just one.
+	Repository    string `protobuf:"bytes,2,opt,name=repository,proto3" json:"repository,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -507,6 +527,13 @@ func (x *GetStatsRequest) GetJob() string {
 	return ""
 }
 
+func (x *GetStatsRequest) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
 // Requests a restore.
 type RestoreRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -516,8 +543,10 @@ type RestoreRequest struct {
 	Target string `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
 	// Paths to restore, everything when empty.
 	Include []string `protobuf:"bytes,3,rep,name=include,proto3" json:"include,omitempty"`
-	// Name of a job, the snapshot is restored from its repository. The global repository when empty.
-	Job           string `protobuf:"bytes,4,opt,name=job,proto3" json:"job,omitempty"`
+	// Name of a job, the snapshot is restored from its repository. Ignored when repository is set.
+	Job string `protobuf:"bytes,4,opt,name=job,proto3" json:"job,omitempty"`
+	// Name of the repository to restore from. With job empty too, the only repository, if there is just one.
+	Repository    string `protobuf:"bytes,5,opt,name=repository,proto3" json:"repository,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -580,6 +609,140 @@ func (x *RestoreRequest) GetJob() string {
 	return ""
 }
 
+func (x *RestoreRequest) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+// Requests the repositories.
+type ListRepositoriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRepositoriesRequest) Reset() {
+	*x = ListRepositoriesRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRepositoriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRepositoriesRequest) ProtoMessage() {}
+
+func (x *ListRepositoriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRepositoriesRequest.ProtoReflect.Descriptor instead.
+func (*ListRepositoriesRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{11}
+}
+
+// The repositories sorted by name.
+type ListRepositoriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Repositories  []*Repository          `protobuf:"bytes,1,rep,name=repositories,proto3" json:"repositories,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRepositoriesResponse) Reset() {
+	*x = ListRepositoriesResponse{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRepositoriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRepositoriesResponse) ProtoMessage() {}
+
+func (x *ListRepositoriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRepositoriesResponse.ProtoReflect.Descriptor instead.
+func (*ListRepositoriesResponse) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListRepositoriesResponse) GetRepositories() []*Repository {
+	if x != nil {
+		return x.Repositories
+	}
+	return nil
+}
+
+// Addresses a repository.
+type RepositoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RepositoryRequest) Reset() {
+	*x = RepositoryRequest{}
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RepositoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RepositoryRequest) ProtoMessage() {}
+
+func (x *RepositoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RepositoryRequest.ProtoReflect.Descriptor instead.
+func (*RepositoryRequest) Descriptor() ([]byte, []int) {
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RepositoryRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 // Requests the secrets.
 type ListSecretsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -589,7 +752,7 @@ type ListSecretsRequest struct {
 
 func (x *ListSecretsRequest) Reset() {
 	*x = ListSecretsRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[11]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +764,7 @@ func (x *ListSecretsRequest) String() string {
 func (*ListSecretsRequest) ProtoMessage() {}
 
 func (x *ListSecretsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[11]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +777,7 @@ func (x *ListSecretsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSecretsRequest.ProtoReflect.Descriptor instead.
 func (*ListSecretsRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{11}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{14}
 }
 
 // The secrets sorted by name.
@@ -627,7 +790,7 @@ type ListSecretsResponse struct {
 
 func (x *ListSecretsResponse) Reset() {
 	*x = ListSecretsResponse{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[12]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -639,7 +802,7 @@ func (x *ListSecretsResponse) String() string {
 func (*ListSecretsResponse) ProtoMessage() {}
 
 func (x *ListSecretsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[12]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -652,7 +815,7 @@ func (x *ListSecretsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSecretsResponse.ProtoReflect.Descriptor instead.
 func (*ListSecretsResponse) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{12}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListSecretsResponse) GetSecrets() []*SecretInfo {
@@ -672,7 +835,7 @@ type SecretRequest struct {
 
 func (x *SecretRequest) Reset() {
 	*x = SecretRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[13]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -684,7 +847,7 @@ func (x *SecretRequest) String() string {
 func (*SecretRequest) ProtoMessage() {}
 
 func (x *SecretRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[13]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -697,7 +860,7 @@ func (x *SecretRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecretRequest.ProtoReflect.Descriptor instead.
 func (*SecretRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{13}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SecretRequest) GetName() string {
@@ -722,7 +885,7 @@ type SetSecretRequest struct {
 
 func (x *SetSecretRequest) Reset() {
 	*x = SetSecretRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[14]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -734,7 +897,7 @@ func (x *SetSecretRequest) String() string {
 func (*SetSecretRequest) ProtoMessage() {}
 
 func (x *SetSecretRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[14]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -747,7 +910,7 @@ func (x *SetSecretRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSecretRequest.ProtoReflect.Descriptor instead.
 func (*SetSecretRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{14}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SetSecretRequest) GetName() string {
@@ -783,7 +946,7 @@ type SetSecretResponse struct {
 
 func (x *SetSecretResponse) Reset() {
 	*x = SetSecretResponse{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[15]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -795,7 +958,7 @@ func (x *SetSecretResponse) String() string {
 func (*SetSecretResponse) ProtoMessage() {}
 
 func (x *SetSecretResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[15]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -808,7 +971,7 @@ func (x *SetSecretResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSecretResponse.ProtoReflect.Descriptor instead.
 func (*SetSecretResponse) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{15}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SetSecretResponse) GetSecret() *SecretInfo {
@@ -840,7 +1003,7 @@ type ChangeRepositoryPasswordRequest struct {
 
 func (x *ChangeRepositoryPasswordRequest) Reset() {
 	*x = ChangeRepositoryPasswordRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[16]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -852,7 +1015,7 @@ func (x *ChangeRepositoryPasswordRequest) String() string {
 func (*ChangeRepositoryPasswordRequest) ProtoMessage() {}
 
 func (x *ChangeRepositoryPasswordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[16]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -865,7 +1028,7 @@ func (x *ChangeRepositoryPasswordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChangeRepositoryPasswordRequest.ProtoReflect.Descriptor instead.
 func (*ChangeRepositoryPasswordRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{16}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ChangeRepositoryPasswordRequest) GetName() string {
@@ -905,7 +1068,7 @@ type ChangeRepositoryPasswordResponse struct {
 
 func (x *ChangeRepositoryPasswordResponse) Reset() {
 	*x = ChangeRepositoryPasswordResponse{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[17]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -917,7 +1080,7 @@ func (x *ChangeRepositoryPasswordResponse) String() string {
 func (*ChangeRepositoryPasswordResponse) ProtoMessage() {}
 
 func (x *ChangeRepositoryPasswordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[17]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -930,7 +1093,7 @@ func (x *ChangeRepositoryPasswordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChangeRepositoryPasswordResponse.ProtoReflect.Descriptor instead.
 func (*ChangeRepositoryPasswordResponse) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{17}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ChangeRepositoryPasswordResponse) GetSecret() *SecretInfo {
@@ -970,7 +1133,7 @@ type WatchRequest struct {
 
 func (x *WatchRequest) Reset() {
 	*x = WatchRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[18]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -982,7 +1145,7 @@ func (x *WatchRequest) String() string {
 func (*WatchRequest) ProtoMessage() {}
 
 func (x *WatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[18]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -995,7 +1158,7 @@ func (x *WatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchRequest.ProtoReflect.Descriptor instead.
 func (*WatchRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{18}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{21}
 }
 
 // Requests the peers.
@@ -1007,7 +1170,7 @@ type ListPeersRequest struct {
 
 func (x *ListPeersRequest) Reset() {
 	*x = ListPeersRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[19]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1019,7 +1182,7 @@ func (x *ListPeersRequest) String() string {
 func (*ListPeersRequest) ProtoMessage() {}
 
 func (x *ListPeersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[19]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1032,7 +1195,7 @@ func (x *ListPeersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeersRequest.ProtoReflect.Descriptor instead.
 func (*ListPeersRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{19}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{22}
 }
 
 // The peers sorted by name.
@@ -1047,7 +1210,7 @@ type ListPeersResponse struct {
 
 func (x *ListPeersResponse) Reset() {
 	*x = ListPeersResponse{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[20]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1059,7 +1222,7 @@ func (x *ListPeersResponse) String() string {
 func (*ListPeersResponse) ProtoMessage() {}
 
 func (x *ListPeersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[20]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1072,7 +1235,7 @@ func (x *ListPeersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeersResponse.ProtoReflect.Descriptor instead.
 func (*ListPeersResponse) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{20}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListPeersResponse) GetPeers() []*Peer {
@@ -1099,7 +1262,7 @@ type PeerRequest struct {
 
 func (x *PeerRequest) Reset() {
 	*x = PeerRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[21]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1111,7 +1274,7 @@ func (x *PeerRequest) String() string {
 func (*PeerRequest) ProtoMessage() {}
 
 func (x *PeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[21]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1124,7 +1287,7 @@ func (x *PeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerRequest.ProtoReflect.Descriptor instead.
 func (*PeerRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{21}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *PeerRequest) GetName() string {
@@ -1143,7 +1306,7 @@ type GetSyncServeRequest struct {
 
 func (x *GetSyncServeRequest) Reset() {
 	*x = GetSyncServeRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[22]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1155,7 +1318,7 @@ func (x *GetSyncServeRequest) String() string {
 func (*GetSyncServeRequest) ProtoMessage() {}
 
 func (x *GetSyncServeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[22]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1168,7 +1331,7 @@ func (x *GetSyncServeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSyncServeRequest.ProtoReflect.Descriptor instead.
 func (*GetSyncServeRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{22}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{25}
 }
 
 // Requests the notification settings.
@@ -1180,7 +1343,7 @@ type GetNotificationsRequest struct {
 
 func (x *GetNotificationsRequest) Reset() {
 	*x = GetNotificationsRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1192,7 +1355,7 @@ func (x *GetNotificationsRequest) String() string {
 func (*GetNotificationsRequest) ProtoMessage() {}
 
 func (x *GetNotificationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[23]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1205,7 +1368,7 @@ func (x *GetNotificationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNotificationsRequest.ProtoReflect.Descriptor instead.
 func (*GetNotificationsRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{23}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{26}
 }
 
 // Requests a test mail.
@@ -1217,7 +1380,7 @@ type TestNotificationsRequest struct {
 
 func (x *TestNotificationsRequest) Reset() {
 	*x = TestNotificationsRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1229,7 +1392,7 @@ func (x *TestNotificationsRequest) String() string {
 func (*TestNotificationsRequest) ProtoMessage() {}
 
 func (x *TestNotificationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[24]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1242,7 +1405,7 @@ func (x *TestNotificationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestNotificationsRequest.ProtoReflect.Descriptor instead.
 func (*TestNotificationsRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{24}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{27}
 }
 
 // Reserves or releases a sync job.
@@ -1260,7 +1423,7 @@ type SyncLockRequest struct {
 
 func (x *SyncLockRequest) Reset() {
 	*x = SyncLockRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1272,7 +1435,7 @@ func (x *SyncLockRequest) String() string {
 func (*SyncLockRequest) ProtoMessage() {}
 
 func (x *SyncLockRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[25]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1285,7 +1448,7 @@ func (x *SyncLockRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncLockRequest.ProtoReflect.Descriptor instead.
 func (*SyncLockRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{25}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *SyncLockRequest) GetJob() string {
@@ -1322,7 +1485,7 @@ type SyncLockResponse struct {
 
 func (x *SyncLockResponse) Reset() {
 	*x = SyncLockResponse{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[26]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1334,7 +1497,7 @@ func (x *SyncLockResponse) String() string {
 func (*SyncLockResponse) ProtoMessage() {}
 
 func (x *SyncLockResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[26]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1347,7 +1510,7 @@ func (x *SyncLockResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncLockResponse.ProtoReflect.Descriptor instead.
 func (*SyncLockResponse) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{26}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *SyncLockResponse) GetGranted() bool {
@@ -1378,7 +1541,7 @@ type PushJobRequest struct {
 
 func (x *PushJobRequest) Reset() {
 	*x = PushJobRequest{}
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[27]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1390,7 +1553,7 @@ func (x *PushJobRequest) String() string {
 func (*PushJobRequest) ProtoMessage() {}
 
 func (x *PushJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_api_v1_control_service_proto_msgTypes[27]
+	mi := &file_backup_api_v1_control_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1403,7 +1566,7 @@ func (x *PushJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PushJobRequest.ProtoReflect.Descriptor instead.
 func (*PushJobRequest) Descriptor() ([]byte, []int) {
-	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{27}
+	return file_backup_api_v1_control_service_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *PushJobRequest) GetDefinition() *JobDefinition {
@@ -1435,25 +1598,42 @@ const file_backup_api_v1_control_service_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x1e\n" +
 	"\n" +
 	"JobRequest\x12\x10\n" +
-	"\x03job\x18\x01 \x01(\tR\x03job\"(\n" +
+	"\x03job\x18\x01 \x01(\tR\x03job\"H\n" +
 	"\x14ListSnapshotsRequest\x12\x10\n" +
-	"\x03job\x18\x01 \x01(\tR\x03job\"N\n" +
+	"\x03job\x18\x01 \x01(\tR\x03job\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x02 \x01(\tR\n" +
+	"repository\"N\n" +
 	"\x15ListSnapshotsResponse\x125\n" +
-	"\tsnapshots\x18\x01 \x03(\v2\x17.backup.api.v1.SnapshotR\tsnapshots\"T\n" +
+	"\tsnapshots\x18\x01 \x03(\v2\x17.backup.api.v1.SnapshotR\tsnapshots\"t\n" +
 	"\x10ListFilesRequest\x12\x10\n" +
 	"\x03job\x18\x01 \x01(\tR\x03job\x12\x1a\n" +
 	"\bsnapshot\x18\x02 \x01(\tR\bsnapshot\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\"`\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x04 \x01(\tR\n" +
+	"repository\"`\n" +
 	"\x11ListFilesResponse\x12-\n" +
 	"\x05files\x18\x01 \x03(\v2\x17.backup.api.v1.FileNodeR\x05files\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"#\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"C\n" +
 	"\x0fGetStatsRequest\x12\x10\n" +
-	"\x03job\x18\x01 \x01(\tR\x03job\"p\n" +
+	"\x03job\x18\x01 \x01(\tR\x03job\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x02 \x01(\tR\n" +
+	"repository\"\x90\x01\n" +
 	"\x0eRestoreRequest\x12\x1a\n" +
 	"\bsnapshot\x18\x01 \x01(\tR\bsnapshot\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x18\n" +
 	"\ainclude\x18\x03 \x03(\tR\ainclude\x12\x10\n" +
-	"\x03job\x18\x04 \x01(\tR\x03job\"\x14\n" +
+	"\x03job\x18\x04 \x01(\tR\x03job\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x05 \x01(\tR\n" +
+	"repository\"\x19\n" +
+	"\x17ListRepositoriesRequest\"Y\n" +
+	"\x18ListRepositoriesResponse\x12=\n" +
+	"\frepositories\x18\x01 \x03(\v2\x19.backup.api.v1.RepositoryR\frepositories\"'\n" +
+	"\x11RepositoryRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x14\n" +
 	"\x12ListSecretsRequest\"J\n" +
 	"\x13ListSecretsResponse\x123\n" +
 	"\asecrets\x18\x01 \x03(\v2\x19.backup.api.v1.SecretInfoR\asecrets\"#\n" +
@@ -1498,7 +1678,7 @@ const file_backup_api_v1_control_service_proto_rawDesc = "" +
 	"\n" +
 	"definition\x18\x01 \x01(\v2\x1c.backup.api.v1.JobDefinitionR\n" +
 	"definition\x12\x14\n" +
-	"\x05owner\x18\x02 \x01(\tR\x05owner2\x8e\x14\n" +
+	"\x05owner\x18\x02 \x01(\tR\x05owner2\x88\x16\n" +
 	"\aControl\x12J\n" +
 	"\tGetStatus\x12\x1f.backup.api.v1.GetStatusRequest\x1a\x1c.backup.api.v1.ControlStatus\x12K\n" +
 	"\bListRuns\x12\x1e.backup.api.v1.ListRunsRequest\x1a\x1f.backup.api.v1.ListRunsResponse\x12:\n" +
@@ -1510,7 +1690,10 @@ const file_backup_api_v1_control_service_proto_rawDesc = "" +
 	"\tCancelJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12>\n" +
 	"\tUnlockJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12=\n" +
 	"\bPauseJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12>\n" +
-	"\tResumeJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12Z\n" +
+	"\tResumeJob\x12\x19.backup.api.v1.JobRequest\x1a\x16.google.protobuf.Empty\x12c\n" +
+	"\x10ListRepositories\x12&.backup.api.v1.ListRepositoriesRequest\x1a'.backup.api.v1.ListRepositoriesResponse\x12E\n" +
+	"\rSetRepository\x12\x19.backup.api.v1.Repository\x1a\x19.backup.api.v1.Repository\x12L\n" +
+	"\x10DeleteRepository\x12 .backup.api.v1.RepositoryRequest\x1a\x16.google.protobuf.Empty\x12Z\n" +
 	"\rListSnapshots\x12#.backup.api.v1.ListSnapshotsRequest\x1a$.backup.api.v1.ListSnapshotsResponse\x12N\n" +
 	"\tListFiles\x12\x1f.backup.api.v1.ListFilesRequest\x1a .backup.api.v1.ListFilesResponse\x12J\n" +
 	"\bGetStats\x12\x1e.backup.api.v1.GetStatsRequest\x1a\x1e.backup.api.v1.RepositoryStats\x12<\n" +
@@ -1549,7 +1732,7 @@ func file_backup_api_v1_control_service_proto_rawDescGZIP() []byte {
 	return file_backup_api_v1_control_service_proto_rawDescData
 }
 
-var file_backup_api_v1_control_service_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_backup_api_v1_control_service_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_backup_api_v1_control_service_proto_goTypes = []any{
 	(*GetStatusRequest)(nil),                 // 0: backup.api.v1.GetStatusRequest
 	(*ListRunsRequest)(nil),                  // 1: backup.api.v1.ListRunsRequest
@@ -1562,124 +1745,135 @@ var file_backup_api_v1_control_service_proto_goTypes = []any{
 	(*ListFilesResponse)(nil),                // 8: backup.api.v1.ListFilesResponse
 	(*GetStatsRequest)(nil),                  // 9: backup.api.v1.GetStatsRequest
 	(*RestoreRequest)(nil),                   // 10: backup.api.v1.RestoreRequest
-	(*ListSecretsRequest)(nil),               // 11: backup.api.v1.ListSecretsRequest
-	(*ListSecretsResponse)(nil),              // 12: backup.api.v1.ListSecretsResponse
-	(*SecretRequest)(nil),                    // 13: backup.api.v1.SecretRequest
-	(*SetSecretRequest)(nil),                 // 14: backup.api.v1.SetSecretRequest
-	(*SetSecretResponse)(nil),                // 15: backup.api.v1.SetSecretResponse
-	(*ChangeRepositoryPasswordRequest)(nil),  // 16: backup.api.v1.ChangeRepositoryPasswordRequest
-	(*ChangeRepositoryPasswordResponse)(nil), // 17: backup.api.v1.ChangeRepositoryPasswordResponse
-	(*WatchRequest)(nil),                     // 18: backup.api.v1.WatchRequest
-	(*ListPeersRequest)(nil),                 // 19: backup.api.v1.ListPeersRequest
-	(*ListPeersResponse)(nil),                // 20: backup.api.v1.ListPeersResponse
-	(*PeerRequest)(nil),                      // 21: backup.api.v1.PeerRequest
-	(*GetSyncServeRequest)(nil),              // 22: backup.api.v1.GetSyncServeRequest
-	(*GetNotificationsRequest)(nil),          // 23: backup.api.v1.GetNotificationsRequest
-	(*TestNotificationsRequest)(nil),         // 24: backup.api.v1.TestNotificationsRequest
-	(*SyncLockRequest)(nil),                  // 25: backup.api.v1.SyncLockRequest
-	(*SyncLockResponse)(nil),                 // 26: backup.api.v1.SyncLockResponse
-	(*PushJobRequest)(nil),                   // 27: backup.api.v1.PushJobRequest
-	(*Run)(nil),                              // 28: backup.api.v1.Run
-	(*Snapshot)(nil),                         // 29: backup.api.v1.Snapshot
-	(*FileNode)(nil),                         // 30: backup.api.v1.FileNode
-	(*SecretInfo)(nil),                       // 31: backup.api.v1.SecretInfo
-	(*Peer)(nil),                             // 32: backup.api.v1.Peer
-	(*JobDefinition)(nil),                    // 33: backup.api.v1.JobDefinition
-	(*SyncServe)(nil),                        // 34: backup.api.v1.SyncServe
-	(*Notifications)(nil),                    // 35: backup.api.v1.Notifications
-	(*NotificationEvent)(nil),                // 36: backup.api.v1.NotificationEvent
-	(*ControlStatus)(nil),                    // 37: backup.api.v1.ControlStatus
-	(*Job)(nil),                              // 38: backup.api.v1.Job
-	(*emptypb.Empty)(nil),                    // 39: google.protobuf.Empty
-	(*RepositoryStats)(nil),                  // 40: backup.api.v1.RepositoryStats
-	(*PeerStatus)(nil),                       // 41: backup.api.v1.PeerStatus
-	(*TestNotificationsResponse)(nil),        // 42: backup.api.v1.TestNotificationsResponse
-	(*Event)(nil),                            // 43: backup.api.v1.Event
+	(*ListRepositoriesRequest)(nil),          // 11: backup.api.v1.ListRepositoriesRequest
+	(*ListRepositoriesResponse)(nil),         // 12: backup.api.v1.ListRepositoriesResponse
+	(*RepositoryRequest)(nil),                // 13: backup.api.v1.RepositoryRequest
+	(*ListSecretsRequest)(nil),               // 14: backup.api.v1.ListSecretsRequest
+	(*ListSecretsResponse)(nil),              // 15: backup.api.v1.ListSecretsResponse
+	(*SecretRequest)(nil),                    // 16: backup.api.v1.SecretRequest
+	(*SetSecretRequest)(nil),                 // 17: backup.api.v1.SetSecretRequest
+	(*SetSecretResponse)(nil),                // 18: backup.api.v1.SetSecretResponse
+	(*ChangeRepositoryPasswordRequest)(nil),  // 19: backup.api.v1.ChangeRepositoryPasswordRequest
+	(*ChangeRepositoryPasswordResponse)(nil), // 20: backup.api.v1.ChangeRepositoryPasswordResponse
+	(*WatchRequest)(nil),                     // 21: backup.api.v1.WatchRequest
+	(*ListPeersRequest)(nil),                 // 22: backup.api.v1.ListPeersRequest
+	(*ListPeersResponse)(nil),                // 23: backup.api.v1.ListPeersResponse
+	(*PeerRequest)(nil),                      // 24: backup.api.v1.PeerRequest
+	(*GetSyncServeRequest)(nil),              // 25: backup.api.v1.GetSyncServeRequest
+	(*GetNotificationsRequest)(nil),          // 26: backup.api.v1.GetNotificationsRequest
+	(*TestNotificationsRequest)(nil),         // 27: backup.api.v1.TestNotificationsRequest
+	(*SyncLockRequest)(nil),                  // 28: backup.api.v1.SyncLockRequest
+	(*SyncLockResponse)(nil),                 // 29: backup.api.v1.SyncLockResponse
+	(*PushJobRequest)(nil),                   // 30: backup.api.v1.PushJobRequest
+	(*Run)(nil),                              // 31: backup.api.v1.Run
+	(*Snapshot)(nil),                         // 32: backup.api.v1.Snapshot
+	(*FileNode)(nil),                         // 33: backup.api.v1.FileNode
+	(*Repository)(nil),                       // 34: backup.api.v1.Repository
+	(*SecretInfo)(nil),                       // 35: backup.api.v1.SecretInfo
+	(*Peer)(nil),                             // 36: backup.api.v1.Peer
+	(*JobDefinition)(nil),                    // 37: backup.api.v1.JobDefinition
+	(*SyncServe)(nil),                        // 38: backup.api.v1.SyncServe
+	(*Notifications)(nil),                    // 39: backup.api.v1.Notifications
+	(*NotificationEvent)(nil),                // 40: backup.api.v1.NotificationEvent
+	(*ControlStatus)(nil),                    // 41: backup.api.v1.ControlStatus
+	(*Job)(nil),                              // 42: backup.api.v1.Job
+	(*emptypb.Empty)(nil),                    // 43: google.protobuf.Empty
+	(*RepositoryStats)(nil),                  // 44: backup.api.v1.RepositoryStats
+	(*PeerStatus)(nil),                       // 45: backup.api.v1.PeerStatus
+	(*TestNotificationsResponse)(nil),        // 46: backup.api.v1.TestNotificationsResponse
+	(*Event)(nil),                            // 47: backup.api.v1.Event
 }
 var file_backup_api_v1_control_service_proto_depIdxs = []int32{
-	28, // 0: backup.api.v1.ListRunsResponse.runs:type_name -> backup.api.v1.Run
-	29, // 1: backup.api.v1.ListSnapshotsResponse.snapshots:type_name -> backup.api.v1.Snapshot
-	30, // 2: backup.api.v1.ListFilesResponse.files:type_name -> backup.api.v1.FileNode
-	31, // 3: backup.api.v1.ListSecretsResponse.secrets:type_name -> backup.api.v1.SecretInfo
-	31, // 4: backup.api.v1.SetSecretResponse.secret:type_name -> backup.api.v1.SecretInfo
-	31, // 5: backup.api.v1.ChangeRepositoryPasswordResponse.secret:type_name -> backup.api.v1.SecretInfo
-	32, // 6: backup.api.v1.ListPeersResponse.peers:type_name -> backup.api.v1.Peer
-	33, // 7: backup.api.v1.PushJobRequest.definition:type_name -> backup.api.v1.JobDefinition
-	0,  // 8: backup.api.v1.Control.GetStatus:input_type -> backup.api.v1.GetStatusRequest
-	1,  // 9: backup.api.v1.Control.ListRuns:input_type -> backup.api.v1.ListRunsRequest
-	3,  // 10: backup.api.v1.Control.GetRun:input_type -> backup.api.v1.GetRunRequest
-	33, // 11: backup.api.v1.Control.CreateJob:input_type -> backup.api.v1.JobDefinition
-	33, // 12: backup.api.v1.Control.UpdateJob:input_type -> backup.api.v1.JobDefinition
-	4,  // 13: backup.api.v1.Control.DeleteJob:input_type -> backup.api.v1.JobRequest
-	4,  // 14: backup.api.v1.Control.StartJob:input_type -> backup.api.v1.JobRequest
-	4,  // 15: backup.api.v1.Control.CancelJob:input_type -> backup.api.v1.JobRequest
-	4,  // 16: backup.api.v1.Control.UnlockJob:input_type -> backup.api.v1.JobRequest
-	4,  // 17: backup.api.v1.Control.PauseJob:input_type -> backup.api.v1.JobRequest
-	4,  // 18: backup.api.v1.Control.ResumeJob:input_type -> backup.api.v1.JobRequest
-	5,  // 19: backup.api.v1.Control.ListSnapshots:input_type -> backup.api.v1.ListSnapshotsRequest
-	7,  // 20: backup.api.v1.Control.ListFiles:input_type -> backup.api.v1.ListFilesRequest
-	9,  // 21: backup.api.v1.Control.GetStats:input_type -> backup.api.v1.GetStatsRequest
-	10, // 22: backup.api.v1.Control.Restore:input_type -> backup.api.v1.RestoreRequest
-	11, // 23: backup.api.v1.Control.ListSecrets:input_type -> backup.api.v1.ListSecretsRequest
-	14, // 24: backup.api.v1.Control.SetSecret:input_type -> backup.api.v1.SetSecretRequest
-	16, // 25: backup.api.v1.Control.ChangeRepositoryPassword:input_type -> backup.api.v1.ChangeRepositoryPasswordRequest
-	13, // 26: backup.api.v1.Control.DeleteSecret:input_type -> backup.api.v1.SecretRequest
-	4,  // 27: backup.api.v1.Control.ResyncJob:input_type -> backup.api.v1.JobRequest
-	19, // 28: backup.api.v1.Control.ListPeers:input_type -> backup.api.v1.ListPeersRequest
-	32, // 29: backup.api.v1.Control.SetPeer:input_type -> backup.api.v1.Peer
-	21, // 30: backup.api.v1.Control.DeletePeer:input_type -> backup.api.v1.PeerRequest
-	21, // 31: backup.api.v1.Control.TestPeer:input_type -> backup.api.v1.PeerRequest
-	22, // 32: backup.api.v1.Control.GetSyncServe:input_type -> backup.api.v1.GetSyncServeRequest
-	34, // 33: backup.api.v1.Control.SetSyncServe:input_type -> backup.api.v1.SyncServe
-	23, // 34: backup.api.v1.Control.GetNotifications:input_type -> backup.api.v1.GetNotificationsRequest
-	35, // 35: backup.api.v1.Control.SetNotifications:input_type -> backup.api.v1.Notifications
-	36, // 36: backup.api.v1.Control.SendNotification:input_type -> backup.api.v1.NotificationEvent
-	24, // 37: backup.api.v1.Control.TestNotifications:input_type -> backup.api.v1.TestNotificationsRequest
-	25, // 38: backup.api.v1.Control.AcquireSyncLock:input_type -> backup.api.v1.SyncLockRequest
-	25, // 39: backup.api.v1.Control.ReleaseSyncLock:input_type -> backup.api.v1.SyncLockRequest
-	27, // 40: backup.api.v1.Control.PushJob:input_type -> backup.api.v1.PushJobRequest
-	27, // 41: backup.api.v1.Control.DropJob:input_type -> backup.api.v1.PushJobRequest
-	18, // 42: backup.api.v1.Control.Watch:input_type -> backup.api.v1.WatchRequest
-	37, // 43: backup.api.v1.Control.GetStatus:output_type -> backup.api.v1.ControlStatus
-	2,  // 44: backup.api.v1.Control.ListRuns:output_type -> backup.api.v1.ListRunsResponse
-	28, // 45: backup.api.v1.Control.GetRun:output_type -> backup.api.v1.Run
-	38, // 46: backup.api.v1.Control.CreateJob:output_type -> backup.api.v1.Job
-	38, // 47: backup.api.v1.Control.UpdateJob:output_type -> backup.api.v1.Job
-	39, // 48: backup.api.v1.Control.DeleteJob:output_type -> google.protobuf.Empty
-	28, // 49: backup.api.v1.Control.StartJob:output_type -> backup.api.v1.Run
-	39, // 50: backup.api.v1.Control.CancelJob:output_type -> google.protobuf.Empty
-	39, // 51: backup.api.v1.Control.UnlockJob:output_type -> google.protobuf.Empty
-	39, // 52: backup.api.v1.Control.PauseJob:output_type -> google.protobuf.Empty
-	39, // 53: backup.api.v1.Control.ResumeJob:output_type -> google.protobuf.Empty
-	6,  // 54: backup.api.v1.Control.ListSnapshots:output_type -> backup.api.v1.ListSnapshotsResponse
-	8,  // 55: backup.api.v1.Control.ListFiles:output_type -> backup.api.v1.ListFilesResponse
-	40, // 56: backup.api.v1.Control.GetStats:output_type -> backup.api.v1.RepositoryStats
-	28, // 57: backup.api.v1.Control.Restore:output_type -> backup.api.v1.Run
-	12, // 58: backup.api.v1.Control.ListSecrets:output_type -> backup.api.v1.ListSecretsResponse
-	15, // 59: backup.api.v1.Control.SetSecret:output_type -> backup.api.v1.SetSecretResponse
-	17, // 60: backup.api.v1.Control.ChangeRepositoryPassword:output_type -> backup.api.v1.ChangeRepositoryPasswordResponse
-	39, // 61: backup.api.v1.Control.DeleteSecret:output_type -> google.protobuf.Empty
-	28, // 62: backup.api.v1.Control.ResyncJob:output_type -> backup.api.v1.Run
-	20, // 63: backup.api.v1.Control.ListPeers:output_type -> backup.api.v1.ListPeersResponse
-	32, // 64: backup.api.v1.Control.SetPeer:output_type -> backup.api.v1.Peer
-	39, // 65: backup.api.v1.Control.DeletePeer:output_type -> google.protobuf.Empty
-	41, // 66: backup.api.v1.Control.TestPeer:output_type -> backup.api.v1.PeerStatus
-	34, // 67: backup.api.v1.Control.GetSyncServe:output_type -> backup.api.v1.SyncServe
-	34, // 68: backup.api.v1.Control.SetSyncServe:output_type -> backup.api.v1.SyncServe
-	35, // 69: backup.api.v1.Control.GetNotifications:output_type -> backup.api.v1.Notifications
-	35, // 70: backup.api.v1.Control.SetNotifications:output_type -> backup.api.v1.Notifications
-	39, // 71: backup.api.v1.Control.SendNotification:output_type -> google.protobuf.Empty
-	42, // 72: backup.api.v1.Control.TestNotifications:output_type -> backup.api.v1.TestNotificationsResponse
-	26, // 73: backup.api.v1.Control.AcquireSyncLock:output_type -> backup.api.v1.SyncLockResponse
-	39, // 74: backup.api.v1.Control.ReleaseSyncLock:output_type -> google.protobuf.Empty
-	39, // 75: backup.api.v1.Control.PushJob:output_type -> google.protobuf.Empty
-	39, // 76: backup.api.v1.Control.DropJob:output_type -> google.protobuf.Empty
-	43, // 77: backup.api.v1.Control.Watch:output_type -> backup.api.v1.Event
-	43, // [43:78] is the sub-list for method output_type
-	8,  // [8:43] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	31, // 0: backup.api.v1.ListRunsResponse.runs:type_name -> backup.api.v1.Run
+	32, // 1: backup.api.v1.ListSnapshotsResponse.snapshots:type_name -> backup.api.v1.Snapshot
+	33, // 2: backup.api.v1.ListFilesResponse.files:type_name -> backup.api.v1.FileNode
+	34, // 3: backup.api.v1.ListRepositoriesResponse.repositories:type_name -> backup.api.v1.Repository
+	35, // 4: backup.api.v1.ListSecretsResponse.secrets:type_name -> backup.api.v1.SecretInfo
+	35, // 5: backup.api.v1.SetSecretResponse.secret:type_name -> backup.api.v1.SecretInfo
+	35, // 6: backup.api.v1.ChangeRepositoryPasswordResponse.secret:type_name -> backup.api.v1.SecretInfo
+	36, // 7: backup.api.v1.ListPeersResponse.peers:type_name -> backup.api.v1.Peer
+	37, // 8: backup.api.v1.PushJobRequest.definition:type_name -> backup.api.v1.JobDefinition
+	0,  // 9: backup.api.v1.Control.GetStatus:input_type -> backup.api.v1.GetStatusRequest
+	1,  // 10: backup.api.v1.Control.ListRuns:input_type -> backup.api.v1.ListRunsRequest
+	3,  // 11: backup.api.v1.Control.GetRun:input_type -> backup.api.v1.GetRunRequest
+	37, // 12: backup.api.v1.Control.CreateJob:input_type -> backup.api.v1.JobDefinition
+	37, // 13: backup.api.v1.Control.UpdateJob:input_type -> backup.api.v1.JobDefinition
+	4,  // 14: backup.api.v1.Control.DeleteJob:input_type -> backup.api.v1.JobRequest
+	4,  // 15: backup.api.v1.Control.StartJob:input_type -> backup.api.v1.JobRequest
+	4,  // 16: backup.api.v1.Control.CancelJob:input_type -> backup.api.v1.JobRequest
+	4,  // 17: backup.api.v1.Control.UnlockJob:input_type -> backup.api.v1.JobRequest
+	4,  // 18: backup.api.v1.Control.PauseJob:input_type -> backup.api.v1.JobRequest
+	4,  // 19: backup.api.v1.Control.ResumeJob:input_type -> backup.api.v1.JobRequest
+	11, // 20: backup.api.v1.Control.ListRepositories:input_type -> backup.api.v1.ListRepositoriesRequest
+	34, // 21: backup.api.v1.Control.SetRepository:input_type -> backup.api.v1.Repository
+	13, // 22: backup.api.v1.Control.DeleteRepository:input_type -> backup.api.v1.RepositoryRequest
+	5,  // 23: backup.api.v1.Control.ListSnapshots:input_type -> backup.api.v1.ListSnapshotsRequest
+	7,  // 24: backup.api.v1.Control.ListFiles:input_type -> backup.api.v1.ListFilesRequest
+	9,  // 25: backup.api.v1.Control.GetStats:input_type -> backup.api.v1.GetStatsRequest
+	10, // 26: backup.api.v1.Control.Restore:input_type -> backup.api.v1.RestoreRequest
+	14, // 27: backup.api.v1.Control.ListSecrets:input_type -> backup.api.v1.ListSecretsRequest
+	17, // 28: backup.api.v1.Control.SetSecret:input_type -> backup.api.v1.SetSecretRequest
+	19, // 29: backup.api.v1.Control.ChangeRepositoryPassword:input_type -> backup.api.v1.ChangeRepositoryPasswordRequest
+	16, // 30: backup.api.v1.Control.DeleteSecret:input_type -> backup.api.v1.SecretRequest
+	4,  // 31: backup.api.v1.Control.ResyncJob:input_type -> backup.api.v1.JobRequest
+	22, // 32: backup.api.v1.Control.ListPeers:input_type -> backup.api.v1.ListPeersRequest
+	36, // 33: backup.api.v1.Control.SetPeer:input_type -> backup.api.v1.Peer
+	24, // 34: backup.api.v1.Control.DeletePeer:input_type -> backup.api.v1.PeerRequest
+	24, // 35: backup.api.v1.Control.TestPeer:input_type -> backup.api.v1.PeerRequest
+	25, // 36: backup.api.v1.Control.GetSyncServe:input_type -> backup.api.v1.GetSyncServeRequest
+	38, // 37: backup.api.v1.Control.SetSyncServe:input_type -> backup.api.v1.SyncServe
+	26, // 38: backup.api.v1.Control.GetNotifications:input_type -> backup.api.v1.GetNotificationsRequest
+	39, // 39: backup.api.v1.Control.SetNotifications:input_type -> backup.api.v1.Notifications
+	40, // 40: backup.api.v1.Control.SendNotification:input_type -> backup.api.v1.NotificationEvent
+	27, // 41: backup.api.v1.Control.TestNotifications:input_type -> backup.api.v1.TestNotificationsRequest
+	28, // 42: backup.api.v1.Control.AcquireSyncLock:input_type -> backup.api.v1.SyncLockRequest
+	28, // 43: backup.api.v1.Control.ReleaseSyncLock:input_type -> backup.api.v1.SyncLockRequest
+	30, // 44: backup.api.v1.Control.PushJob:input_type -> backup.api.v1.PushJobRequest
+	30, // 45: backup.api.v1.Control.DropJob:input_type -> backup.api.v1.PushJobRequest
+	21, // 46: backup.api.v1.Control.Watch:input_type -> backup.api.v1.WatchRequest
+	41, // 47: backup.api.v1.Control.GetStatus:output_type -> backup.api.v1.ControlStatus
+	2,  // 48: backup.api.v1.Control.ListRuns:output_type -> backup.api.v1.ListRunsResponse
+	31, // 49: backup.api.v1.Control.GetRun:output_type -> backup.api.v1.Run
+	42, // 50: backup.api.v1.Control.CreateJob:output_type -> backup.api.v1.Job
+	42, // 51: backup.api.v1.Control.UpdateJob:output_type -> backup.api.v1.Job
+	43, // 52: backup.api.v1.Control.DeleteJob:output_type -> google.protobuf.Empty
+	31, // 53: backup.api.v1.Control.StartJob:output_type -> backup.api.v1.Run
+	43, // 54: backup.api.v1.Control.CancelJob:output_type -> google.protobuf.Empty
+	43, // 55: backup.api.v1.Control.UnlockJob:output_type -> google.protobuf.Empty
+	43, // 56: backup.api.v1.Control.PauseJob:output_type -> google.protobuf.Empty
+	43, // 57: backup.api.v1.Control.ResumeJob:output_type -> google.protobuf.Empty
+	12, // 58: backup.api.v1.Control.ListRepositories:output_type -> backup.api.v1.ListRepositoriesResponse
+	34, // 59: backup.api.v1.Control.SetRepository:output_type -> backup.api.v1.Repository
+	43, // 60: backup.api.v1.Control.DeleteRepository:output_type -> google.protobuf.Empty
+	6,  // 61: backup.api.v1.Control.ListSnapshots:output_type -> backup.api.v1.ListSnapshotsResponse
+	8,  // 62: backup.api.v1.Control.ListFiles:output_type -> backup.api.v1.ListFilesResponse
+	44, // 63: backup.api.v1.Control.GetStats:output_type -> backup.api.v1.RepositoryStats
+	31, // 64: backup.api.v1.Control.Restore:output_type -> backup.api.v1.Run
+	15, // 65: backup.api.v1.Control.ListSecrets:output_type -> backup.api.v1.ListSecretsResponse
+	18, // 66: backup.api.v1.Control.SetSecret:output_type -> backup.api.v1.SetSecretResponse
+	20, // 67: backup.api.v1.Control.ChangeRepositoryPassword:output_type -> backup.api.v1.ChangeRepositoryPasswordResponse
+	43, // 68: backup.api.v1.Control.DeleteSecret:output_type -> google.protobuf.Empty
+	31, // 69: backup.api.v1.Control.ResyncJob:output_type -> backup.api.v1.Run
+	23, // 70: backup.api.v1.Control.ListPeers:output_type -> backup.api.v1.ListPeersResponse
+	36, // 71: backup.api.v1.Control.SetPeer:output_type -> backup.api.v1.Peer
+	43, // 72: backup.api.v1.Control.DeletePeer:output_type -> google.protobuf.Empty
+	45, // 73: backup.api.v1.Control.TestPeer:output_type -> backup.api.v1.PeerStatus
+	38, // 74: backup.api.v1.Control.GetSyncServe:output_type -> backup.api.v1.SyncServe
+	38, // 75: backup.api.v1.Control.SetSyncServe:output_type -> backup.api.v1.SyncServe
+	39, // 76: backup.api.v1.Control.GetNotifications:output_type -> backup.api.v1.Notifications
+	39, // 77: backup.api.v1.Control.SetNotifications:output_type -> backup.api.v1.Notifications
+	43, // 78: backup.api.v1.Control.SendNotification:output_type -> google.protobuf.Empty
+	46, // 79: backup.api.v1.Control.TestNotifications:output_type -> backup.api.v1.TestNotificationsResponse
+	29, // 80: backup.api.v1.Control.AcquireSyncLock:output_type -> backup.api.v1.SyncLockResponse
+	43, // 81: backup.api.v1.Control.ReleaseSyncLock:output_type -> google.protobuf.Empty
+	43, // 82: backup.api.v1.Control.PushJob:output_type -> google.protobuf.Empty
+	43, // 83: backup.api.v1.Control.DropJob:output_type -> google.protobuf.Empty
+	47, // 84: backup.api.v1.Control.Watch:output_type -> backup.api.v1.Event
+	47, // [47:85] is the sub-list for method output_type
+	9,  // [9:47] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_backup_api_v1_control_service_proto_init() }
@@ -1694,7 +1888,7 @@ func file_backup_api_v1_control_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backup_api_v1_control_service_proto_rawDesc), len(file_backup_api_v1_control_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   28,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -233,27 +233,22 @@ func (m *Manager) initRepositories() {
 	m.initMu.Lock()
 	defer m.initMu.Unlock()
 	c := m.cfg()
-	done := map[string]bool{}
-	for _, j := range c.Jobs {
-		if j.Type == config.TypeSync {
-			continue // no repository
+	for _, r := range c.Repos() {
+		if !c.UsedByJobs(r.Name) {
+			continue // nothing works on it yet, it is created with its first job
 		}
-		jc := c.ForJob(j)
-		// The mount guard of the job, a volume of it may be unmounted while another one is mounted.
-		if err := m.ex(jc).Preflight(m.ctx, jc); err != nil {
-			log.Warn().Err(err).Msgf("repository of job %s is not available, initialisation postponed", j.Name)
+		rc := c.ForRepository(r)
+		// The mount guard of the repository, its volume may be unmounted while another one is mounted.
+		if err := m.ex(rc).Preflight(m.ctx, rc); err != nil {
+			log.Warn().Err(err).Msgf("repository %s is not available, initialisation postponed", r.Name)
 			continue
 		}
-		if done[jc.Repository] {
-			continue
-		}
-		done[jc.Repository] = true
-		if !m.initRepository(jc) {
+		if !m.initRepository(rc) {
 			continue
 		}
 		// The repository was just created, its backups do not have to wait for the schedule.
 		for _, b := range c.Jobs {
-			if b.Type == config.TypeBackup && b.Enabled && c.RepositoryKey(b) == jc.Repository {
+			if b.Type == config.TypeBackup && b.Enabled && c.RepositoryKey(b) == rc.Repository {
 				if _, err := m.Trigger(b.Name, "init", false); err != nil {
 					log.Warn().Err(err).Msgf("initial %s run not started", b.Name)
 				}
@@ -351,9 +346,10 @@ func (m *Manager) syncPreflight(j config.Job) error {
 	return runner.CheckMounts(m.cfg().ForJob(j))
 }
 
-// Restore starts a restore run from the repository of job, or from the global repository when job is empty.
-func (m *Manager) Restore(job, snapshot, target string, include []string) (store.Run, error) {
-	c, err := m.repository(job)
+// Restore starts a restore run from a repository, see repository for how it is chosen. Restores are limited to the
+// restore directory of the repository.
+func (m *Manager) Restore(repo, job, snapshot, target string, include []string) (store.Run, error) {
+	c, err := m.repository(repo, job)
 	if err != nil {
 		return store.Run{}, err
 	}
@@ -421,17 +417,32 @@ func (m *Manager) snapshotBase(c config.Config, snapshot string) string {
 	return base
 }
 
-// repository returns the configuration for the repository of a job, the global one when job is empty.
-func (m *Manager) repository(job string) (config.Config, error) {
+// repository returns the configuration for a repository, named directly or through a job that works on it. With
+// both empty it is the only repository, when there is just one.
+func (m *Manager) repository(repo, job string) (config.Config, error) {
 	c := m.cfg()
-	if job == "" {
-		return c, nil
+	switch {
+	case repo != "":
+		r, ok := c.Repo(repo)
+		if !ok {
+			return config.Config{}, apperror.NewErrorf("unknown repository %q", repo)
+		}
+		return c.ForRepository(r), nil
+	case job != "":
+		j, ok := c.Job(job)
+		if !ok {
+			return config.Config{}, apperror.NewErrorf("unknown job %q", job)
+		}
+		if j.Type == config.TypeSync {
+			return config.Config{}, apperror.NewErrorf("job %q is a sync job and has no repository", job)
+		}
+		return c.ForJob(j), nil
 	}
-	j, ok := c.Job(job)
-	if !ok {
-		return config.Config{}, apperror.NewErrorf("unknown job %q", job)
+	repos := c.Repos()
+	if len(repos) != 1 {
+		return config.Config{}, apperror.NewErrorf("there are %d repositories, name one", len(repos))
 	}
-	return c.ForJob(j), nil
+	return c.ForRepository(repos[0]), nil
 }
 
 // sem returns the lock of a repository.
@@ -618,7 +629,7 @@ func (m *Manager) Unlock(name string) error {
 	if j.Type == config.TypeSync {
 		return apperror.NewErrorf("job %q is a sync job and has no repository", name)
 	}
-	c, err := m.repository(name)
+	c, err := m.repository("", name)
 	if err != nil {
 		return err
 	}
@@ -842,6 +853,8 @@ func (m *Manager) UpdateJob(j config.Job) (JobStatus, error) {
 	err := m.change(func(c *config.Config) error {
 		for i := range c.Jobs {
 			if c.Jobs[i].Name == j.Name {
+				// The mounts are not part of the API, editing a job must not drop them.
+				j.Mounts = c.Jobs[i].Mounts
 				c.Jobs[i] = j
 				return nil
 			}
@@ -911,10 +924,6 @@ func normalize(j config.Job) config.Job {
 	j.Path1 = strings.TrimSpace(j.Path1)
 	j.Path2 = strings.TrimSpace(j.Path2)
 	j.Repository = strings.TrimSpace(j.Repository)
-	j.PasswordFile = strings.TrimSpace(j.PasswordFile)
-	j.PasswordSecret = strings.TrimSpace(j.PasswordSecret)
-	j.MountPath = strings.TrimSpace(j.MountPath)
-	j.MountMarker = strings.TrimSpace(j.MountMarker)
 	return j
 }
 
@@ -1014,26 +1023,26 @@ func (m *Manager) Health() (bool, []string) {
 	return len(problems) == 0, problems
 }
 
-// Snapshots returns the restic snapshot list of the repository of job as raw JSON, the global repository when job is empty.
-func (m *Manager) Snapshots(ctx context.Context, job string) (json.RawMessage, error) {
-	return m.query(ctx, job, "snapshots", "--json", "--no-lock")
+// Snapshots returns the restic snapshot list of a repository as raw JSON, see repository for how it is chosen.
+func (m *Manager) Snapshots(ctx context.Context, repo, job string) (json.RawMessage, error) {
+	return m.query(ctx, repo, job, "snapshots", "--json", "--no-lock")
 }
 
-// Stats returns the restic statistics of the repository of job as raw JSON, the global repository when job is empty.
-func (m *Manager) Stats(ctx context.Context, job string) (json.RawMessage, error) {
-	return m.query(ctx, job, "stats", "--json", "--no-lock", "--mode", "raw-data")
+// Stats returns the restic statistics of a repository as raw JSON, see repository for how it is chosen.
+func (m *Manager) Stats(ctx context.Context, repo, job string) (json.RawMessage, error) {
+	return m.query(ctx, repo, job, "stats", "--json", "--no-lock", "--mode", "raw-data")
 }
 
 // Listing returns the output of `restic ls --json` for a directory of a snapshot, one JSON object per line.
-// The snapshot is read from the repository of job, the global repository when job is empty.
-func (m *Manager) Listing(ctx context.Context, job, snapshot, dir string) ([]byte, error) {
+// The snapshot is read from a repository, see repository for how it is chosen.
+func (m *Manager) Listing(ctx context.Context, repo, job, snapshot, dir string) ([]byte, error) {
 	if snapshot == "" || strings.HasPrefix(snapshot, "-") || strings.ContainsAny(snapshot, " \t\r\n\x00") {
 		return nil, apperror.NewError("invalid snapshot")
 	}
 	if !strings.HasPrefix(dir, "/") || strings.ContainsRune(dir, 0) {
 		return nil, apperror.NewError("invalid path")
 	}
-	c, err := m.repository(job)
+	c, err := m.repository(repo, job)
 	if err != nil {
 		return nil, err
 	}
@@ -1045,8 +1054,8 @@ func (m *Manager) Listing(ctx context.Context, job, snapshot, dir string) ([]byt
 	return m.ex(c).Output(ctx, c, "ls", "--json", "--no-lock", "--", snapshot, dir)
 }
 
-func (m *Manager) query(ctx context.Context, job string, args ...string) (json.RawMessage, error) {
-	c, err := m.repository(job)
+func (m *Manager) query(ctx context.Context, repo, job string, args ...string) (json.RawMessage, error) {
+	c, err := m.repository(repo, job)
 	if err != nil {
 		return nil, err
 	}

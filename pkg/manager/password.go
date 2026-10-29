@@ -52,38 +52,35 @@ func (m *Manager) withSecret(ex runner.Executor, c config.Config) runner.Executo
 	return secretExec{Executor: ex, password: pw}
 }
 
-// SecretUsers returns the names of the jobs that take their password from a secret and whether the global
-// settings do.
-func (m *Manager) SecretUsers(name string) (jobs []string, global bool) {
+// SecretUsers returns the names of the repositories that take their password from a secret and the other users of
+// it: peers (peer:<name>) and the sync server.
+func (m *Manager) SecretUsers(name string) (repositories, others []string) {
 	c := m.cfg()
-	for _, j := range c.Jobs {
-		if j.Type != config.TypeSync && c.ForJob(j).PasswordSecret == name {
-			jobs = append(jobs, j.Name)
+	for _, r := range c.Repositories {
+		if r.PasswordSecret == name {
+			repositories = append(repositories, r.Name)
 		}
 	}
 	for _, p := range c.Peers {
 		if p.PasswordSecret == name || p.APIPasswordSecret == name {
-			jobs = append(jobs, "peer:"+p.Name)
+			others = append(others, "peer:"+p.Name)
 		}
 	}
 	if c.SyncServe.PasswordSecret == name {
-		jobs = append(jobs, "syncserve")
+		others = append(others, "syncserve")
 	}
-	return jobs, c.PasswordSecret == name
+	return repositories, others
 }
 
 // secretRepositories returns one configuration for every repository that uses the secret.
 func (m *Manager) secretRepositories(name string) []config.Config {
 	c := m.cfg()
 	found := map[string]config.Config{}
-	add := func(jc config.Config) {
-		if jc.PasswordSecret == name {
+	for _, r := range c.Repositories {
+		if r.PasswordSecret == name {
+			jc := c.ForRepository(r)
 			found[jc.Repository] = jc
 		}
-	}
-	add(c)
-	for _, j := range c.Jobs {
-		add(c.ForJob(j))
 	}
 	out := make([]config.Config, 0, len(found))
 	for _, jc := range found {
@@ -138,7 +135,7 @@ type pwTarget struct {
 func (m *Manager) ChangePassword(ctx context.Context, name, oldPassword, newPassword string, save func() error) (PasswordChange, error) {
 	repos := m.secretRepositories(name)
 	if len(repos) == 0 {
-		return PasswordChange{}, apperror.NewErrorf("no job uses the secret %s, there is no repository to change", name)
+		return PasswordChange{}, apperror.NewErrorf("no repository uses the secret %s, there is nothing to change", name)
 	}
 
 	// Nothing else may touch these repositories meanwhile.
