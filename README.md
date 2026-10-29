@@ -31,7 +31,7 @@ openssl rand -hex 12 > ./examples/secrets/portal_password
 docker compose up -d
 ```
 
-Open `https://localhost:8443` (self-signed certificate) and sign in with that password (`cat ./examples/secrets/portal_password` if it was created for you). The three default jobs fail until you create the secret `backup` under *Secrets*; it holds the repository password.
+Open `https://localhost:8443` (self-signed certificate) and sign in with that password (`cat ./examples/secrets/portal_password` if it was created for you). The portal starts empty: create a secret for the repository password under *Secrets*, a repository under *Repositories* and then the jobs that work on it (see [Repositories](#repositories)).
 
 For a single source and repository without a portal, use standalone mode:
 
@@ -65,9 +65,9 @@ Pick the mode with `CONTROL_MODE` (or the first argument of the image: `standalo
 
 | | `standalone` (default of the image) | `portal` (`CONTROL_MODE=portal`, default of the compose file) |
 |---|---|---|
-| Jobs | `backup`, `forget`, `check`, one each | the same three at first start, then any number, created in the portal or in `control.yaml` |
-| Source, repository | global only | per job |
-| Repository password | password file (`passwordfile`, a Docker secret) | stored [secret](#secrets) per job or global, password files are refused |
+| Jobs | `backup`, `forget`, `check`, one each | none at first start, then any number, created in the portal or in `control.yaml` |
+| Repositories | the one implicit repository `default` (`repository`, `source`) | any number under `repositories`, each with its own password, mount check and restore directory. Nothing is global |
+| Repository password | password file (`passwordfile`, a Docker secret) | a stored [secret](#secrets) per repository, password files are refused |
 | API, portal | none, only a health probe on `127.0.0.1:9080` | API on port 9080 for the portal and the CLI, protected by the password |
 | Extra state | | `master.key` and `secrets.json` in the data directory |
 | Run a job by hand | `control once backup` | portal, or `control run NAME` |
@@ -119,33 +119,59 @@ docker run --rm ghcr.io/valentin-kaiser/backup:latest daemon --help
 
 The portal has its own settings (`portal.yaml`, `PORTAL_*` variables), see [Portal](#portal). Arguments of restic are split like a shell would (quotes and backslashes work) but are never expanded or executed.
 
-### Jobs
+### Repositories
 
-Jobs are a list in `control.yaml`. In **standalone** mode the file holds the three default jobs, adjust their `schedule` and `args`. In **portal** mode it starts with the same three, using the global source and repository and the stored secret `backup` as password. Manage jobs in the [portal](#portal) or edit the file. The example is a portal mode configuration:
+In **portal** mode nothing is global: every restic repository is an entry of `repositories`, with its own password, mount check and restore directory, and the jobs name the repository they work on. Manage them in the [portal](#portal) (*Repositories*), with `control repo`, or edit `control.yaml`.
 
 ```yaml
-passwordsecret: documents      # global default for jobs without their own passwordsecret
+repositories:
+  - name: documents
+    path: /repos/docs                # a directory or any other restic repository address
+    passwordsecret: documents        # the stored secret with the password, required
+    mount:                           # jobs on this repository are skipped while it fails
+      path: /repos
+      markerfile: .mounted
+    restoreroot: /restore/docs       # restores of this repository are limited to this directory, /restore when empty
+  - name: photos
+    path: /repos/photos
+    passwordsecret: photos
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | Unique, 1-32 characters of `a-z 0-9 - _`. Jobs refer to the repository by it |
+| `path` | The restic repository, unique. Repositories are created on first use |
+| `passwordsecret` | The stored [secret](#secrets) with the repository password |
+| `mount.path`, `mount.markerfile` | The [mount check](#ensure-the-target-is-mounted) of the volume the repository lives on |
+| `restoreroot` | Restores of this repository are only allowed below this directory |
+
+A repository that a job uses cannot be removed. Removing one only deletes the entry, the backups stay where they are. The settings `repository`, `passwordfile`, `source`, `restoreroot`, `mountcheck` and `mountchecks` at the top level belong to the one implicit repository of standalone mode and are refused in portal mode.
+
+### Jobs
+
+Jobs are a list in `control.yaml`. In **standalone** mode the file holds the three default jobs, adjust their `schedule` and `args`. In **portal** mode it starts without jobs and repositories. Manage jobs in the [portal](#portal) or edit the file. The example is a portal mode configuration, using the repositories above:
+
+```yaml
 jobs:
   - name: photos
     type: backup
     enabled: true
     schedule: 0 1 * * *          # cron: minute hour day month weekday
-    source: /photos              # defaults to the global source
-    repository: /repos/photos    # defaults to the global repository
-    passwordsecret: photos
+    repository: photos           # a name from repositories
+    source: /photos              # the directory to back up
     args: --exclude-caches
     maxagehours: 26              # unhealthy when no run succeeded for this long, 0 disables
   - name: documents-prune
     type: forget
     enabled: true
     schedule: 0 4 * * 0
-    repository: /repos/docs
+    repository: documents
     args: --prune --keep-last 5
   - name: documents-check
     type: check
     enabled: true
     schedule: 0 5 * * 3
-    repository: /repos/docs
+    repository: documents
     args: --read-data-subset=5%
     timeoutminutes: 360
 ```
@@ -157,8 +183,9 @@ jobs:
 | `schedule`, `enabled` | Cron expression and whether the job is scheduled. Disabled jobs can still be run by hand |
 | `after` | Name of a job that starts this one when it succeeded (see [Chaining](#chaining)). The job has no schedule, `enabled` must be `false` |
 | `args` | Additional restic arguments |
-| `source` (backup jobs), `repository` | Portal mode only: directory to back up and restic repository, default to the global settings |
-| `passwordsecret` | Portal mode: the stored [secret](#secrets) with the repository password, defaults to the global one. `passwordfile` is only used (globally) in standalone mode |
+| `repository` | Portal mode: the name of the [repository](#repositories) of a backup, forget or check job, required. Standalone mode leaves it empty |
+| `source` | Backup jobs, portal mode: the directory to back up, required. Standalone mode uses the top level `source` |
+| `mounts` | Sync jobs: the volumes that must be mounted, see [Ensure the target is mounted](#ensure-the-target-is-mounted) |
 | `timeoutminutes`, `maxagehours` | Abort the run after this long; flag the daemon unhealthy when there was no success for this long |
 
 In standalone mode the defaults are `backup` (daily 00:00), followed by `forget` and then `check`, each starting when the previous one succeeded.
@@ -186,38 +213,42 @@ jobs:
 
 ### Ensure the target is mounted
 
-If `/backup` is a network mount that is not available, restic would write to the container's disk. Create a marker file on the real disk and set
-
-```
-CONTROL_MOUNTCHECK_PATH=/backup
-CONTROL_MOUNTCHECK_MARKERFILE=.mounted
-```
-
-Runs are then `skipped` (and the health check keeps its last good state) while the marker is missing.
-
-When the jobs live on different volumes, guard every volume on its own. Additional guards go into `control.yaml`, all of them must pass before any job runs:
+If the volume of a repository is a network mount or a USB disk that is not available, restic would write to the container's disk. Create a marker file on the real disk and name it in the mount check of the repository:
 
 ```yaml
-mountcheck:
-  path: /backup/usb
-  markerfile: .mounted
-mountchecks:
-  - path: /backup/storage
-    markerfile: .mounted
+repositories:
+  - name: vaultwarden
+    path: /backup/usb/vaultwarden
+    passwordsecret: vaultwarden
+    mount:
+      path: /backup/usb
+      markerfile: .mounted
+  - name: documents
+    path: /backup/storage/documents
+    passwordsecret: documents
+    mount:
+      path: /backup/storage
+      markerfile: .mounted
 ```
 
-A job that backs up to (or syncs with) another volume replaces the global guards with its own — only its own marker proves that its repository is mounted:
+Runs of the jobs on a repository are `skipped` (and the health check keeps its last good state) while its marker is missing. Every repository is guarded by its own volume, so an unplugged USB disk never stops the backups to the storage box.
+
+A sync job keeps two directories identical, an unmounted volume would empty the other side. List the volumes it needs in `mounts`; `checkaccess` protects against an empty mount as well:
 
 ```yaml
 jobs:
-  - name: vaultwarden
-    type: backup
-    repository: /backup/usb/vaultwarden
-    mountpath: /backup/usb
-    mountmarker: .mounted
+  - name: lakis-sync
+    type: sync
+    path1: /source/lakis
+    path2: /sync/lakis
+    mounts:
+      - path: /sync/lakis
+        markerfile: .mounted
 ```
 
-`mountpath` is checked for sync jobs too, where an unmounted volume would empty the other side of the sync. `mountchecks`, `mountpath` and `mountmarker` are set in `control.yaml` (jobs edited through the portal API keep their own settings, but not these fields yet).
+`mounts` of a sync job are set in `control.yaml` (jobs edited through the portal API keep them). The mount check of a repository is also available in the portal.
+
+In **standalone** mode the one repository is guarded by `CONTROL_MOUNTCHECK_PATH` and `CONTROL_MOUNTCHECK_MARKERFILE`; further volumes go into `mountchecks` of `control.yaml`.
 
 ### Notifications
 
@@ -352,9 +383,9 @@ The UI is one page with three sections and a drawer for details:
 
 - **Overview**: health, running jobs, the state of every job with run, pause, cancel and unlock (removes all locks of the repository), and the live output of running jobs
 - **History**: all runs, filtered by job or status; new runs appear on their own
-- **Snapshots**: snapshots and statistics of each repository, reloaded after every backup or prune
+- **Snapshots**: snapshots and statistics of each repository (one tab per repository), reloaded after every backup or prune
 - **Drawer**: create or edit a job (cron builder and restic options form; saving writes `control.yaml` and reschedules at once; deleting is there too), the complete output of a run (streams while active) and the file browser of a snapshot, where a file, a folder or the whole snapshot can be restored. Close it with the button, `Esc` or a click outside; on very wide screens it docks next to the page. Every drawer has its own URL, so views can be linked
-- Also: *Secrets*, *Audit* and a light and dark theme that follows the system until you pick one
+- Also: *Repositories* (password, mount check and restore directory of each repository), *Secrets*, *Audit* and a light and dark theme that follows the system until you pick one
 
 A portal manages **one control daemon**, run one portal per daemon. It authenticates with the daemon using the password it reads from `password-file`; the browser never sees it. The daemon reads the same file (`api.password-file`, `CONTROL_API_PASSWORDFILE`) and refuses every call without it. A self-signed certificate of the daemon is accepted by pinning its fingerprint or trusting its CA. The portal reads its settings when it is called, so a changed `portal.yaml` or a replaced password file applies at once and ends the open connections.
 
@@ -393,7 +424,7 @@ The portal records what happens through it, under *Audit* (and in `portal.db`): 
 
 ## Secrets
 
-In portal mode repository passwords are kept **encrypted on the daemon**; password files are not used (standalone mode uses the password file and has no secrets). A job names a secret (`passwordsecret`, or the global one) and the daemon gives restic the password for every call through a private temporary file (`0600`, in a directory only the user can enter, removed right after the call). Nothing is written to `control.yaml`, the logs or API responses, and no API returns a value.
+In portal mode repository passwords are kept **encrypted on the daemon**; password files are not used (standalone mode uses the password file and has no secrets). A [repository](#repositories) names a secret (`passwordsecret`) and the daemon gives restic the password for every call through a private temporary file (`0600`, in a directory only the user can enter, removed right after the call). Nothing is written to `control.yaml`, the logs or API responses, and no API returns a value.
 
 ```bash
 control secret set photos            # reads the password from the terminal or stdin
@@ -422,8 +453,11 @@ docker exec -u 1000 backup control runs -job photos -n 10
 docker exec -u 1000 backup control cancel photos
 docker exec -u 1000 backup control pause documents-prune # stop scheduling (manual runs still work)
 docker exec -u 1000 backup control resume documents-prune
-docker exec -u 1000 backup control snapshots -job photos # repository of a job, global repository without -job
-docker exec -u 1000 backup control restore -job photos -snapshot latest -target /restore/now
+docker exec -u 1000 backup control repo list             # repositories, their password secret, mount check and jobs
+docker exec -u 1000 backup control repo set docs -path /repos/docs -secret docs -mount-path /repos -mount-marker .mounted
+docker exec -u 1000 backup control repo delete docs      # only when no job uses it, the data stays
+docker exec -u 1000 backup control snapshots -repo docs  # or -job NAME for the repository of a job; the only repository without either
+docker exec -u 1000 backup control restore -repo photos -snapshot latest -target /restore/now
 docker exec -u 1000 backup control logs -f
 docker exec -u 1000 backup control health                # used by the Docker HEALTHCHECK
 docker exec -u 1000 backup control resync mirror -wait   # sync jobs: rebuild the state of both sides (nothing is deleted)

@@ -34,8 +34,9 @@ services:
       # the portal password (portal_password), created with a random value on the first start when it does not exist
       - ./secrets:/run/secrets
     environment:
-      # portal (default): the daemon of the web portal below, any number of jobs and stored secrets, the password file
-      # is not used. standalone (CONTROL_MODE=standalone docker compose up -d backup): one source, one repository, one job
+      # portal (default): the daemon of the web portal below, any number of repositories and jobs, passwords are stored
+      # secrets. Create a secret, a repository (name, location, secret, mount check) and the jobs in the portal.
+      # standalone (CONTROL_MODE=standalone docker compose up -d backup): one source, one repository, one job
       # per type with the defaults of the image (change the jobs in control.yaml), the password from
       # /run/secrets/backup_password, no API and no portal.
       - CONTROL_MODE=${CONTROL_MODE:-portal}
@@ -44,8 +45,8 @@ services:
       - CONTROL_PASSWORD_FILE=/run/secrets/portal_password
       - PUID=1000
       - PGID=1000
-      # refuse to run when the repository is not mounted (create ./backup/.mounted on the real disk)
-      # more volumes: list them as mountchecks in control.yaml, or give a job its own mountpath/mountmarker
+      # standalone mode only: refuse to run when the repository is not mounted (create ./backup/.mounted on the real disk).
+      # In portal mode every repository has its own mount check (path and marker file), set in the portal.
       # - CONTROL_MOUNTCHECK_PATH=/backup
       # - CONTROL_MOUNTCHECK_MARKERFILE=.mounted
       # ping a healthchecks.io style URL on start, success and failure
