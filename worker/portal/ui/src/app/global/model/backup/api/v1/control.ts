@@ -212,17 +212,13 @@ export interface JobDefinition {
   timeoutMinutes: number;
   /** Unhealthy when no run succeeded within this many hours, 0 disables. */
   maxAgeHours: number;
-  /** Directory to back up, backup jobs only. The default source when empty. */
+  /** Directory to back up, backup jobs only. Required in portal mode. */
   source: string;
-  /** Restic repository. The default repository when empty. */
-  repository: string;
-  /** File containing the repository password. The default password file when empty. */
-  passwordFile: string;
   /**
-   * Name of the stored secret that holds the repository password. Replaces password_file; both empty uses the
-   * default.
+   * Name of the repository the job works on, see Repository. Backup, forget and check jobs only; standalone mode
+   * has one implicit repository and leaves it empty.
    */
-  passwordSecret: string;
+  repository: string;
   /** Sync jobs only: first directory, always local. */
   path1: string;
   /** Sync jobs only: second directory. A local directory, or peer:<name>[/subdirectory] on another worker. */
@@ -254,15 +250,22 @@ export interface JobDefinition {
   after: string;
 }
 
-/** Settings that jobs inherit when they do not set their own. */
-export interface Defaults {
-  source: string;
-  repository: string;
-  passwordFile: string;
-  /** Restores are only allowed below this directory. */
-  restoreRoot: string;
-  /** The stored secret that holds the default repository password, empty when the password file is used. */
+/** A restic repository. Jobs refer to it by name and share its password, its mount guard and its restore directory. */
+export interface Repository {
+  /** Unique name: 1-32 characters of lower case letters, digits, - and _. */
+  name: string;
+  /** The restic repository: a directory or any other restic repository address. */
+  path: string;
+  /** Name of the stored secret that holds the repository password. */
   passwordSecret: string;
+  /** Mount guard: directory that must exist before any job works on the repository, empty disables the check. */
+  mountPath: string;
+  /** Mount guard: file that must exist inside mount_path (e.g. .mounted), empty only checks the path. */
+  mountMarker: string;
+  /** Restores of this repository are only allowed below this directory. /restore when empty. */
+  restoreRoot: string;
+  /** Read only: names of the jobs that work on the repository. */
+  jobs: string[];
 }
 
 /** A stored secret, a repository password. The value is never returned. */
@@ -277,10 +280,10 @@ export interface SecretInfo {
   updateTime:
     | Date
     | undefined;
-  /** Names of the jobs that take their password from this secret. */
-  jobs: string[];
-  /** Whether the default password of the daemon is this secret. */
-  defaultPassword: boolean;
+  /** Names of the repositories that use this secret as their password. */
+  repositories: string[];
+  /** Other users of the secret: peer:<name> and syncserve. */
+  otherUsers: string[];
 }
 
 /** A job, its configuration and its state. */
@@ -325,12 +328,10 @@ export interface ControlStatus {
   problems: string[];
   /** All jobs. */
   jobs: Job[];
-  /** What jobs inherit when they do not set their own. */
-  defaults:
-    | Defaults
-    | undefined;
   /** Name of this worker. Peers refer to it by this name, see Peer. */
   workerName: string;
+  /** All repositories. Standalone mode has the one implicit repository, named default. */
+  repositories: Repository[];
 }
 
 /** A restic snapshot. */
@@ -805,8 +806,6 @@ function createBaseJobDefinition(): JobDefinition {
     maxAgeHours: 0,
     source: "",
     repository: "",
-    passwordFile: "",
-    passwordSecret: "",
     path1: "",
     path2: "",
     conflict: "",
@@ -848,12 +847,6 @@ export const JobDefinition: MessageFns<JobDefinition> = {
     }
     if (message.repository !== "") {
       writer.uint32(74).string(message.repository);
-    }
-    if (message.passwordFile !== "") {
-      writer.uint32(82).string(message.passwordFile);
-    }
-    if (message.passwordSecret !== "") {
-      writer.uint32(98).string(message.passwordSecret);
     }
     if (message.path1 !== "") {
       writer.uint32(106).string(message.path1);
@@ -973,22 +966,6 @@ export const JobDefinition: MessageFns<JobDefinition> = {
             message.repository = reader.string();
             continue;
           }
-          case 10: {
-            if (tag !== 82) {
-              break;
-            }
-
-            message.passwordFile = reader.string();
-            continue;
-          }
-          case 12: {
-            if (tag !== 98) {
-              break;
-            }
-
-            message.passwordSecret = reader.string();
-            continue;
-          }
           case 13: {
             if (tag !== 106) {
               break;
@@ -1100,16 +1077,6 @@ export const JobDefinition: MessageFns<JobDefinition> = {
         : 0,
       source: isSet(object.source) ? globalThis.String(object.source) : "",
       repository: isSet(object.repository) ? globalThis.String(object.repository) : "",
-      passwordFile: isSet(object.passwordFile)
-        ? globalThis.String(object.passwordFile)
-        : isSet(object.password_file)
-        ? globalThis.String(object.password_file)
-        : "",
-      passwordSecret: isSet(object.passwordSecret)
-        ? globalThis.String(object.passwordSecret)
-        : isSet(object.password_secret)
-        ? globalThis.String(object.password_secret)
-        : "",
       path1: isSet(object.path1) ? globalThis.String(object.path1) : "",
       path2: isSet(object.path2) ? globalThis.String(object.path2) : "",
       conflict: isSet(object.conflict) ? globalThis.String(object.conflict) : "",
@@ -1164,12 +1131,6 @@ export const JobDefinition: MessageFns<JobDefinition> = {
     if (message.repository !== "") {
       obj.repository = message.repository;
     }
-    if (message.passwordFile !== "") {
-      obj.passwordFile = message.passwordFile;
-    }
-    if (message.passwordSecret !== "") {
-      obj.passwordSecret = message.passwordSecret;
-    }
     if (message.path1 !== "") {
       obj.path1 = message.path1;
     }
@@ -1217,8 +1178,6 @@ export const JobDefinition: MessageFns<JobDefinition> = {
     message.maxAgeHours = object.maxAgeHours ?? 0;
     message.source = object.source ?? "";
     message.repository = object.repository ?? "";
-    message.passwordFile = object.passwordFile ?? "";
-    message.passwordSecret = object.passwordSecret ?? "";
     message.path1 = object.path1 ?? "";
     message.path2 = object.path2 ?? "";
     message.conflict = object.conflict ?? "";
@@ -1233,31 +1192,37 @@ export const JobDefinition: MessageFns<JobDefinition> = {
   },
 };
 
-function createBaseDefaults(): Defaults {
-  return { source: "", repository: "", passwordFile: "", restoreRoot: "", passwordSecret: "" };
+function createBaseRepository(): Repository {
+  return { name: "", path: "", passwordSecret: "", mountPath: "", mountMarker: "", restoreRoot: "", jobs: [] };
 }
 
-export const Defaults: MessageFns<Defaults> = {
-  encode(message: Defaults, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.source !== "") {
-      writer.uint32(10).string(message.source);
+export const Repository: MessageFns<Repository> = {
+  encode(message: Repository, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
     }
-    if (message.repository !== "") {
-      writer.uint32(18).string(message.repository);
-    }
-    if (message.passwordFile !== "") {
-      writer.uint32(26).string(message.passwordFile);
-    }
-    if (message.restoreRoot !== "") {
-      writer.uint32(34).string(message.restoreRoot);
+    if (message.path !== "") {
+      writer.uint32(18).string(message.path);
     }
     if (message.passwordSecret !== "") {
-      writer.uint32(50).string(message.passwordSecret);
+      writer.uint32(26).string(message.passwordSecret);
+    }
+    if (message.mountPath !== "") {
+      writer.uint32(34).string(message.mountPath);
+    }
+    if (message.mountMarker !== "") {
+      writer.uint32(42).string(message.mountMarker);
+    }
+    if (message.restoreRoot !== "") {
+      writer.uint32(50).string(message.restoreRoot);
+    }
+    for (const v of message.jobs) {
+      writer.uint32(58).string(v!);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): Defaults {
+  decode(input: BinaryReader | Uint8Array, length?: number): Repository {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
     if (previousRecursionDepth >= 100) {
@@ -1266,7 +1231,7 @@ export const Defaults: MessageFns<Defaults> = {
     (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
     try {
       const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseDefaults();
+      const message = createBaseRepository();
       while (reader.pos < end) {
         const tag = reader.uint32();
         switch (tag >>> 3) {
@@ -1275,7 +1240,7 @@ export const Defaults: MessageFns<Defaults> = {
               break;
             }
 
-            message.source = reader.string();
+            message.name = reader.string();
             continue;
           }
           case 2: {
@@ -1283,7 +1248,7 @@ export const Defaults: MessageFns<Defaults> = {
               break;
             }
 
-            message.repository = reader.string();
+            message.path = reader.string();
             continue;
           }
           case 3: {
@@ -1291,7 +1256,7 @@ export const Defaults: MessageFns<Defaults> = {
               break;
             }
 
-            message.passwordFile = reader.string();
+            message.passwordSecret = reader.string();
             continue;
           }
           case 4: {
@@ -1299,7 +1264,15 @@ export const Defaults: MessageFns<Defaults> = {
               break;
             }
 
-            message.restoreRoot = reader.string();
+            message.mountPath = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.mountMarker = reader.string();
             continue;
           }
           case 6: {
@@ -1307,7 +1280,15 @@ export const Defaults: MessageFns<Defaults> = {
               break;
             }
 
-            message.passwordSecret = reader.string();
+            message.restoreRoot = reader.string();
+            continue;
+          }
+          case 7: {
+            if (tag !== 58) {
+              break;
+            }
+
+            message.jobs.push(reader.string());
             continue;
           }
         }
@@ -1322,64 +1303,80 @@ export const Defaults: MessageFns<Defaults> = {
     }
   },
 
-  fromJSON(object: any): Defaults {
+  fromJSON(object: any): Repository {
     return {
-      source: isSet(object.source) ? globalThis.String(object.source) : "",
-      repository: isSet(object.repository) ? globalThis.String(object.repository) : "",
-      passwordFile: isSet(object.passwordFile)
-        ? globalThis.String(object.passwordFile)
-        : isSet(object.password_file)
-        ? globalThis.String(object.password_file)
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      path: isSet(object.path) ? globalThis.String(object.path) : "",
+      passwordSecret: isSet(object.passwordSecret)
+        ? globalThis.String(object.passwordSecret)
+        : isSet(object.password_secret)
+        ? globalThis.String(object.password_secret)
+        : "",
+      mountPath: isSet(object.mountPath)
+        ? globalThis.String(object.mountPath)
+        : isSet(object.mount_path)
+        ? globalThis.String(object.mount_path)
+        : "",
+      mountMarker: isSet(object.mountMarker)
+        ? globalThis.String(object.mountMarker)
+        : isSet(object.mount_marker)
+        ? globalThis.String(object.mount_marker)
         : "",
       restoreRoot: isSet(object.restoreRoot)
         ? globalThis.String(object.restoreRoot)
         : isSet(object.restore_root)
         ? globalThis.String(object.restore_root)
         : "",
-      passwordSecret: isSet(object.passwordSecret)
-        ? globalThis.String(object.passwordSecret)
-        : isSet(object.password_secret)
-        ? globalThis.String(object.password_secret)
-        : "",
+      jobs: globalThis.Array.isArray(object?.jobs)
+        ? object.jobs.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
-  toJSON(message: Defaults): unknown {
+  toJSON(message: Repository): unknown {
     const obj: any = {};
-    if (message.source !== "") {
-      obj.source = message.source;
+    if (message.name !== "") {
+      obj.name = message.name;
     }
-    if (message.repository !== "") {
-      obj.repository = message.repository;
-    }
-    if (message.passwordFile !== "") {
-      obj.passwordFile = message.passwordFile;
-    }
-    if (message.restoreRoot !== "") {
-      obj.restoreRoot = message.restoreRoot;
+    if (message.path !== "") {
+      obj.path = message.path;
     }
     if (message.passwordSecret !== "") {
       obj.passwordSecret = message.passwordSecret;
     }
+    if (message.mountPath !== "") {
+      obj.mountPath = message.mountPath;
+    }
+    if (message.mountMarker !== "") {
+      obj.mountMarker = message.mountMarker;
+    }
+    if (message.restoreRoot !== "") {
+      obj.restoreRoot = message.restoreRoot;
+    }
+    if (message.jobs?.length) {
+      obj.jobs = message.jobs;
+    }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Defaults>, I>>(base?: I): Defaults {
-    return Defaults.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<Repository>, I>>(base?: I): Repository {
+    return Repository.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<Defaults>, I>>(object: I): Defaults {
-    const message = createBaseDefaults();
-    message.source = object.source ?? "";
-    message.repository = object.repository ?? "";
-    message.passwordFile = object.passwordFile ?? "";
-    message.restoreRoot = object.restoreRoot ?? "";
+  fromPartial<I extends Exact<DeepPartial<Repository>, I>>(object: I): Repository {
+    const message = createBaseRepository();
+    message.name = object.name ?? "";
+    message.path = object.path ?? "";
     message.passwordSecret = object.passwordSecret ?? "";
+    message.mountPath = object.mountPath ?? "";
+    message.mountMarker = object.mountMarker ?? "";
+    message.restoreRoot = object.restoreRoot ?? "";
+    message.jobs = object.jobs?.map((e) => e) || [];
     return message;
   },
 };
 
 function createBaseSecretInfo(): SecretInfo {
-  return { name: "", createTime: undefined, updateTime: undefined, jobs: [], defaultPassword: false };
+  return { name: "", createTime: undefined, updateTime: undefined, repositories: [], otherUsers: [] };
 }
 
 export const SecretInfo: MessageFns<SecretInfo> = {
@@ -1393,11 +1390,11 @@ export const SecretInfo: MessageFns<SecretInfo> = {
     if (message.updateTime !== undefined) {
       Timestamp.encode(toTimestamp(message.updateTime), writer.uint32(26).fork()).join();
     }
-    for (const v of message.jobs) {
-      writer.uint32(34).string(v!);
+    for (const v of message.repositories) {
+      writer.uint32(50).string(v!);
     }
-    if (message.defaultPassword !== false) {
-      writer.uint32(40).bool(message.defaultPassword);
+    for (const v of message.otherUsers) {
+      writer.uint32(58).string(v!);
     }
     return writer;
   },
@@ -1439,20 +1436,20 @@ export const SecretInfo: MessageFns<SecretInfo> = {
             message.updateTime = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
             continue;
           }
-          case 4: {
-            if (tag !== 34) {
+          case 6: {
+            if (tag !== 50) {
               break;
             }
 
-            message.jobs.push(reader.string());
+            message.repositories.push(reader.string());
             continue;
           }
-          case 5: {
-            if (tag !== 40) {
+          case 7: {
+            if (tag !== 58) {
               break;
             }
 
-            message.defaultPassword = reader.bool();
+            message.otherUsers.push(reader.string());
             continue;
           }
         }
@@ -1480,12 +1477,14 @@ export const SecretInfo: MessageFns<SecretInfo> = {
         : isSet(object.update_time)
         ? fromJsonTimestamp(object.update_time)
         : undefined,
-      jobs: globalThis.Array.isArray(object?.jobs) ? object.jobs.map((e: any) => globalThis.String(e)) : [],
-      defaultPassword: isSet(object.defaultPassword)
-        ? globalThis.Boolean(object.defaultPassword)
-        : isSet(object.default_password)
-        ? globalThis.Boolean(object.default_password)
-        : false,
+      repositories: globalThis.Array.isArray(object?.repositories)
+        ? object.repositories.map((e: any) => globalThis.String(e))
+        : [],
+      otherUsers: globalThis.Array.isArray(object?.otherUsers)
+        ? object.otherUsers.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.other_users)
+        ? object.other_users.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -1500,11 +1499,11 @@ export const SecretInfo: MessageFns<SecretInfo> = {
     if (message.updateTime !== undefined) {
       obj.updateTime = message.updateTime.toISOString();
     }
-    if (message.jobs?.length) {
-      obj.jobs = message.jobs;
+    if (message.repositories?.length) {
+      obj.repositories = message.repositories;
     }
-    if (message.defaultPassword !== false) {
-      obj.defaultPassword = message.defaultPassword;
+    if (message.otherUsers?.length) {
+      obj.otherUsers = message.otherUsers;
     }
     return obj;
   },
@@ -1517,8 +1516,8 @@ export const SecretInfo: MessageFns<SecretInfo> = {
     message.name = object.name ?? "";
     message.createTime = object.createTime ?? undefined;
     message.updateTime = object.updateTime ?? undefined;
-    message.jobs = object.jobs?.map((e) => e) || [];
-    message.defaultPassword = object.defaultPassword ?? false;
+    message.repositories = object.repositories?.map((e) => e) || [];
+    message.otherUsers = object.otherUsers?.map((e) => e) || [];
     return message;
   },
 };
@@ -1760,7 +1759,7 @@ export const Job: MessageFns<Job> = {
 };
 
 function createBaseControlStatus(): ControlStatus {
-  return { version: "", healthy: false, problems: [], jobs: [], defaults: undefined, workerName: "" };
+  return { version: "", healthy: false, problems: [], jobs: [], workerName: "", repositories: [] };
 }
 
 export const ControlStatus: MessageFns<ControlStatus> = {
@@ -1777,11 +1776,11 @@ export const ControlStatus: MessageFns<ControlStatus> = {
     for (const v of message.jobs) {
       Job.encode(v!, writer.uint32(34).fork()).join();
     }
-    if (message.defaults !== undefined) {
-      Defaults.encode(message.defaults, writer.uint32(42).fork()).join();
-    }
     if (message.workerName !== "") {
       writer.uint32(50).string(message.workerName);
+    }
+    for (const v of message.repositories) {
+      Repository.encode(v!, writer.uint32(58).fork()).join();
     }
     return writer;
   },
@@ -1831,20 +1830,20 @@ export const ControlStatus: MessageFns<ControlStatus> = {
             message.jobs.push(Job.decode(reader, reader.uint32()));
             continue;
           }
-          case 5: {
-            if (tag !== 42) {
-              break;
-            }
-
-            message.defaults = Defaults.decode(reader, reader.uint32());
-            continue;
-          }
           case 6: {
             if (tag !== 50) {
               break;
             }
 
             message.workerName = reader.string();
+            continue;
+          }
+          case 7: {
+            if (tag !== 58) {
+              break;
+            }
+
+            message.repositories.push(Repository.decode(reader, reader.uint32()));
             continue;
           }
         }
@@ -1865,12 +1864,14 @@ export const ControlStatus: MessageFns<ControlStatus> = {
       healthy: isSet(object.healthy) ? globalThis.Boolean(object.healthy) : false,
       problems: globalThis.Array.isArray(object?.problems) ? object.problems.map((e: any) => globalThis.String(e)) : [],
       jobs: globalThis.Array.isArray(object?.jobs) ? object.jobs.map((e: any) => Job.fromJSON(e)) : [],
-      defaults: isSet(object.defaults) ? Defaults.fromJSON(object.defaults) : undefined,
       workerName: isSet(object.workerName)
         ? globalThis.String(object.workerName)
         : isSet(object.worker_name)
         ? globalThis.String(object.worker_name)
         : "",
+      repositories: globalThis.Array.isArray(object?.repositories)
+        ? object.repositories.map((e: any) => Repository.fromJSON(e))
+        : [],
     };
   },
 
@@ -1888,11 +1889,11 @@ export const ControlStatus: MessageFns<ControlStatus> = {
     if (message.jobs?.length) {
       obj.jobs = message.jobs.map((e) => Job.toJSON(e));
     }
-    if (message.defaults !== undefined) {
-      obj.defaults = Defaults.toJSON(message.defaults);
-    }
     if (message.workerName !== "") {
       obj.workerName = message.workerName;
+    }
+    if (message.repositories?.length) {
+      obj.repositories = message.repositories.map((e) => Repository.toJSON(e));
     }
     return obj;
   },
@@ -1906,10 +1907,8 @@ export const ControlStatus: MessageFns<ControlStatus> = {
     message.healthy = object.healthy ?? false;
     message.problems = object.problems?.map((e) => e) || [];
     message.jobs = object.jobs?.map((e) => Job.fromPartial(e)) || [];
-    message.defaults = (object.defaults !== undefined && object.defaults !== null)
-      ? Defaults.fromPartial(object.defaults)
-      : undefined;
     message.workerName = object.workerName ?? "";
+    message.repositories = object.repositories?.map((e) => Repository.fromPartial(e)) || [];
     return message;
   },
 };

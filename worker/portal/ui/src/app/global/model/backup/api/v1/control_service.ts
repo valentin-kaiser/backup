@@ -17,6 +17,7 @@ import {
   Notifications,
   Peer,
   PeerStatus,
+  Repository,
   RepositoryStats,
   Run,
   SecretInfo,
@@ -57,8 +58,10 @@ export interface JobRequest {
 
 /** Requests the snapshot list. */
 export interface ListSnapshotsRequest {
-  /** Name of a job, its repository is listed. The global repository when empty. */
+  /** Name of a job, its repository is listed. Ignored when repository is set. */
   job: string;
+  /** Name of the repository to list. With job empty too, the only repository, if there is just one. */
+  repository: string;
 }
 
 /** The snapshots of the repository, newest first. */
@@ -68,12 +71,14 @@ export interface ListSnapshotsResponse {
 
 /** Requests the content of a directory in a snapshot. */
 export interface ListFilesRequest {
-  /** Name of a job, the snapshot is read from its repository. The global repository when empty. */
+  /** Name of a job, the snapshot is read from its repository. Ignored when repository is set. */
   job: string;
   /** Snapshot id. */
   snapshot: string;
   /** Absolute directory inside the snapshot, / when empty. */
   path: string;
+  /** Name of the repository to read. With job empty too, the only repository, if there is just one. */
+  repository: string;
 }
 
 /** The entries of a directory, directories first, then by name. */
@@ -85,8 +90,10 @@ export interface ListFilesResponse {
 
 /** Requests the repository statistics. */
 export interface GetStatsRequest {
-  /** Name of a job, the statistics of its repository are returned. The global repository when empty. */
+  /** Name of a job, the statistics of its repository are returned. Ignored when repository is set. */
   job: string;
+  /** Name of the repository. With job empty too, the only repository, if there is just one. */
+  repository: string;
 }
 
 /** Requests a restore. */
@@ -97,8 +104,24 @@ export interface RestoreRequest {
   target: string;
   /** Paths to restore, everything when empty. */
   include: string[];
-  /** Name of a job, the snapshot is restored from its repository. The global repository when empty. */
+  /** Name of a job, the snapshot is restored from its repository. Ignored when repository is set. */
   job: string;
+  /** Name of the repository to restore from. With job empty too, the only repository, if there is just one. */
+  repository: string;
+}
+
+/** Requests the repositories. */
+export interface ListRepositoriesRequest {
+}
+
+/** The repositories sorted by name. */
+export interface ListRepositoriesResponse {
+  repositories: Repository[];
+}
+
+/** Addresses a repository. */
+export interface RepositoryRequest {
+  name: string;
 }
 
 /** Requests the secrets. */
@@ -559,13 +582,16 @@ export const JobRequest: MessageFns<JobRequest> = {
 };
 
 function createBaseListSnapshotsRequest(): ListSnapshotsRequest {
-  return { job: "" };
+  return { job: "", repository: "" };
 }
 
 export const ListSnapshotsRequest: MessageFns<ListSnapshotsRequest> = {
   encode(message: ListSnapshotsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.job !== "") {
       writer.uint32(10).string(message.job);
+    }
+    if (message.repository !== "") {
+      writer.uint32(18).string(message.repository);
     }
     return writer;
   },
@@ -591,6 +617,14 @@ export const ListSnapshotsRequest: MessageFns<ListSnapshotsRequest> = {
             message.job = reader.string();
             continue;
           }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.repository = reader.string();
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -604,13 +638,19 @@ export const ListSnapshotsRequest: MessageFns<ListSnapshotsRequest> = {
   },
 
   fromJSON(object: any): ListSnapshotsRequest {
-    return { job: isSet(object.job) ? globalThis.String(object.job) : "" };
+    return {
+      job: isSet(object.job) ? globalThis.String(object.job) : "",
+      repository: isSet(object.repository) ? globalThis.String(object.repository) : "",
+    };
   },
 
   toJSON(message: ListSnapshotsRequest): unknown {
     const obj: any = {};
     if (message.job !== "") {
       obj.job = message.job;
+    }
+    if (message.repository !== "") {
+      obj.repository = message.repository;
     }
     return obj;
   },
@@ -621,6 +661,7 @@ export const ListSnapshotsRequest: MessageFns<ListSnapshotsRequest> = {
   fromPartial<I extends Exact<DeepPartial<ListSnapshotsRequest>, I>>(object: I): ListSnapshotsRequest {
     const message = createBaseListSnapshotsRequest();
     message.job = object.job ?? "";
+    message.repository = object.repository ?? "";
     return message;
   },
 };
@@ -697,7 +738,7 @@ export const ListSnapshotsResponse: MessageFns<ListSnapshotsResponse> = {
 };
 
 function createBaseListFilesRequest(): ListFilesRequest {
-  return { job: "", snapshot: "", path: "" };
+  return { job: "", snapshot: "", path: "", repository: "" };
 }
 
 export const ListFilesRequest: MessageFns<ListFilesRequest> = {
@@ -710,6 +751,9 @@ export const ListFilesRequest: MessageFns<ListFilesRequest> = {
     }
     if (message.path !== "") {
       writer.uint32(26).string(message.path);
+    }
+    if (message.repository !== "") {
+      writer.uint32(34).string(message.repository);
     }
     return writer;
   },
@@ -751,6 +795,14 @@ export const ListFilesRequest: MessageFns<ListFilesRequest> = {
             message.path = reader.string();
             continue;
           }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.repository = reader.string();
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -768,6 +820,7 @@ export const ListFilesRequest: MessageFns<ListFilesRequest> = {
       job: isSet(object.job) ? globalThis.String(object.job) : "",
       snapshot: isSet(object.snapshot) ? globalThis.String(object.snapshot) : "",
       path: isSet(object.path) ? globalThis.String(object.path) : "",
+      repository: isSet(object.repository) ? globalThis.String(object.repository) : "",
     };
   },
 
@@ -782,6 +835,9 @@ export const ListFilesRequest: MessageFns<ListFilesRequest> = {
     if (message.path !== "") {
       obj.path = message.path;
     }
+    if (message.repository !== "") {
+      obj.repository = message.repository;
+    }
     return obj;
   },
 
@@ -793,6 +849,7 @@ export const ListFilesRequest: MessageFns<ListFilesRequest> = {
     message.job = object.job ?? "";
     message.snapshot = object.snapshot ?? "";
     message.path = object.path ?? "";
+    message.repository = object.repository ?? "";
     return message;
   },
 };
@@ -883,13 +940,16 @@ export const ListFilesResponse: MessageFns<ListFilesResponse> = {
 };
 
 function createBaseGetStatsRequest(): GetStatsRequest {
-  return { job: "" };
+  return { job: "", repository: "" };
 }
 
 export const GetStatsRequest: MessageFns<GetStatsRequest> = {
   encode(message: GetStatsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.job !== "") {
       writer.uint32(10).string(message.job);
+    }
+    if (message.repository !== "") {
+      writer.uint32(18).string(message.repository);
     }
     return writer;
   },
@@ -915,6 +975,14 @@ export const GetStatsRequest: MessageFns<GetStatsRequest> = {
             message.job = reader.string();
             continue;
           }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.repository = reader.string();
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -928,13 +996,19 @@ export const GetStatsRequest: MessageFns<GetStatsRequest> = {
   },
 
   fromJSON(object: any): GetStatsRequest {
-    return { job: isSet(object.job) ? globalThis.String(object.job) : "" };
+    return {
+      job: isSet(object.job) ? globalThis.String(object.job) : "",
+      repository: isSet(object.repository) ? globalThis.String(object.repository) : "",
+    };
   },
 
   toJSON(message: GetStatsRequest): unknown {
     const obj: any = {};
     if (message.job !== "") {
       obj.job = message.job;
+    }
+    if (message.repository !== "") {
+      obj.repository = message.repository;
     }
     return obj;
   },
@@ -945,12 +1019,13 @@ export const GetStatsRequest: MessageFns<GetStatsRequest> = {
   fromPartial<I extends Exact<DeepPartial<GetStatsRequest>, I>>(object: I): GetStatsRequest {
     const message = createBaseGetStatsRequest();
     message.job = object.job ?? "";
+    message.repository = object.repository ?? "";
     return message;
   },
 };
 
 function createBaseRestoreRequest(): RestoreRequest {
-  return { snapshot: "", target: "", include: [], job: "" };
+  return { snapshot: "", target: "", include: [], job: "", repository: "" };
 }
 
 export const RestoreRequest: MessageFns<RestoreRequest> = {
@@ -966,6 +1041,9 @@ export const RestoreRequest: MessageFns<RestoreRequest> = {
     }
     if (message.job !== "") {
       writer.uint32(34).string(message.job);
+    }
+    if (message.repository !== "") {
+      writer.uint32(42).string(message.repository);
     }
     return writer;
   },
@@ -1015,6 +1093,14 @@ export const RestoreRequest: MessageFns<RestoreRequest> = {
             message.job = reader.string();
             continue;
           }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.repository = reader.string();
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -1033,6 +1119,7 @@ export const RestoreRequest: MessageFns<RestoreRequest> = {
       target: isSet(object.target) ? globalThis.String(object.target) : "",
       include: globalThis.Array.isArray(object?.include) ? object.include.map((e: any) => globalThis.String(e)) : [],
       job: isSet(object.job) ? globalThis.String(object.job) : "",
+      repository: isSet(object.repository) ? globalThis.String(object.repository) : "",
     };
   },
 
@@ -1050,6 +1137,9 @@ export const RestoreRequest: MessageFns<RestoreRequest> = {
     if (message.job !== "") {
       obj.job = message.job;
     }
+    if (message.repository !== "") {
+      obj.repository = message.repository;
+    }
     return obj;
   },
 
@@ -1062,6 +1152,197 @@ export const RestoreRequest: MessageFns<RestoreRequest> = {
     message.target = object.target ?? "";
     message.include = object.include?.map((e) => e) || [];
     message.job = object.job ?? "";
+    message.repository = object.repository ?? "";
+    return message;
+  },
+};
+
+function createBaseListRepositoriesRequest(): ListRepositoriesRequest {
+  return {};
+}
+
+export const ListRepositoriesRequest: MessageFns<ListRepositoriesRequest> = {
+  encode(_: ListRepositoriesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListRepositoriesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseListRepositoriesRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(_: any): ListRepositoriesRequest {
+    return {};
+  },
+
+  toJSON(_: ListRepositoriesRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListRepositoriesRequest>, I>>(base?: I): ListRepositoriesRequest {
+    return ListRepositoriesRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListRepositoriesRequest>, I>>(_: I): ListRepositoriesRequest {
+    const message = createBaseListRepositoriesRequest();
+    return message;
+  },
+};
+
+function createBaseListRepositoriesResponse(): ListRepositoriesResponse {
+  return { repositories: [] };
+}
+
+export const ListRepositoriesResponse: MessageFns<ListRepositoriesResponse> = {
+  encode(message: ListRepositoriesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.repositories) {
+      Repository.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListRepositoriesResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseListRepositoriesResponse();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.repositories.push(Repository.decode(reader, reader.uint32()));
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): ListRepositoriesResponse {
+    return {
+      repositories: globalThis.Array.isArray(object?.repositories)
+        ? object.repositories.map((e: any) => Repository.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: ListRepositoriesResponse): unknown {
+    const obj: any = {};
+    if (message.repositories?.length) {
+      obj.repositories = message.repositories.map((e) => Repository.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListRepositoriesResponse>, I>>(base?: I): ListRepositoriesResponse {
+    return ListRepositoriesResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListRepositoriesResponse>, I>>(object: I): ListRepositoriesResponse {
+    const message = createBaseListRepositoriesResponse();
+    message.repositories = object.repositories?.map((e) => Repository.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseRepositoryRequest(): RepositoryRequest {
+  return { name: "" };
+}
+
+export const RepositoryRequest: MessageFns<RepositoryRequest> = {
+  encode(message: RepositoryRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RepositoryRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseRepositoryRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.name = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): RepositoryRequest {
+    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
+  },
+
+  toJSON(message: RepositoryRequest): unknown {
+    const obj: any = {};
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RepositoryRequest>, I>>(base?: I): RepositoryRequest {
+    return RepositoryRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RepositoryRequest>, I>>(object: I): RepositoryRequest {
+    const message = createBaseRepositoryRequest();
+    message.name = object.name ?? "";
     return message;
   },
 };
@@ -2474,6 +2755,33 @@ export const ControlDefinition = {
       responseStream: false,
       options: {},
     },
+    /** Lists the repositories with the jobs that work on them. */
+    listRepositories: {
+      name: "ListRepositories",
+      requestType: ListRepositoriesRequest as typeof ListRepositoriesRequest,
+      requestStream: false,
+      responseType: ListRepositoriesResponse as typeof ListRepositoriesResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** Creates a repository or replaces its settings. The data of the repository itself is not touched. */
+    setRepository: {
+      name: "SetRepository",
+      requestType: Repository as typeof Repository,
+      requestStream: false,
+      responseType: Repository as typeof Repository,
+      responseStream: false,
+      options: {},
+    },
+    /** Removes a repository from the configuration. Fails while a job uses it. The data stays where it is. */
+    deleteRepository: {
+      name: "DeleteRepository",
+      requestType: RepositoryRequest as typeof RepositoryRequest,
+      requestStream: false,
+      responseType: Empty as typeof Empty,
+      responseStream: false,
+      options: {},
+    },
     /** Lists the snapshots of the repository. */
     listSnapshots: {
       name: "ListSnapshots",
@@ -2543,7 +2851,7 @@ export const ControlDefinition = {
       responseStream: false,
       options: {},
     },
-    /** Deletes a secret that no job uses. */
+    /** Deletes a secret that no repository uses. */
     deleteSecret: {
       name: "DeleteSecret",
       requestType: SecretRequest as typeof SecretRequest,

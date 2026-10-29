@@ -11,6 +11,7 @@ import {
   JobDefinition,
   Peer,
   PeerStatus,
+  Repository,
   RepositoryStats,
   Run,
   SecretInfo,
@@ -38,6 +39,7 @@ import {
   ChangeRepositoryPasswordResponse,
   ListSecretsRequest,
   ListSecretsResponse,
+  RepositoryRequest,
   RestoreRequest,
   SecretRequest,
   SetSecretRequest,
@@ -66,16 +68,6 @@ const REFRESH_DELAY_MS = 300;
 const POLL_MS = 30_000;
 const RESUBSCRIBE_MS = 1_000;
 
-/** A repository and the jobs that use it. */
-export interface Repository {
-  /** Repository location, the key of the entry. */
-  key: string;
-  /** A backup job that works on it, used to address the repository in the API. */
-  job: string;
-  /** All jobs that work on it. */
-  jobs: string[];
-}
-
 export function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -100,38 +92,23 @@ export class ControlService {
   readonly jobs = computed<Job[]>(() => this.status()?.jobs ?? []);
   /** The configured jobs. */
   readonly definedJobs = computed(() => this.jobs().filter((job) => job.definition));
-  readonly defaults = computed(() => this.status()?.defaults);
   /** False until the first load finished, successful or not, so the overview does not flash before the setup. */
   readonly loaded = signal(false);
+  /** The repositories of the daemon. */
+  readonly repositories = computed<Repository[]>(() => this.status()?.repositories ?? []);
   /**
-   * The daemon has no password for its repository yet: the secret that jobs use by default does not exist. This is
-   * the state of a fresh installation, every repository query fails until it is stored.
+   * The password secret of the first repository that has none stored yet, empty when all repositories can be opened.
+   * Every repository query fails until it is stored.
    */
-  readonly needsSetup = computed(() => {
-    const name = this.defaults()?.passwordSecret;
-    return !!name && this.secretsLoaded() && !this.secrets().some((s) => s.name === name);
-  });
-  readonly running = computed(() => this.jobs().filter((job) => job.active));
-  readonly repositories = computed<Repository[]>(() => {
-    const fallback = this.defaults()?.repository ?? '';
-    const found = new Map<string, Repository & { backup: boolean }>();
-    for (const job of this.definedJobs()) {
-      // Sync jobs have no repository.
-      if (job.type === 'sync') {
-        continue;
-      }
-      const key = job.definition?.repository || fallback;
-      const entry = found.get(key) ?? { key, job: job.name, jobs: [], backup: false };
-      entry.jobs.push(job.name);
-      // Any job addresses the repository, a backup job is the most natural one.
-      if (job.type === 'backup' && !entry.backup) {
-        entry.job = job.name;
-        entry.backup = true;
-      }
-      found.set(key, entry);
+  readonly missingSecret = computed(() => {
+    if (!this.secretsLoaded()) {
+      return '';
     }
-    return [...found.values()].map(({ key, job, jobs }) => ({ key, job, jobs }));
+    const known = new Set(this.secrets().map((s) => s.name));
+    return this.repositories().find((r) => r.passwordSecret && !known.has(r.passwordSecret))?.passwordSecret ?? '';
   });
+  readonly needsSetup = computed(() => !!this.missingSecret());
+  readonly running = computed(() => this.jobs().filter((job) => job.active));
   /** The peers sync jobs can use, loaded on demand. */
   readonly peers = signal<Peer[]>([]);
   /** Name of this worker, the name its peers know it by. */
@@ -234,19 +211,19 @@ export class ControlService {
     return this.rpc.call(SERVICE, 'GetRun', GetRunRequest.create({ id }), Run);
   }
 
-  /** Lists the snapshots of the repository of a job, newest first. */
-  async loadSnapshots(job: string): Promise<Snapshot[]> {
-    const response = await this.rpc.call(SERVICE, 'ListSnapshots', ListSnapshotsRequest.create({ job }), ListSnapshotsResponse);
+  /** Lists the snapshots of a repository, newest first. */
+  async loadSnapshots(repository: string): Promise<Snapshot[]> {
+    const response = await this.rpc.call(SERVICE, 'ListSnapshots', ListSnapshotsRequest.create({ repository }), ListSnapshotsResponse);
     return response.snapshots;
   }
 
   /** The entries directly inside a directory of a snapshot. A snapshot never changes, so this can be cached. */
-  loadFiles(job: string, snapshot: string, path: string): Promise<ListFilesResponse> {
-    return this.rpc.call(SERVICE, 'ListFiles', ListFilesRequest.create({ job, snapshot, path }), ListFilesResponse);
+  loadFiles(repository: string, snapshot: string, path: string): Promise<ListFilesResponse> {
+    return this.rpc.call(SERVICE, 'ListFiles', ListFilesRequest.create({ repository, snapshot, path }), ListFilesResponse);
   }
 
-  loadStats(job: string): Promise<RepositoryStats> {
-    return this.rpc.call(SERVICE, 'GetStats', GetStatsRequest.create({ job }), RepositoryStats);
+  loadStats(repository: string): Promise<RepositoryStats> {
+    return this.rpc.call(SERVICE, 'GetStats', GetStatsRequest.create({ repository }), RepositoryStats);
   }
 
   // ── Actions, failures are reported with a toast ────────────────────────
@@ -356,6 +333,20 @@ export class ControlService {
   async testNotifications(): Promise<string[]> {
     const r = await this.rpc.call(SERVICE, 'TestNotifications', TestNotificationsRequest.create(), TestNotificationsResponse);
     return r.recipients;
+  }
+
+  // ── Repositories ─────────────────────────────────────────────────────────
+
+  async saveRepository(repository: Repository): Promise<void> {
+    await this.rpc.call(SERVICE, 'SetRepository', Repository.create(repository), Repository);
+    this.toast.success(`Saved ${repository.name}`);
+    await this.refresh(true);
+  }
+
+  async deleteRepository(name: string): Promise<void> {
+    await this.rpc.call(SERVICE, 'DeleteRepository', RepositoryRequest.create({ name }), Empty);
+    this.toast.success(`Removed ${name}`);
+    await this.refresh(true);
   }
 
   // ── Secrets ──────────────────────────────────────────────────────────────

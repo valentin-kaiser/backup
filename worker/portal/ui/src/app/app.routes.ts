@@ -31,6 +31,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/audit/audit.page').then((m) => m.AuditPage),
   },
   {
+    path: 'repositories',
+    title: 'Repositories',
+    loadComponent: () => import('./pages/repositories/repositories.page').then((m) => m.RepositoriesPage),
+  },
+  {
     path: 'peers',
     title: 'Sync',
     loadComponent: () => import('./pages/peers/peers.page').then((m) => m.PeersPage),

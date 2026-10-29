@@ -8,16 +8,17 @@ import {
   EventType,
   Job,
   JobDefinition,
+  Repository,
   RunStatus,
 } from '../../model/backup/api/v1/control';
-import { ListRunsResponse } from '../../model/backup/api/v1/control_service';
+import { ListRunsResponse, ListSecretsResponse } from '../../model/backup/api/v1/control_service';
 import { RpcService } from '../rpc/rpc.service';
 import { ControlService } from './control.service';
 
-const definition = (name: string, type: string, repository = ''): JobDefinition =>
+const definition = (name: string, type: string, repository = 'main'): JobDefinition =>
   JobDefinition.create({ name, type, enabled: true, schedule: '0 0 * * *', repository });
 
-const job = (name: string, type: string, repository = ''): Job =>
+const job = (name: string, type: string, repository = 'main'): Job =>
   Job.create({ name, type, enabled: true, schedule: '0 0 * * *', definition: definition(name, type, repository) });
 
 describe('ControlService', () => {
@@ -32,10 +33,13 @@ describe('ControlService', () => {
     status = ControlStatus.create({
       healthy: true,
       version: 'test',
-      defaults: { source: '/src', repository: '/repo', passwordFile: '', restoreRoot: '/restore' },
+      repositories: [
+        Repository.create({ name: 'photos', path: '/repo/photos', passwordSecret: 'photos', jobs: ['photos', 'photos-prune'] }),
+        Repository.create({ name: 'main', path: '/repo/main', passwordSecret: 'main', jobs: ['docs', 'docs-check'] }),
+      ],
       jobs: [
-        job('photos', 'backup', '/repo/photos'),
-        job('photos-prune', 'forget', '/repo/photos'),
+        job('photos', 'backup', 'photos'),
+        job('photos-prune', 'forget', 'photos'),
         job('docs', 'backup'),
         job('docs-check', 'check'),
         Job.create({ name: 'restore' }),
@@ -49,6 +53,8 @@ describe('ControlService', () => {
         switch (method) {
           case 'GetStatus':
             return status;
+          case 'ListSecrets':
+            return ListSecretsResponse.create();
           case 'ListRuns':
             return ListRunsResponse.create({ runs: [] });
           default:
@@ -76,12 +82,17 @@ describe('ControlService', () => {
     expect(control.changes()).toBe(0);
   });
 
-  it('groups the jobs by repository and prefers a backup job to address it', async () => {
+  it('knows the repositories of the daemon and the jobs that work on them', async () => {
     await control.refresh(false);
-    expect(control.repositories()).toEqual([
-      { key: '/repo/photos', job: 'photos', jobs: ['photos', 'photos-prune'] },
-      { key: '/repo', job: 'docs', jobs: ['docs', 'docs-check'] },
-    ]);
+    expect(control.repositories().map((r) => r.name)).toEqual(['photos', 'main']);
+    expect(control.repositories()[0].jobs).toEqual(['photos', 'photos-prune']);
+  });
+
+  it('needs no setup while no repository waits for its password', async () => {
+    await control.refresh(false);
+    // No secret is stored, so the first repository waits for its password.
+    expect(control.missingSecret()).toBe('photos');
+    expect(control.needsSetup()).toBe(true);
   });
 
   it('flips the schedule of a job with the rest of its definition', async () => {
@@ -89,7 +100,7 @@ describe('ControlService', () => {
     const photos = control.definedJobs()[0];
     await control.setEnabled(photos, false);
     const update = calls.find((c) => c.method === 'UpdateJob');
-    expect(update?.params).toMatchObject({ name: 'photos', type: 'backup', repository: '/repo/photos', enabled: false });
+    expect(update?.params).toMatchObject({ name: 'photos', type: 'backup', repository: 'photos', enabled: false });
   });
 
   it('reloads snapshots after a backup or a prune finished, not after a check', async () => {

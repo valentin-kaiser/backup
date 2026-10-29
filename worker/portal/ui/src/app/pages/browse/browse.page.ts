@@ -31,7 +31,7 @@ export function breadcrumbs(path: string): Crumb[] {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BrowsePage {
-  private readonly control = inject(ControlService);
+  protected readonly control = inject(ControlService);
   private readonly router = inject(Router);
   private readonly restoreDialog = viewChild.required(RestoreDialogComponent);
 
@@ -42,8 +42,8 @@ export class BrowsePage {
 
   /** The snapshot id from the route. */
   readonly snapshot = input.required<string>();
-  /** A job of the repository, from the query string. */
-  readonly job = input<string | undefined>(undefined);
+  /** The name of the repository, from the query string. */
+  readonly repository = input<string | undefined>(undefined);
   /** The directory, from the query string. */
   readonly path = input<string | undefined>(undefined);
 
@@ -68,20 +68,20 @@ export class BrowsePage {
 
   constructor() {
     effect(() => {
-      const job = this.job() ?? '';
+      const repository = this.repository() ?? '';
       const snapshot = this.snapshot();
       const directory = this.directory();
-      untracked(() => void this.load(job, snapshot, directory));
+      untracked(() => void this.load(repository, snapshot, directory));
     });
     // The header shows when and where the snapshot was taken, the listing does not wait for it.
     effect(() => {
-      const job = this.job() ?? '';
+      const repository = this.repository() ?? '';
       const snapshot = this.snapshot();
       untracked(() => {
         const request = ++this.detailsRequest;
         this.details.set(null);
         this.control
-          .loadSnapshots(job)
+          .loadSnapshots(repository)
           .then((list) => {
             if (request === this.detailsRequest) {
               this.details.set(list.find((s) => s.id === snapshot || s.shortId === snapshot) ?? null);
@@ -96,12 +96,12 @@ export class BrowsePage {
     });
   }
 
-  private async load(job: string, snapshot: string, directory: string): Promise<void> {
+  private async load(repository: string, snapshot: string, directory: string): Promise<void> {
     const request = ++this.request;
     this.loading.set(true);
     this.filter.set('');
     try {
-      const response = await this.control.loadFiles(job, snapshot, directory);
+      const response = await this.control.loadFiles(repository, snapshot, directory);
       if (request === this.request) {
         this.files.set(response.files);
         this.truncated.set(response.truncated);
@@ -124,14 +124,17 @@ export class BrowsePage {
   }
 
   protected reload(): void {
-    void this.load(this.job() ?? '', this.snapshot(), this.directory());
+    void this.load(this.repository() ?? '', this.snapshot(), this.directory());
   }
 
   /** Restores a single entry, or the whole directory that is shown when no entry is given. */
   protected restore(entry?: FileNode): void {
     const snapshot = this.details() ?? Snapshot.create({ id: this.snapshot(), shortId: this.shortId() });
     const path = entry?.path ?? (this.directory() === '/' ? '' : this.directory());
-    this.restoreDialog().open(this.job() ?? '', snapshot, path);
+    const repository = this.control.repositories().find((r) => r.name === this.repository()) ?? this.control.repositories()[0];
+    if (repository) {
+      this.restoreDialog().open(repository, snapshot, path);
+    }
   }
 }
 

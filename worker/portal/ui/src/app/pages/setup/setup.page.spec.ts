@@ -10,7 +10,7 @@ describe('SetupPage', () => {
 
   beforeEach(() => {
     control = {
-      defaults: signal({ passwordSecret: 'backup' }),
+      missingSecret: signal('backup'),
       setSecret: vi.fn(async (_n: string, _v: string, generate: boolean) => (generate ? 'GENERATED-VALUE' : '')),
     };
     TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: ControlService, useValue: control }] });

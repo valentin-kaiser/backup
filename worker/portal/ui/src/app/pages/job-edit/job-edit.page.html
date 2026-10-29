@@ -281,6 +281,32 @@
     <section class="card">
       <h2>What it does</h2>
 
+      <div class="field">
+        <label for="repository">Repository</label>
+        <select
+          #repository
+          id="repository"
+          [attr.aria-invalid]="submitted() && errors().repository ? true : null"
+          (change)="set('repository', repository.value)"
+        >
+          <option value="" [selected]="!draft().repository">Choose a repository…</option>
+          @for (r of control.repositories(); track r.name) {
+            <option [value]="r.name" [selected]="r.name === draft().repository">{{ r.name }} ({{ r.path }})</option>
+          }
+          @if (draft().repository && !repositoryKnown()) {
+            <option [value]="draft().repository" selected>{{ draft().repository }} (unknown)</option>
+          }
+        </select>
+        @if (submitted() && errors().repository) {
+          <span class="field-error">{{ errors().repository }}</span>
+        } @else {
+          <span class="hint">
+            Where the snapshots are stored, with its password and mount check. Manage them under
+            <a routerLink="/repositories">Repositories</a>.
+          </span>
+        }
+      </div>
+
       @if (draft().type === 'backup') {
         <div class="field">
           <label for="source">Source directory</label>
@@ -290,12 +316,15 @@
             class="mono"
             [value]="draft().source"
             autocomplete="off"
-            [placeholder]="control.defaults()?.source || '/source'"
+            placeholder="/source"
+            [attr.aria-invalid]="submitted() && errors().source ? true : null"
             (input)="set('source', source.value)"
           />
-          <span class="hint">
-            The directory to back up. Empty uses the default{{ control.defaults()?.source ? ': ' + control.defaults()?.source : '' }}.
-          </span>
+          @if (submitted() && errors().source) {
+            <span class="field-error">{{ errors().source }}</span>
+          } @else {
+            <span class="hint">The directory to back up, as the daemon sees it.</span>
+          }
         </div>
       }
 
@@ -308,53 +337,6 @@
     <details class="card" [open]="advancedOpen()">
       <summary><h2>Advanced</h2></summary>
       <div class="grid">
-        @if (!isSync()) {
-        <div class="field">
-          <label for="repository">Repository</label>
-          <input
-            #repository
-            id="repository"
-            class="mono"
-            [value]="draft().repository"
-            autocomplete="off"
-            [placeholder]="control.defaults()?.repository || '/backup'"
-            (input)="set('repository', repository.value)"
-          />
-          <span class="hint">Where the snapshots are stored. Empty uses the default repository.</span>
-        </div>
-
-        <div class="field">
-          <label for="secret">Stored password</label>
-          <select #secret id="secret" (change)="set('passwordSecret', secret.value)">
-            <option value="" [selected]="!draft().passwordSecret">None, use the password file</option>
-            @for (s of control.secrets(); track s.name) {
-              <option [value]="s.name" [selected]="s.name === draft().passwordSecret">{{ s.name }}</option>
-            }
-            @if (draft().passwordSecret && !secretKnown()) {
-              <option [value]="draft().passwordSecret" selected>{{ draft().passwordSecret }} (unknown)</option>
-            }
-          </select>
-          <span class="hint">
-            A password kept encrypted on the daemon, managed under Secrets. It replaces the password file.
-          </span>
-        </div>
-
-        <div class="field">
-          <label for="password">Password file</label>
-          <input
-            #password
-            id="password"
-            class="mono"
-            [value]="draft().passwordFile"
-            [disabled]="!!draft().passwordSecret"
-            autocomplete="off"
-            [placeholder]="control.defaults()?.passwordFile || '/run/secrets/backup_password'"
-            (input)="set('passwordFile', password.value)"
-          />
-          <span class="hint">File with the password of the repository. Empty uses the default.</span>
-        </div>
-        }
-
         <div class="field">
           <label for="timeout">Timeout in minutes</label>
           <input

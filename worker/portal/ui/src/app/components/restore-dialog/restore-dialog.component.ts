@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 
-import { Snapshot } from '../../global/model/backup/api/v1/control';
+import { Repository, Snapshot } from '../../global/model/backup/api/v1/control';
 import { ControlService, message } from '../../global/services/control/control.service';
 import { formatTime } from '../../global/utils/format';
 import { IconComponent } from '../icon/icon.component';
@@ -25,17 +25,17 @@ export class RestoreDialogComponent {
   protected readonly busy = signal(false);
   /** Paths the restore starts with, e.g. the folder that was being looked at. */
   protected readonly include = signal('');
-  private job = '';
+  private repository = '';
   /** Counts the openings of the dialog, an answer that belongs to an earlier one is dropped. */
   private generation = 0;
 
-  /** Restores from the repository that the job works on, everything or only the paths in include. */
-  open(job: string, snapshot: Snapshot, include = ''): void {
+  /** Restores from a repository, everything or only the paths in include. */
+  open(repository: Repository, snapshot: Snapshot, include = ''): void {
     this.include.set(include);
-    const root = (this.control.defaults()?.restoreRoot || '/restore').replace(/\/+$/, '');
+    const root = (repository.restoreRoot || '/restore').replace(/\/+$/, '');
     this.generation++;
     this.busy.set(false);
-    this.job = job;
+    this.repository = repository.name;
     this.snapshot.set(snapshot);
     this.target.set(`${root}/${snapshot.shortId || snapshot.id.slice(0, 8)}`);
     this.error.set('');
@@ -65,7 +65,7 @@ export class RestoreDialogComponent {
     this.error.set('');
     try {
       const run = await this.control.restore({
-        job: this.job,
+        repository: this.repository,
         snapshot: snapshot.id,
         target: this.target().trim(),
         include: include

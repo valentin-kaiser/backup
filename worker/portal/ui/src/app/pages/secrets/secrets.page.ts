@@ -231,11 +231,11 @@ export class SecretsPage {
   }
 
   protected inUse(s: SecretInfo): boolean {
-    return s.jobs.length > 0 || s.defaultPassword;
+    return s.repositories.length > 0 || s.otherUsers.length > 0;
   }
 
   protected users(s: SecretInfo): string {
-    const names = [...s.jobs, ...(s.defaultPassword ? ['the default password'] : [])];
+    const names = [...s.repositories.map((r) => `repository ${r}`), ...s.otherUsers];
     return names.length ? names.join(', ') : 'nothing yet';
   }
 

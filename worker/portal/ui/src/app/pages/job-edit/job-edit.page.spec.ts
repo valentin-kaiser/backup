@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
-import { Job, JobDefinition } from '../../global/model/backup/api/v1/control';
+import { Job, JobDefinition, Repository } from '../../global/model/backup/api/v1/control';
 import { ControlService } from '../../global/services/control/control.service';
 import { JobEditPage } from './job-edit.page';
 
@@ -16,7 +16,7 @@ const existing = Job.create({
     schedule: '0 1 * * *',
     args: '--exclude-caches',
     source: '/photos',
-    repository: '/repo/photos',
+    repository: 'photos',
   }),
 });
 
@@ -32,7 +32,7 @@ describe('JobEditPage', () => {
     status: any;
     definedJobs: any;
     jobs: any;
-    defaults: any;
+    repositories: any;
   };
 
   function create(name?: string) {
@@ -56,7 +56,7 @@ describe('JobEditPage', () => {
       status: signal({}),
       definedJobs: signal([existing]),
       jobs: signal([existing, Job.create({ name: 'restore' })]),
-      defaults: signal({ source: '/src', repository: '/repo', passwordFile: '', restoreRoot: '/restore' }),
+      repositories: signal([Repository.create({ name: 'main', path: '/repo/main' }), Repository.create({ name: 'photos', path: '/repo/photos' })]),
     };
     TestBed.configureTestingModule({
       providers: [provideRouter([]), { provide: ControlService, useValue: control }],
@@ -92,7 +92,14 @@ describe('JobEditPage', () => {
     page.setNumber('timeoutMinutes', '-5');
     expect(page.errors().timeout).toBeTruthy();
     page.setNumber('timeoutMinutes', '30');
+    expect(page.valid()).toBe(false); // a backup job needs its repository and source
+    expect(page.errors().repository).toBeTruthy();
+    expect(page.errors().source).toBeTruthy();
+    page.set('repository', 'main');
+    page.set('source', '/src');
     expect(page.valid()).toBe(true);
+    page.set('repository', 'nope');
+    expect(page.errors().repository).toBeTruthy();
   });
 
   it('validates the paths of a sync job and saves its settings', async () => {
@@ -130,7 +137,6 @@ describe('JobEditPage', () => {
       checkAccess: true,
       force: true,
       repository: '',
-      passwordSecret: '',
     });
   });
 
@@ -183,6 +189,8 @@ describe('JobEditPage', () => {
     page.set('name', 'manual');
     page.set('enabled', false);
     page.set('schedule', '');
+    page.set('repository', 'main');
+    page.set('source', '/src');
     expect(page.valid()).toBe(true);
   });
 
@@ -210,16 +218,19 @@ describe('JobEditPage', () => {
     expect(page.submitted()).toBe(true);
 
     page.set('name', 'documents');
+    page.set('repository', 'main');
     page.set('source', ' /docs ');
     await page.save();
     expect(control.createJob).toHaveBeenCalledTimes(1);
-    expect(control.createJob.mock.calls[0][0]).toMatchObject({ name: 'documents', type: 'backup', source: '/docs', schedule: '0 2 * * *' });
+    expect(control.createJob.mock.calls[0][0]).toMatchObject({ name: 'documents', type: 'backup', repository: 'main', source: '/docs', schedule: '0 2 * * *' });
   });
 
   it('shows the reason when the daemon refuses the job', async () => {
     control.createJob.mockRejectedValueOnce(new Error('job "documents" already exists'));
     const { page } = create();
     page.set('name', 'documents');
+    page.set('repository', 'main');
+    page.set('source', '/docs');
     await page.save();
     expect(page.error()).toBe('job "documents" already exists');
     expect(page.saving()).toBe(false);
@@ -228,7 +239,7 @@ describe('JobEditPage', () => {
   it('loads an existing job once and keeps the name fixed', async () => {
     const { page, fixture, element } = create('photos');
     expect(page.isNew()).toBe(false);
-    expect(page.draft()).toMatchObject({ name: 'photos', schedule: '0 1 * * *', source: '/photos', repository: '/repo/photos' });
+    expect(page.draft()).toMatchObject({ name: 'photos', schedule: '0 1 * * *', source: '/photos', repository: 'photos' });
 
     // A refresh of the status must not overwrite what the user is typing.
     page.set('args', '--exclude-caches --one-file-system');
@@ -248,19 +259,19 @@ describe('JobEditPage', () => {
   });
 });
 
-describe('JobEditPage stored password', () => {
-  function setup() {
+describe('JobEditPage repository', () => {
+  function setup(repositories = [Repository.create({ name: 'docs', path: '/backup/docs' })]) {
     const control: any = {
       createJob: vi.fn(async () => undefined),
       updateJob: vi.fn(async () => undefined),
       loadSecrets: vi.fn(async () => undefined),
       loadPeers: vi.fn(async () => undefined),
       peers: signal([]),
-      secrets: signal([{ name: 'photos' }, { name: 'docs' }]),
+      secrets: signal([]),
       status: signal({}),
       definedJobs: signal([]),
       jobs: signal([]),
-      defaults: signal({ source: '/src', repository: '/repo', passwordFile: '', restoreRoot: '/restore' }),
+      repositories: signal(repositories),
     };
     TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: ControlService, useValue: control }] });
     const fixture = TestBed.createComponent(JobEditPage);
@@ -268,33 +279,39 @@ describe('JobEditPage stored password', () => {
     return { control, fixture, page: fixture.componentInstance as any, el: fixture.nativeElement as HTMLElement };
   }
 
-  it('offers the stored secrets', () => {
-    const { control, el } = setup();
-    expect(control.loadSecrets).toHaveBeenCalled();
-    const select = el.querySelector<HTMLSelectElement>('#secret')!;
-    expect([...select.options].map((o) => o.textContent!.trim())).toEqual(['None, use the password file', 'photos', 'docs']);
+  it('offers the repositories and picks the only one', () => {
+    const { el, page } = setup();
+    const select = el.querySelector<HTMLSelectElement>('#repository')!;
+    expect([...select.options].map((o) => o.textContent!.trim())).toEqual(['Choose a repository…', 'docs (/backup/docs)']);
+    expect(page.draft().repository).toBe('docs');
   });
 
-  it('saves the secret and drops the password file, the secret replaces it', async () => {
-    const { control, page, fixture } = setup();
+  it('leaves the choice to the user when there are several', () => {
+    const { page } = setup([
+      Repository.create({ name: 'docs', path: '/backup/docs' }),
+      Repository.create({ name: 'usb', path: '/backup/usb' }),
+    ]);
+    expect(page.draft().repository).toBe('');
+    expect(page.errors().repository).toBeTruthy();
+  });
+
+  it('sends the repository by name and has no password settings of its own', async () => {
+    const { control, page, el } = setup();
     page.set('name', 'nightly');
-    page.set('passwordFile', '/old/file');
-    page.set('passwordSecret', 'photos');
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('#password').disabled).toBe(true);
+    page.set('source', '/docs');
     await page.save();
-    const saved = control.createJob.mock.calls[0][0];
-    expect(saved.passwordSecret).toBe('photos');
-    expect(saved.passwordFile).toBe('');
+    expect(control.createJob.mock.calls[0][0]).toMatchObject({ name: 'nightly', repository: 'docs', source: '/docs' });
+    expect(el.querySelector('#secret')).toBeNull();
+    expect(el.querySelector('#password')).toBeNull();
   });
 
-  it('keeps the password file when no secret is chosen', async () => {
+  it('does not send a repository for a sync job', async () => {
     const { control, page } = setup();
-    page.set('name', 'nightly');
-    page.set('passwordFile', '/run/secrets/pw');
+    page.setType('sync');
+    page.set('name', 'mirror');
+    page.set('path1', '/sync/a');
+    page.set('path2', '/sync/b');
     await page.save();
-    const saved = control.createJob.mock.calls[0][0];
-    expect(saved.passwordFile).toBe('/run/secrets/pw');
-    expect(saved.passwordSecret).toBe('');
+    expect(control.createJob.mock.calls[0][0]).toMatchObject({ type: 'sync', repository: '' });
   });
 });

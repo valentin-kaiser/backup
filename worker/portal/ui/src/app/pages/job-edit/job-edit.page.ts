@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
 import { CronBuilderComponent } from '../../components/cron-builder/cron-builder.component';
@@ -23,9 +23,8 @@ interface Draft {
   timeoutMinutes: number;
   maxAgeHours: number;
   source: string;
+  /** Name of the repository a backup, forget or check job works on. */
   repository: string;
-  passwordFile: string;
-  passwordSecret: string;
   /** Sync jobs: the first directory, local. */
   path1: string;
   /** Sync jobs: the second directory when it is local. */
@@ -75,8 +74,6 @@ function blank(type = 'backup'): Draft {
     maxAgeHours: type === 'backup' ? 26 : 0,
     source: '',
     repository: '',
-    passwordFile: '',
-    passwordSecret: '',
     path1: '',
     path2: '',
     peer: '',
@@ -104,8 +101,6 @@ function fromDefinition(d: JobDefinition): Draft {
     maxAgeHours: d.maxAgeHours,
     source: d.source,
     repository: d.repository,
-    passwordFile: d.passwordFile,
-    passwordSecret: d.passwordSecret,
     path1: d.path1,
     path2: peer ? '' : d.path2,
     peer,
@@ -154,7 +149,7 @@ export class JobEditPage {
 
   protected readonly errors = computed(() => {
     const d = this.draft();
-    const errors: Partial<Record<'name' | 'schedule' | 'timeout' | 'maxAge' | 'path1' | 'path2' | 'maxDelete', string>> = {};
+    const errors: Partial<Record<'name' | 'schedule' | 'timeout' | 'maxAge' | 'path1' | 'path2' | 'maxDelete' | 'repository' | 'source', string>> = {};
     if (d.type === 'sync' && !d.owner) {
       if (!d.path1.trim().startsWith('/')) {
         errors.path1 = 'Enter an absolute path of this worker';
@@ -170,6 +165,14 @@ export class JobEditPage {
       }
       if (d.engine !== 'unison' && (!Number.isInteger(d.maxDeletePct) || d.maxDeletePct < 1 || d.maxDeletePct > 100)) {
         errors.maxDelete = 'Enter a percentage from 1 to 100';
+      }
+    }
+    if (d.type !== 'sync') {
+      if (!this.control.repositories().some((r) => r.name === d.repository)) {
+        errors.repository = 'Pick the repository the job works on';
+      }
+      if (d.type === 'backup' && !d.source.trim().startsWith('/')) {
+        errors.source = 'Enter the absolute path of the directory to back up';
       }
     }
     if (this.isNew()) {
@@ -195,12 +198,12 @@ export class JobEditPage {
   });
   protected readonly valid = computed(() => Object.keys(this.errors()).length === 0);
 
-  protected readonly secretKnown = computed(() => this.control.secrets().some((s) => s.name === this.draft().passwordSecret));
+  protected readonly repositoryKnown = computed(() => this.control.repositories().some((r) => r.name === this.draft().repository));
 
   /** Advanced settings are shown when the job uses any of them. */
   protected readonly advancedOpen = computed(() => {
     const d = this.draft();
-    return !!(d.repository || d.passwordFile || d.passwordSecret || d.timeoutMinutes);
+    return !!d.timeoutMinutes;
   });
 
   /** A mirrored job is changed at its owner: only its settings, not its paths. */
@@ -238,6 +241,13 @@ export class JobEditPage {
         this.draft.set(fromDefinition(definition));
       }
     });
+    // A new job has an obvious repository when there is only one. This runs after the form was filled.
+    effect(() => {
+      const repositories = this.control.repositories();
+      if (this.isNew() && repositories.length === 1 && !untracked(this.draft).repository) {
+        this.draft.update((draft) => (draft.type === 'sync' ? draft : { ...draft, repository: repositories[0].name }));
+      }
+    });
   }
 
   protected set<K extends keyof Draft>(key: K, value: Draft[K]): void {
@@ -272,6 +282,8 @@ export class JobEditPage {
         type,
         args: untouched ? SUGGESTED_ARGS[type] : draft.args,
         source: type === 'backup' ? draft.source : '',
+        // A repository is only used by restic jobs.
+        repository: type === 'sync' ? '' : draft.repository,
       };
     });
   }
@@ -294,10 +306,7 @@ export class JobEditPage {
       timeoutMinutes: d.timeoutMinutes,
       maxAgeHours: d.maxAgeHours,
       source: d.type === 'backup' ? d.source.trim() : '',
-      repository: d.repository.trim(),
-      // A secret replaces the password file.
-      passwordFile: d.passwordSecret ? '' : d.passwordFile.trim(),
-      passwordSecret: d.passwordSecret,
+      repository: d.repository,
       ...(d.type === 'sync' ? this.syncFields(d) : {}),
     });
     try {
@@ -310,14 +319,12 @@ export class JobEditPage {
     }
   }
 
-  /** The fields of a sync job. Sync jobs have no repository and no password. */
+  /** The fields of a sync job. Sync jobs have no repository. */
   private syncFields(d: Draft): Partial<JobDefinition> {
     const dir = d.peerDir.trim().replace(/^\/+|\/+$/g, '');
     return {
       source: '',
       repository: '',
-      passwordFile: '',
-      passwordSecret: '',
       path1: d.path1.trim(),
       path2: d.peer ? `peer:${d.peer}${dir ? '/' + dir : ''}` : d.path2.trim(),
       conflict: d.conflict,

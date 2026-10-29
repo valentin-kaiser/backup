@@ -16,7 +16,7 @@ describe('SecretsPage', () => {
     control = {
       error: signal(''),
       secrets: signal([
-        SecretInfo.create({ name: 'photos', jobs: ['backup', 'check'] }),
+        SecretInfo.create({ name: 'photos', repositories: ['main', 'usb'] }),
         SecretInfo.create({ name: 'spare' }),
       ]),
       loadSecrets: vi.fn(async () => undefined),
@@ -39,12 +39,12 @@ describe('SecretsPage', () => {
     return { fixture, page: fixture.componentInstance as any, el: fixture.nativeElement as HTMLElement };
   }
 
-  it('lists the secrets with the jobs that use them and never a value', () => {
+  it('lists the secrets with the repositories that use them and never a value', () => {
     const { el } = create();
     expect(control.loadSecrets).toHaveBeenCalled();
     const rows = [...el.querySelectorAll('tbody tr')].map((r) => r.textContent!.replace(/\s+/g, ' ').trim());
     expect(rows[0]).toContain('photos');
-    expect(rows[0]).toContain('backup, check');
+    expect(rows[0]).toContain('repository main, repository usb');
     expect(rows[1]).toContain('nothing yet');
   });
 

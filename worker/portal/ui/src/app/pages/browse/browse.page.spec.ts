@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
-import { FileNode, FileType, Snapshot } from '../../global/model/backup/api/v1/control';
+import { FileNode, FileType, Repository, Snapshot } from '../../global/model/backup/api/v1/control';
 import { ListFilesResponse } from '../../global/model/backup/api/v1/control_service';
 import { ControlService } from '../../global/services/control/control.service';
 import { BrowsePage, breadcrumbs } from './browse.page';
@@ -22,7 +22,7 @@ describe('breadcrumbs', () => {
 });
 
 describe('BrowsePage', () => {
-  let control: { loadFiles: any; loadSnapshots: any; defaults: any; restore: any };
+  let control: { loadFiles: any; loadSnapshots: any; repositories: any; restore: any };
 
   function create(inputs: Record<string, string> = {}) {
     const fixture = TestBed.createComponent(BrowsePage);
@@ -49,14 +49,14 @@ describe('BrowsePage', () => {
         }),
       ),
       loadSnapshots: vi.fn(async () => [Snapshot.create({ id: 'abcdef0123456789', shortId: 'abcdef01', hostname: 'nas', paths: ['/data'], time: new Date() })]),
-      defaults: signal({ restoreRoot: '/restore' }),
+      repositories: signal([Repository.create({ name: 'photos', path: '/repo/photos', restoreRoot: '/restore' })]),
       restore: vi.fn(),
     };
     TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: ControlService, useValue: control }] });
   });
 
   it('lists the root of the snapshot with sizes and the snapshot details', async () => {
-    const { fixture, element } = create({ job: 'photos' });
+    const { fixture, element } = create({ repository: 'photos' });
     await settle(fixture);
     expect(control.loadFiles).toHaveBeenCalledWith('photos', 'abcdef0123456789', '/');
     const rows = Array.from(element.querySelectorAll('tbody tr')).map((r) => r.textContent?.replace(/\s+/g, ' ').trim());
@@ -70,7 +70,7 @@ describe('BrowsePage', () => {
   });
 
   it('reads the folder from the query string and shows where it is', async () => {
-    const { fixture, element } = create({ job: 'photos', path: '/data/2024/' });
+    const { fixture, element } = create({ repository: 'photos', path: '/data/2024/' });
     await settle(fixture);
     expect(control.loadFiles).toHaveBeenLastCalledWith('photos', 'abcdef0123456789', '/data/2024');
     expect(Array.from(element.querySelectorAll('.crumbs .link')).map((b) => b.textContent?.trim())).toEqual(['/', 'data']);
@@ -79,7 +79,7 @@ describe('BrowsePage', () => {
   });
 
   it('opens a folder by changing the path in the URL', async () => {
-    const { fixture, element } = create({ job: 'photos' });
+    const { fixture, element } = create({ repository: 'photos' });
     await settle(fixture);
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     (element.querySelector('.name button') as HTMLElement).click();
@@ -101,14 +101,14 @@ describe('BrowsePage', () => {
   });
 
   it('starts a restore of one entry or of the folder in view', async () => {
-    const { fixture, page } = create({ job: 'photos', path: '/data' });
+    const { fixture, page } = create({ repository: 'photos', path: '/data' });
     await settle(fixture);
     const open = vi.fn();
     vi.spyOn(page, 'restoreDialog').mockReturnValue({ open } as any);
     page.restore(node('b.txt', '/data/b.txt', FileType.FILE_TYPE_FILE));
-    expect(open).toHaveBeenLastCalledWith('photos', expect.objectContaining({ id: 'abcdef0123456789' }), '/data/b.txt');
+    expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'photos' }), expect.objectContaining({ id: 'abcdef0123456789' }), '/data/b.txt');
     page.restore();
-    expect(open).toHaveBeenLastCalledWith('photos', expect.anything(), '/data');
+    expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'photos' }), expect.anything(), '/data');
   });
 
   it('tells why a folder could not be read and tries again', async () => {

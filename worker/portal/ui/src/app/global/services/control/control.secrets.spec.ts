@@ -29,7 +29,7 @@ describe('ControlService secrets', () => {
         }
         switch (method) {
           case 'ListSecrets':
-            return ListSecretsResponse.create({ secrets: [SecretInfo.create({ name: 'photos', jobs: ['backup'] })] });
+            return ListSecretsResponse.create({ secrets: [SecretInfo.create({ name: 'photos', repositories: ['main'] })] });
           case 'SetSecret':
             return SetSecretResponse.create({ secret: SecretInfo.create({ name: params.name }), generatedValue: params.generate ? 'generated-123' : '' });
           case 'ChangeRepositoryPassword':

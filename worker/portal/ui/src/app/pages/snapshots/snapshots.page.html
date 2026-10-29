@@ -21,20 +21,20 @@
   </div>
 } @else {
 
-<!--  @if (control.repositories().length > 1) {
+  @if (control.repositories().length > 1) {
     <div class="repositories" role="tablist" aria-label="Repositories">
-      @for (repository of control.repositories(); track repository.key) {
+      @for (repository of control.repositories(); track repository.name) {
         <button
           type="button"
           role="tab"
           class="repository"
-          [class.active]="repository.key === selected()?.key"
-          [attr.aria-selected]="repository.key === selected()?.key"
+          [class.active]="repository.name === selected()?.name"
+          [attr.aria-selected]="repository.name === selected()?.name"
           (click)="choose(repository)"
         >
           <app-icon name="folder" />
           <span>
-            <strong class="mono">{{ repository.key }}</strong>
+            <strong>{{ repository.name }}</strong>
             <small>{{ repository.jobs.join(', ') }}</small>
           </span>
         </button>
@@ -42,7 +42,7 @@
     </div>
   } @else {
     <p class="repository-line">
-      <app-icon name="folder" /> <span class="mono">{{ selected()?.key }}</span>
+      <app-icon name="folder" /> <strong>{{ selected()?.name }}</strong> <span class="mono muted">{{ selected()?.path }}</span>
       <span class="muted">used by {{ selected()?.jobs?.join(', ') }}</span>
     </p>
   }
@@ -56,7 +56,7 @@
       </div>
       <button type="button" class="secondary small push" (click)="reload()">Try again</button>
     </div>
-  } -->
+  }
 
   @if (stats(); as stats) {
     <section class="tiles" aria-label="Repository">
@@ -113,7 +113,7 @@
           @for (snapshot of shown(); track snapshot.id) {
             <tr>
               <td class="mono strong">
-                <a [routerLink]="['/snapshots', snapshot.id]" [queryParams]="{ job: selected()?.job }" title="Browse the files">{{ snapshot.shortId }}</a>
+                <a [routerLink]="['/snapshots', snapshot.id]" [queryParams]="{ repository: selected()?.name }" title="Browse the files">{{ snapshot.shortId }}</a>
               </td>
               <td [title]="formatTime(snapshot.time)">{{ formatRelative(snapshot.time) }}</td>
               <td>{{ snapshot.hostname }}</td>
@@ -125,7 +125,7 @@
               </td>
               <td class="right">
                 <div class="row-actions">
-                <a class="button ghost small" [routerLink]="['/snapshots', snapshot.id]" [queryParams]="{ job: selected()?.job }">
+                <a class="button ghost small" [routerLink]="['/snapshots', snapshot.id]" [queryParams]="{ repository: selected()?.name }">
                   <app-icon name="folder" /> Browse
                 </a>
                 <button type="button" class="secondary small" (click)="restore(snapshot)">

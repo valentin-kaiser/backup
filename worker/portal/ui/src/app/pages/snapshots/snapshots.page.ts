@@ -14,8 +14,8 @@ import { RouterLink } from '@angular/router';
 
 import { IconComponent } from '../../components/icon/icon.component';
 import { RestoreDialogComponent } from '../../components/restore-dialog/restore-dialog.component';
-import { RepositoryStats, Snapshot } from '../../global/model/backup/api/v1/control';
-import { ControlService, Repository, message } from '../../global/services/control/control.service';
+import { Repository, RepositoryStats, Snapshot } from '../../global/model/backup/api/v1/control';
+import { ControlService, message } from '../../global/services/control/control.service';
 import { formatBytes, formatRelative, formatTime } from '../../global/utils/format';
 
 /** Nothing else changes a repository, a slow poll only catches changes made by other tools. */
@@ -39,8 +39,8 @@ export class SnapshotsPage {
   protected readonly formatTime = formatTime;
   protected readonly formatRelative = formatRelative;
 
-  /** A job of the repository to show, from the query string. */
-  readonly job = input<string | undefined>(undefined);
+  /** The name of the repository to show, from the query string. */
+  readonly repository = input<string | undefined>(undefined);
   private readonly chosen = signal<string | undefined>(undefined);
 
   protected readonly snapshots = signal<Snapshot[] | null>(null);
@@ -52,11 +52,11 @@ export class SnapshotsPage {
   /** Repositories whose statistics are being scanned. A scan reads the whole repository and can outlast a refresh. */
   private readonly scanning = new Set<string>();
 
-  /** The repository in view: the one of the job in the URL, else the first. */
+  /** The repository in view: the one named in the URL, else the first. */
   protected readonly selected = computed<Repository | undefined>(() => {
     const repositories = this.control.repositories();
-    const job = this.chosen() ?? this.job();
-    return repositories.find((repo) => job && repo.jobs.includes(job)) ?? repositories[0];
+    const name = this.chosen() ?? this.repository();
+    return repositories.find((repo) => repo.name === name) ?? repositories[0];
   });
 
   protected readonly shown = computed(() => {
@@ -88,7 +88,7 @@ export class SnapshotsPage {
     this.loading.set(true);
     try {
       // The list comes first, the statistics scan the whole repository and can take long.
-      const snapshots = await this.control.loadSnapshots(repository.job);
+      const snapshots = await this.control.loadSnapshots(repository.name);
       if (request === this.request) {
         this.snapshots.set(snapshots);
         this.error.set('');
@@ -108,28 +108,28 @@ export class SnapshotsPage {
 
   /** Scans the statistics of a repository, unless a scan of it is already running, then that one delivers. */
   private async scan(repository: Repository): Promise<void> {
-    if (this.scanning.has(repository.key)) {
+    if (this.scanning.has(repository.name)) {
       return;
     }
-    this.scanning.add(repository.key);
+    this.scanning.add(repository.name);
     try {
-      const stats = await this.control.loadStats(repository.job).catch(() => null);
-      if (this.selected()?.key === repository.key) {
+      const stats = await this.control.loadStats(repository.name).catch(() => null);
+      if (this.selected()?.name === repository.name) {
         this.stats.set(stats);
       }
     } finally {
-      this.scanning.delete(repository.key);
+      this.scanning.delete(repository.name);
     }
   }
 
   protected choose(repository: Repository): void {
-    if (repository.key === this.selected()?.key) {
+    if (repository.name === this.selected()?.name) {
       return;
     }
     this.snapshots.set(null);
     this.stats.set(null);
     this.error.set('');
-    this.chosen.set(repository.job);
+    this.chosen.set(repository.name);
   }
 
   protected reload(): void {
@@ -139,7 +139,7 @@ export class SnapshotsPage {
   protected restore(snapshot: Snapshot): void {
     const repository = this.selected();
     if (repository) {
-      this.restoreDialog().open(repository.job, snapshot);
+      this.restoreDialog().open(repository, snapshot);
     }
   }
 }

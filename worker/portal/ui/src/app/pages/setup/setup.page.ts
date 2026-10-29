@@ -172,7 +172,7 @@ export class SetupPage {
   readonly done = output<void>();
 
   protected readonly step = signal<Step>('password');
-  protected readonly secretName = computed(() => this.control.defaults()?.passwordSecret ?? '');
+  protected readonly secretName = computed(() => this.control.missingSecret());
 
   protected readonly generate = signal(true);
   protected readonly value = signal('');

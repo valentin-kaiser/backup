@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
 import { App } from './app';
-import { ControlStatus, Defaults, Job, JobDefinition } from './global/model/backup/api/v1/control';
+import { ControlStatus, Job, JobDefinition, Repository } from './global/model/backup/api/v1/control';
 import { ListRunsResponse, ListSecretsResponse } from './global/model/backup/api/v1/control_service';
 import { AuthService } from './global/services/auth/auth.service';
 import { ControlService } from './global/services/control/control.service';
@@ -18,7 +18,7 @@ describe('App on a fresh installation', () => {
       call: vi.fn(async (_s: string, method: string) => {
         switch (method) {
           case 'GetStatus':
-            return ControlStatus.create({ defaults: Defaults.create({ passwordSecret: 'backup' }), jobs: [Job.create({ name: 'backup', type: 'backup', definition: JobDefinition.create({ name: 'backup', type: 'backup', enabled: true, schedule: '0 2 * * *' }) })] });
+            return ControlStatus.create({ repositories: [Repository.create({ name: 'main', path: '/backup/main', passwordSecret: 'backup' })], jobs: [Job.create({ name: 'backup', type: 'backup', definition: JobDefinition.create({ name: 'backup', type: 'backup', enabled: true, schedule: '0 2 * * *' }) })] });
           case 'ListRuns':
             return ListRunsResponse.create();
           case 'ListSecrets':
