@@ -8,7 +8,7 @@ require (
 	github.com/valentin-kaiser/go-core v1.12.3
 	golang.org/x/term v0.47.0
 	google.golang.org/protobuf v1.36.12
-	modernc.org/sqlite v1.61.0
+	modernc.org/sqlite v1.61.1
 )
 
 require (
